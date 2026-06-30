@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.portalhost.app'
+version = '1.1.0'
+
+android {
+  namespace "expo.modules.serverprocessmodule"
+  defaultConfig {
+    versionCode 1
+    versionName "1.1.0"
+  }
+}

@@ -20,9 +20,9 @@ export function isServerRunning(): Promise<boolean> {
 }
 
 export function addStdoutListener(cb: (data: string) => void): EventSubscription {
-  return NativeModule.addListener("onStdout", cb);
+  return NativeModule.addListener("onStdout", (event: { data: string }) => cb(event.data));
 }
 
 export function addExitListener(cb: (code: number) => void): EventSubscription {
-  return NativeModule.addListener("onExit", cb);
+  return NativeModule.addListener("onExit", (event: { code: number }) => cb(event.code));
 }

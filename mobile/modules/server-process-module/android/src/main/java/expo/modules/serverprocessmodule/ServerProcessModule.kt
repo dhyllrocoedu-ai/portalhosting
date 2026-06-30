@@ -12,9 +12,12 @@ class ServerProcessModule : Module() {
     Name("ServerProcessModule")
 
     AsyncFunction("startProcess") { jarPath: String, args: Array<String> ->
-      val proc = ProcessBuilder("java", *args)
+      val cmd = args.toList()
+      val javaPath = cmd.firstOrNull() ?: "java"
+      val javaArgs = cmd.drop(1).toTypedArray()
+      val proc = ProcessBuilder(javaPath, *javaArgs)
         .directory(File(jarPath).parentFile)
-        .redirectErrorStream(false)
+        .redirectErrorStream(true)
         .start()
       process = proc
 
@@ -22,17 +25,7 @@ class ServerProcessModule : Module() {
         try {
           proc.inputStream.bufferedReader().use { reader ->
             reader.lines().forEach { line ->
-              sendEvent("onStdout", line)
-            }
-          }
-        } catch (_: IOException) {}
-      }.apply { isDaemon = true }.start()
-
-      Thread {
-        try {
-          proc.errorStream.bufferedReader().use { reader ->
-            reader.lines().forEach { line ->
-              sendEvent("onStderr", line)
+              sendEvent("onStdout", mapOf("data" to line))
             }
           }
         } catch (_: IOException) {}
@@ -41,7 +34,7 @@ class ServerProcessModule : Module() {
       Thread {
         try {
           val exitCode = proc.waitFor()
-          sendEvent("onExit", exitCode)
+          sendEvent("onExit", mapOf("code" to exitCode))
           process = null
         } catch (_: InterruptedException) {}
       }.apply { isDaemon = true }.start()
@@ -73,6 +66,6 @@ class ServerProcessModule : Module() {
       process?.isAlive ?: false
     }
 
-    Events("onStdout", "onStderr", "onExit")
+    Events("onStdout", "onExit")
   }
 }
