@@ -39,5 +39,10 @@ yarn-error.*
 example
 
 # generated native folders
-/ios
-/android
+mobile/ios/
+mobile/android/
+
+# monorepo - ignore nested node_modules
+mobile/node_modules/
+desktop-agent/node_modules/
+shared/node_modules/
