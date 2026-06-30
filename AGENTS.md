@@ -56,6 +56,9 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 - **Fixed**: `Cannot find native module 'ServerProcessModule'` crash — must run `npx expo prebuild --clean` after module changes to regenerate `android/` with proper autolinking
 - Release APK: `PortalHost.apk` (copied to repo root)
 
+## Critical Build Note
+- **Always run `npx expo prebuild --clean` before building** if you've added/modified native modules or bumped the version in `app.json`. The `mobile/android/` dir is gitignored and must be regenerated to pick up autolinking changes.
+
 ## Critical Context
 - `mobile/android/` is gitignored (standard Expo), but `mobile/modules/server-process-module/` is the live source
 - If `expo prebuild --clean` runs, the old `android/` dir is regenerated; the module lives in `modules/` so it's always picked up by autolinking
