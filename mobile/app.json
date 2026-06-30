@@ -18,15 +18,15 @@
       "package": "com.portalhost.app",
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/portal_host_icon.png",
+        "backgroundImage": "./assets/images/portal_host_icon.png",
+        "monochromeImage": "./assets/images/portal_host_icon.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/portal_host_icon.png"
     },
     "plugins": [
       "expo-router",

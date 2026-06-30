@@ -66,16 +66,6 @@ export function useProcessEvents() {
       }
     });
 
-    serverManager.onStderr((data) => {
-      if (!mounted.current) return;
-      useConsoleStore.getState().addLog({
-        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        timestamp: Date.now(),
-        message: data,
-        level: "error",
-      });
-    });
-
     serverManager.onExit((_code) => {
       if (!mounted.current) return;
       stopUptimeCounter();

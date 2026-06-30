@@ -88,9 +88,10 @@ export default function SettingsScreen() {
       </Section>
 
       <Section title="Server Config">
-        <Row label="Java Path">
+        <View style={styles.javaPathSection}>
+          <Text style={styles.javaPathLabel}>Java Path</Text>
           <TextInput
-            style={styles.input}
+            style={styles.javaPathInput}
             value={javaPath}
             onChangeText={setJavaPath}
             placeholder='/data/data/com.termux/files/usr/bin/java'
@@ -98,7 +99,7 @@ export default function SettingsScreen() {
             autoCapitalize="none"
             autoCorrect={false}
           />
-        </Row>
+        </View>
         <Row label="Auto-start">
           <Switch
             value={autoStart}
@@ -138,7 +139,7 @@ export default function SettingsScreen() {
 
       <Section title="About">
         <Row label="Version">
-          <Text style={styles.valueText}>1.0.0</Text>
+          <Text style={styles.valueText}>1.1.0</Text>
         </Row>
         <Row label="Platform">
           <Text style={styles.valueText}>On-Device Server</Text>
@@ -248,5 +249,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  javaPathSection: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceLight,
+  },
+  javaPathLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: "600",
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+  },
+  javaPathInput: {
+    backgroundColor: colors.surfaceLight,
+    color: colors.text,
+    fontSize: fontSize.sm,
+    fontFamily: "monospace",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
   },
 });
