@@ -89,11 +89,12 @@ export const useServerStore = create<ServerState>((set, get) => ({
     }),
 
   startServer: async () => {
-    const { jarPath, ramMB, serverDir, javaPath } = get();
-    if (!jarPath || !serverDir) return;
+    const { jarPath: rawJarPath, ramMB, serverDir, javaPath } = get();
+    if (!rawJarPath || !serverDir) return;
     set({ status: "starting" });
     try {
       await fileManager.writeEula(serverDir);
+      const jarPath = rawJarPath.replace(/^file:\/\//, "");
       await serverManager.startServer(jarPath, javaPath, [
         "-Xms512M",
         `-Xmx${ramMB}M`,
