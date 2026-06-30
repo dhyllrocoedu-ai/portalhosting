@@ -22,7 +22,7 @@ class ServerProcessModule : Module() {
         try {
           proc.inputStream.bufferedReader().use { reader ->
             reader.lines().forEach { line ->
-              sendEvent("onStdout", line)
+              sendEvent("onStdout", mapOf("data" to line))
             }
           }
         } catch (_: IOException) {}
@@ -32,7 +32,7 @@ class ServerProcessModule : Module() {
         try {
           proc.errorStream.bufferedReader().use { reader ->
             reader.lines().forEach { line ->
-              sendEvent("onStderr", line)
+              sendEvent("onStderr", mapOf("data" to line))
             }
           }
         } catch (_: IOException) {}
@@ -41,7 +41,7 @@ class ServerProcessModule : Module() {
       Thread {
         try {
           val exitCode = proc.waitFor()
-          sendEvent("onExit", exitCode)
+          sendEvent("onExit", mapOf("exitCode" to exitCode))
           process = null
         } catch (_: InterruptedException) {}
       }.apply { isDaemon = true }.start()
