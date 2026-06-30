@@ -53,6 +53,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 
 ## Key Changes in v1.1.2 (this build)
 - **Version bump** to 1.1.2
+- **Fixed**: `Cannot find native module 'ServerProcessModule'` crash — must run `npx expo prebuild --clean` after module changes to regenerate `android/` with proper autolinking
 - Release APK: `PortalHost.apk` (copied to repo root)
 
 ## Critical Context
