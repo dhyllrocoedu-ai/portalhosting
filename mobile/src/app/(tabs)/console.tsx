@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity } from "react-native";
-import { useState } from "react";
+import { View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity, Platform } from "react-native";
+import { useState, useRef, useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors, spacing, fontSize, borderRadius } from "../../constants/theme";
 import { useConsoleStore } from "../../stores/consoleStore";
 
@@ -13,6 +14,17 @@ const levelColors: Record<string, string> = {
 export default function ConsoleScreen() {
   const { logs, isPaused, filter, clearLogs, setPaused, setFilter } = useConsoleStore();
   const [command, setCommand] = useState("");
+  const listRef = useRef<FlatList>(null);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!isPaused && logs.length > 0) {
+      const timer = setTimeout(() => {
+        listRef.current?.scrollToEnd({ animated: true });
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [logs.length, isPaused]);
 
   const filteredLogs = filter
     ? logs.filter((l) => l.message.toLowerCase().includes(filter.toLowerCase()))
@@ -25,7 +37,7 @@ export default function ConsoleScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: Platform.OS === "android" ? insets.bottom : 0 }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Console</Text>
         <View style={styles.toolbar}>
@@ -50,6 +62,7 @@ export default function ConsoleScreen() {
       </View>
 
       <FlatList
+        ref={listRef}
         data={filteredLogs}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => {
@@ -67,6 +80,11 @@ export default function ConsoleScreen() {
         style={styles.logList}
         contentContainerStyle={styles.logContent}
         windowSize={10}
+        onContentSizeChange={() => {
+          if (!isPaused) {
+            listRef.current?.scrollToEnd({ animated: false });
+          }
+        }}
       />
 
       <View style={styles.inputBar}>

@@ -1,64 +1,73 @@
-import { NativeModules } from "react-native";
+import { NativeModules, NativeEventEmitter } from "react-native";
 
-const { ServerProcessModule } = NativeModules;
+const { ServerProcessModule } = NativeModules as {
+  ServerProcessModule?: {
+    startProcess: (jarPath: string, args: string[]) => Promise<void>;
+    stopProcess: () => Promise<void>;
+    writeStdin: (command: string) => Promise<void>;
+    isRunning: () => Promise<boolean>;
+  };
+};
 
-let _stdoutCallback: ((data: string) => void) | null = null;
-let _stderrCallback: ((data: string) => void) | null = null;
-let _exitCallback: ((code: number) => void) | null = null;
+const hasModule = !!ServerProcessModule;
+
+let eventEmitter: NativeEventEmitter | null = null;
+if (hasModule) {
+  eventEmitter = new NativeEventEmitter(ServerProcessModule as any);
+}
+
+let stdoutSub: any = null;
+let stderrSub: any = null;
+let exitSub: any = null;
+
+function stripFileScheme(path: string): string {
+  return path.replace(/^file:\/\//, "");
+}
 
 export const serverManager = {
-  async startServer(jarPath: string, javaArgs: string[]): Promise<void> {
-    if (!ServerProcessModule) {
-      console.warn("ServerProcessModule not available (platform not supported)");
-      return;
+  async startServer(jarPath: string, javaPath: string, javaArgs: string[]): Promise<void> {
+    if (!hasModule || !ServerProcessModule) {
+      throw new Error("ServerProcessModule not available (platform not supported)");
     }
-    await ServerProcessModule.startProcess(jarPath, javaArgs);
+    await ServerProcessModule.startProcess(stripFileScheme(jarPath), [javaPath, ...javaArgs]);
   },
 
   async stopServer(): Promise<void> {
-    if (!ServerProcessModule) return;
+    if (!hasModule || !ServerProcessModule) return;
     await ServerProcessModule.stopProcess();
   },
 
   async sendCommand(command: string): Promise<void> {
-    if (!ServerProcessModule) return;
+    if (!hasModule || !ServerProcessModule) return;
     await ServerProcessModule.writeStdin(command + "\n");
   },
 
   async isRunning(): Promise<boolean> {
-    if (!ServerProcessModule) return false;
-    return await ServerProcessModule.isRunning();
+    if (!hasModule || !ServerProcessModule) return false;
+    return ServerProcessModule.isRunning();
   },
 
   onStdout(callback: (data: string) => void): void {
-    _stdoutCallback = callback;
+    stdoutSub?.remove();
+    if (eventEmitter) stdoutSub = eventEmitter.addListener("onStdout", callback);
   },
 
   onStderr(callback: (data: string) => void): void {
-    _stderrCallback = callback;
+    stderrSub?.remove();
+    if (eventEmitter) stderrSub = eventEmitter.addListener("onStderr", callback);
   },
 
   onExit(callback: (code: number) => void): void {
-    _exitCallback = callback;
+    exitSub?.remove();
+    if (eventEmitter) exitSub = eventEmitter.addListener("onExit", callback);
   },
 
   removeListeners(): void {
-    _stdoutCallback = null;
-    _stderrCallback = null;
-    _exitCallback = null;
+    stdoutSub?.remove();
+    stderrSub?.remove();
+    exitSub?.remove();
+    stdoutSub = null;
+    stderrSub = null;
+    exitSub = null;
   },
 };
-
-export function handleProcessEvent(type: string, data?: string, code?: number): void {
-  switch (type) {
-    case "stdout":
-      _stdoutCallback?.(data ?? "");
-      break;
-    case "stderr":
-      _stderrCallback?.(data ?? "");
-      break;
-    case "exit":
-      _exitCallback?.(code ?? 0);
-      break;
-  }
-}

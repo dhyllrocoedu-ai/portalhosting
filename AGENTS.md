@@ -6,62 +6,60 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 
 ## Architecture
 - **Monorepo** with npm workspaces: `mobile/`, `desktop-agent/`, `shared/`
-- **Mobile** (React Native / Expo 56 / React 19) — primary app
-- **Desktop agent** (Express + Socket.IO) — spawns Java process on PC, optional
+- **Mobile** (React Native / Expo 56 / React 19) — primary app, Android-first
+- **Desktop agent** (Express + Socket.IO) — spawns Java process on PC, optional (v1.5+)
 
 ## Key Decisions
-- **No cloud backend needed**: Modrinth API (free, no key) for content data, playit.gg (free API or agent) for tunnel, local filesystem for server files
-- **Android** runs servers locally (same architecture as desktop agent) — app spawns Java process via native module; also handles playit.gg agent
-- **iOS/Web** connect to a remote desktop agent (Apple blocks JIT, can't run Java)
-- **No QR/pairing flow**: App opens directly to dashboard (splash → redirect)
-- **5 tabs**: Dashboard, Console, Players, Content (Modrinth), Settings
-- **Cross-platform icons**: Custom `Icon` component (uses expo-symbols/SFSymbols on iOS, text fallback on web/Android)
-- **SafeAreaView** on both iOS and Android to avoid phone nav overlap
-- **Version filtering**: Only shows 1.21+ in server setup picker
+- **No cloud backend**: Server runs locally on Android via native Kotlin `ProcessBuilder` module
+- **Android only** for local servers (needs Java — Termux or similar); iOS/Web connect to remote desktop agent (v1.5+)
+- **No Modrinth content, no playit.gg tunnel**: removed to keep scope minimal for v1
+- **4 tabs**: Dashboard, Console, Players, Settings
+- **Server creation**: User picks a .jar file via document picker (Paper/Vanilla/Fabric), configures name/RAM/properties, accepts EULA
+- **Console**: Real-time streaming from server stdout/stderr via `NativeEventEmitter`
+- **Player tracking**: Parses `joined the game` / `left the game` from log output (best-effort)
+- **Uptime counter**: Interval increments every second while status is `"online"`
+
+## Server Runner (Android)
+- **Native module**: `android/app/src/main/java/com/portalhost/app/server/ServerProcessModule.kt`
+- `ReactContextBaseJavaModule` subclass using `ProcessBuilder` to spawn Java
+- Stdin/stdout/stderr piped via daemon threads; events emitted via `DeviceEventEmitter`
+- stderr merged into stdout (`redirectErrorStream(true)`) for simpler console display
+- Java path is configurable in Settings (default `"java"` — install Termux Java for device use)
+- `file://` scheme stripped from jarPath before passing to native module
 
 ## Server Setup Flow
-1. User taps "Create Server" (dashboard CTA or settings)
-2. 7-step wizard: Welcome → Pick Type (Paper/Fabric/Vanilla) → Pick Version (1.21+ only) → Pick Build (Paper only) → Configure (name, RAM, online-mode, EULA) → Download → Done
-3. Server jar downloaded from official API (PaperMC API v2, Fabric meta, Mojang launcher meta)
-4. Server stored in app document directory
+1. User taps "Create Server" (dashboard or settings)
+2. 5-step form: Pick JAR → Name → RAM → Config → EULA
+3. User provides their own server .jar file via document picker
+4. EULA and server.properties written to server directory before first start
+5. Server stored in app document directory (`FileSystem.documentDirectory/servers/<name>/`)
 
-## Server Runner
-- **Android**: Native module (Kotlin `ProcessBuilder`) spawns Java, pipes I/O, monitors process — matches desktop agent pattern exactly
-- **Remote**: Socket.IO connection to desktop agent
+## Key Changes in v1.1.0
+- **Fixed**: `file://` prefix on jarPath caused native module to fail silently (status showed "online" but nothing ran)
+- **Added**: Configurable Java path in Settings (for Termux users: `/data/data/com.termux/files/usr/bin/java`)
+- **Added**: `redirectErrorStream(true)` so stderr appears in console
+- **Fixed**: `startServer` now throws if native module is unavailable (status correctly shows "offline")
+- **Icon**: Updated to `portal_host_icon.png`
+- APK renamed to `PortalHost.apk`
 
-## playit.gg Integration
-- **Android**: App can download and run the playit.gg agent binary natively
-- **PC**: Desktop agent runs the playit agent
-- **Manual**: User enters tunnel address in settings, displayed on dashboard
-- **Tunnel Terminal**: Dedicated screen showing agent output, start/stop, address display
-- Address displayed on dashboard with tap-to-copy
+## Critical Context
+- `mobile/android/` is gitignored (standard Expo), but `android/app/src/main/java/com/portalhost/app/server/` is un-ignored via `.gitignore` negation to preserve the custom native module
+- If `expo prebuild` regenerates the android directory, the native module files in `.../server/` must be recreated (run `expo prebuild --clean` then manually restore the `server/` directory)
+- Release APK: `mobile/android/app/build/outputs/apk/release/PortalHost.apk`
+- Build: `cd mobile/android; .\gradlew.bat assembleRelease`
+- Version: `1.1.0`, package: `com.portalhost.app`
+- The app has no production keystore; release builds use `signingConfig signingConfigs.debug`
+- `expo-file-system/legacy` import used (SDK 56 has new File/Directory API)
 
-## Content (Modrinth)
-- `contentStore.ts` fetches from `api.modrinth.com/v2/search` with facets for version+loader compatibility
-- Search by query, filter by server version/type, sort by downloads
-- Loading/error states in content screen
-
-## Relevant API Endpoints
-- **PaperMC**: `GET https://api.papermc.io/v2/projects/paper` → versions list; `versions/{v}/builds` → builds with download URLs
-- **Fabric**: `GET https://meta.fabricmc.net/v2/versions/game` + `/versions/loader/{v}` → server jar URL (redirect)
-- **Vanilla**: `GET https://launchermeta.mojang.com/mc/game/version_manifest_v2.json` → version manifest with download URLs
-- **Modrinth**: `GET https://api.modrinth.com/v2/search?facets=[["project_type:mod"],["categories:paper"],["versions:1.21.4"]]&limit=30&index=downloads`
-- **playit.gg API**: `POST/GET/DELETE https://api.playit.gg/v1/account/tunnels` (Bearer token auth)
-
-## Web CORS Proxy
-- **File**: `mobile/src/api/serverSources.ts`
-- **CORS proxies**: `corsproxy.io` (only maintained proxy; `allorigins.win` dead — 522, `corsproxy.org` became VPN site)
-- **On web**: Build/version detail requests are staggered with 600ms delay to avoid proxy rate limiting
-- **Fabric/Mojang APIs work directly** (both have `Access-Control-Allow-Origin: *`); only PaperMC needs the proxy
-- **PaperMC** API lacks CORS headers — web requires a CORS proxy
-
-## File Map
-- `mobile/src/app/index.tsx` — Splash → redirect to dashboard (no QR/pairing)
-- `mobile/src/app/setup.tsx` — 7-step server setup wizard
-- `mobile/src/app/tunnel.tsx` — playit.gg tunnel terminal
-- `mobile/src/app/(tabs)/dashboard.tsx` — Server manager (status, IP, controls, tunnel link)
-- `mobile/src/app/(tabs)/settings.tsx` — Server management, tunnel config, desktop agent pairing
-- `mobile/src/api/serverSources.ts` — PaperMC/Fabric/Vanilla API clients (1.21+ filtered)
-- `mobile/src/lib/serverRunner.ts` — Local + remote process abstraction
-- `mobile/src/lib/playit.ts` — playit.gg agent download + API methods
-- `mobile/src/stores/tunnelStore.ts` — Tunnel terminal state (logs, status, address)
+## Relevant Files
+- `mobile/android/app/src/main/java/com/portalhost/app/server/ServerProcessModule.kt` — native Kotlin module
+- `mobile/android/app/src/main/java/com/portalhost/app/server/ServerProcessPackage.kt` — ReactPackage registration
+- `mobile/android/app/src/main/java/com/portalhost/app/MainApplication.kt` — `add(ServerProcessPackage())` in packageList
+- `mobile/src/lib/serverManager.ts` — NativeModules + NativeEventEmitter bridge, strips `file://` prefix
+- `mobile/src/stores/serverStore.ts` — State: status, players, uptime, javaPath, serverDir, jarPath
+- `mobile/src/hooks/useProcessEvents.ts` — Process events → store wiring (logs, players, uptime, exit cleanup)
+- `mobile/src/app/server/create.tsx` — 5-step server creation wizard (JAR picker, name, RAM, config, EULA)
+- `mobile/src/app/(tabs)/settings.tsx` — Java path, tunnel address, server management
+- `mobile/src/lib/fileManager.ts` — File system operations (EULA, server.properties, directory management)
+- `mobile/app.json` — App config (icon: `portal_host_icon.png`, version: `1.1.0`)
+- `portal_host_icon.png` — App icon source (root); copied to `mobile/assets/images/` at build time

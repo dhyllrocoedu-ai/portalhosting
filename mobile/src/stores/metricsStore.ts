@@ -16,13 +16,13 @@ interface MetricsState {
 }
 
 export const useMetricsStore = create<MetricsState>((set) => ({
-  cpu: 22,
-  ramUsed: 3.4,
-  ramTotal: 8,
-  tps: 20.0,
-  mspt: 15,
-  diskUsed: 12,
-  diskTotal: 100,
+  cpu: 0,
+  ramUsed: 0,
+  ramTotal: 0,
+  tps: 0,
+  mspt: 0,
+  diskUsed: 0,
+  diskTotal: 0,
 
   setCpu: (cpu) => set({ cpu }),
   setRam: (ramUsed, ramTotal) => set({ ramUsed, ramTotal }),

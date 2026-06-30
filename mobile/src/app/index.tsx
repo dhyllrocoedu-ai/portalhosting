@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { useEffect } from "react";
 import { router } from "expo-router";
 import { colors, spacing, fontSize, borderRadius } from "../constants/theme";
@@ -18,7 +18,11 @@ export default function WelcomeScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.logo}>◈</Text>
+        <Image
+          source={require("../../assets/images/logo-glow.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={styles.title}>PortalHost</Text>
         <Text style={styles.subtitle}>Minecraft Server Manager</Text>
 
@@ -50,8 +54,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   logo: {
-    fontSize: 72,
-    color: colors.primary,
+    width: 120,
+    height: 120,
   },
   title: {
     fontSize: fontSize.title,

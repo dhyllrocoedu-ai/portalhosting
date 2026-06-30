@@ -1,21 +1,11 @@
 import { Tabs } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet, Text, Platform } from "react-native";
 import { colors } from "../../constants/theme";
-
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = {
-    dashboard: "",
-    console: "",
-    players: "",
-    settings: "",
-  };
-  return <Text style={{ fontSize: 22, color: focused ? colors.primary : colors.textMuted }}>{icons[label] ?? ""}</Text>;
-}
 
 export default function TabLayout() {
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView style={styles.safeArea} edges={Platform.OS === "android" ? ["top", "bottom"] : ["top"]}>
       <Tabs
         screenOptions={{
           headerShown: false,

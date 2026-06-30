@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { serverManager } from "../lib/serverManager";
 
 interface Player {
   name: string;
@@ -23,26 +24,30 @@ interface PlayerState {
 }
 
 export const usePlayerStore = create<PlayerState>((set) => ({
-  online: [
-    { name: "Steve", uuid: "uuid-1", online: true, op: true },
-    { name: "Alex", uuid: "uuid-2", online: true, op: false },
-    { name: "Notch", uuid: "uuid-3", online: false, op: false },
-  ].filter((p) => p.online),
-  whitelisted: [
-    { name: "Steve", uuid: "uuid-1", online: true, op: true },
-    { name: "Alex", uuid: "uuid-2", online: true, op: false },
-    { name: "Notch", uuid: "uuid-3", online: false, op: false },
-  ],
+  online: [],
+  whitelisted: [],
   banned: [],
 
   setOnline: (online) => set({ online }),
   setWhitelisted: (whitelisted) => set({ whitelisted }),
   setBanned: (banned) => set({ banned }),
 
-  kickPlayer: (_name) => {},
-  banPlayer: (_name) => {},
-  unbanPlayer: (_name) => {},
-  opPlayer: (_name) => {},
-  deopPlayer: (_name) => {},
-  addToWhitelist: (_name) => {},
+  kickPlayer: (name) => {
+    serverManager.sendCommand(`kick ${name}`).catch(console.warn);
+  },
+  banPlayer: (name) => {
+    serverManager.sendCommand(`ban ${name}`).catch(console.warn);
+  },
+  unbanPlayer: (name) => {
+    serverManager.sendCommand(`pardon ${name}`).catch(console.warn);
+  },
+  opPlayer: (name) => {
+    serverManager.sendCommand(`op ${name}`).catch(console.warn);
+  },
+  deopPlayer: (name) => {
+    serverManager.sendCommand(`deop ${name}`).catch(console.warn);
+  },
+  addToWhitelist: (name) => {
+    serverManager.sendCommand(`whitelist add ${name}`).catch(console.warn);
+  },
 }));

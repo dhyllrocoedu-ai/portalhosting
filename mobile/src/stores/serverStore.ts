@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { serverManager } from "../lib/serverManager";
+import { fileManager } from "../lib/fileManager";
 
 interface ServerState {
   status: "online" | "offline" | "starting" | "stopping";
@@ -18,6 +19,7 @@ interface ServerState {
   jarPath: string | null;
   ramMB: number;
   eula: boolean;
+  javaPath: string;
   tunnelAddress: string | null;
 
   setStatus: (status: ServerState["status"]) => void;
@@ -30,6 +32,7 @@ interface ServerState {
   setJarPath: (path: string | null) => void;
   setRamMB: (mb: number) => void;
   setEula: (accepted: boolean) => void;
+  setJavaPath: (path: string) => void;
   setTunnelAddress: (address: string | null) => void;
   configureServer: (name: string, jarPath: string, ramMB: number, eula: boolean, props: { maxPlayers: number; onlineMode: boolean; seed: string; gamemode: string; difficulty: string }) => void;
   startServer: () => Promise<void>;
@@ -54,6 +57,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
   jarPath: null,
   ramMB: 1024,
   eula: false,
+  javaPath: "java",
   tunnelAddress: null,
 
   setStatus: (status) => set({ status }),
@@ -66,6 +70,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
   setJarPath: (jarPath) => set({ jarPath }),
   setRamMB: (ramMB) => set({ ramMB }),
   setEula: (eula) => set({ eula }),
+  setJavaPath: (javaPath) => set({ javaPath }),
   setTunnelAddress: (tunnelAddress) => set({ tunnelAddress }),
 
   configureServer: (name, jarPath, ramMB, eula, props) =>
@@ -84,18 +89,19 @@ export const useServerStore = create<ServerState>((set, get) => ({
     }),
 
   startServer: async () => {
-    const { jarPath, ramMB } = get();
-    if (!jarPath) return;
+    const { jarPath, ramMB, serverDir, javaPath } = get();
+    if (!jarPath || !serverDir) return;
     set({ status: "starting" });
     try {
-      await serverManager.startServer(jarPath, [
+      await fileManager.writeEula(serverDir);
+      await serverManager.startServer(jarPath, javaPath, [
         "-Xms512M",
         `-Xmx${ramMB}M`,
         "-jar",
         jarPath,
         "nogui",
       ]);
-      set({ status: "online" });
+      set({ status: "online", uptime: 0, localIp: "127.0.0.1" });
     } catch {
       set({ status: "offline" });
     }
@@ -105,7 +111,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
     set({ status: "stopping" });
     try {
       await serverManager.stopServer();
-      set({ status: "offline" });
+      set({ status: "offline", uptime: 0 });
     } catch {
       set({ status: "online" });
     }

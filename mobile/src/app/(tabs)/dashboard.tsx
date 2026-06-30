@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { useCallback } from "react";
 import { router } from "expo-router";
@@ -53,8 +53,12 @@ export default function DashboardScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>◈</Text>
-          <Text style={styles.emptyTitle}>Welcome to PortalHost</Text>
+          <Image
+            source={require("../../../assets/images/logo-glow.png")}
+            style={styles.emptyLogo}
+            resizeMode="contain"
+          />
+          <Text style={styles.emptyTitle}>PortalHost</Text>
           <Text style={styles.emptyText}>
             Run a Minecraft server directly on your Android device. No PC required.
           </Text>
@@ -265,9 +269,10 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.md,
   },
-  emptyIcon: {
-    fontSize: 64,
-    color: colors.primary,
+  emptyLogo: {
+    width: 100,
+    height: 100,
+    marginBottom: spacing.sm,
   },
   emptyTitle: {
     fontSize: fontSize.xl,

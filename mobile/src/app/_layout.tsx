@@ -4,10 +4,13 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors } from "../constants/theme";
+import { useProcessEvents } from "../hooks/useProcessEvents";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  useProcessEvents();
+
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);

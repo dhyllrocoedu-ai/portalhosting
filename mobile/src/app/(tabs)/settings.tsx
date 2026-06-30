@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Alert, Platform } from "react-native";
 import { useState } from "react";
 import { router } from "expo-router";
 import { colors, spacing, fontSize, borderRadius } from "../../constants/theme";
@@ -27,7 +27,7 @@ export default function SettingsScreen() {
   const [scheduledRestart, setScheduledRestart] = useState("");
   const [tunnelInput, setTunnelInput] = useState("");
 
-  const { serverName, serverInstalled, tunnelAddress, setTunnelAddress } = useServerStore();
+  const { serverName, serverInstalled, tunnelAddress, javaPath, setTunnelAddress, setJavaPath } = useServerStore();
 
   const handleSaveTunnel = () => {
     if (tunnelInput.trim()) {
@@ -88,6 +88,17 @@ export default function SettingsScreen() {
       </Section>
 
       <Section title="Server Config">
+        <Row label="Java Path">
+          <TextInput
+            style={styles.input}
+            value={javaPath}
+            onChangeText={setJavaPath}
+            placeholder='/data/data/com.termux/files/usr/bin/java'
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </Row>
         <Row label="Auto-start">
           <Switch
             value={autoStart}
