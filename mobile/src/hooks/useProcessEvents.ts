@@ -73,7 +73,7 @@ export function useProcessEvents() {
       useServerStore.getState().setUptime(0);
       usePlayerStore.getState().setOnline([]);
       useMetricsStore.getState().setCpu(0);
-      useMetricsStore.getState().setRam(0, 0);
+      useMetricsStore.getState().setRam(0, useMetricsStore.getState().ramTotal);
       useMetricsStore.getState().setTps(0);
     });
 

@@ -10,13 +10,13 @@ interface GaugeProps {
 }
 
 export function Gauge({ label, value, max, unit, color = colors.primary }: GaugeProps) {
-  const pct = Math.min((value / max) * 100, 100);
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.label}>{label}</Text>
         <Text style={styles.value}>
-          {value.toFixed(1)}{unit ?? ""}
+          {value.toFixed(1)}{max > 0 ? ` / ${max.toFixed(1)}` : ""}{unit ? ` ${unit}` : ""}
         </Text>
       </View>
       <View style={styles.barBg}>

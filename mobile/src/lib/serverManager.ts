@@ -35,12 +35,18 @@ export const serverManager = {
 
   onStdout(callback: (data: string) => void): void {
     stdoutSub?.remove();
-    stdoutSub = addStdoutListener(callback);
+    stdoutSub = addStdoutListener((payload: any) => {
+      const line = typeof payload === "string" ? payload : payload?.data;
+      if (typeof line === "string") callback(line);
+    });
   },
 
   onExit(callback: (code: number) => void): void {
     exitSub?.remove();
-    exitSub = addExitListener(callback);
+    exitSub = addExitListener((payload: any) => {
+      const code = typeof payload === "number" ? payload : payload?.exitCode;
+      if (typeof code === "number") callback(code);
+    });
   },
 
   removeListeners(): void {

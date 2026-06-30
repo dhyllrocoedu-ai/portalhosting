@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { serverManager } from "../lib/serverManager";
 import { fileManager } from "../lib/fileManager";
 import { persistence } from "../lib/persistence";
+import { useMetricsStore } from "./metricsStore";
 
 interface ServerState {
   status: "online" | "offline" | "starting" | "stopping";
@@ -106,6 +107,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       difficulty: config.difficulty,
       localPort: config.localPort,
     });
+    useMetricsStore.getState().setRam(0, config.ramMB / 1024);
   },
 
   deleteServer: async () => {
@@ -147,6 +149,7 @@ export const useServerStore = create<ServerState>((set, get) => ({
       status: "offline",
     };
     set(newState);
+    useMetricsStore.getState().setRam(0, ramMB / 1024);
     persistence.save(newState);
   },
 
@@ -165,7 +168,8 @@ export const useServerStore = create<ServerState>((set, get) => ({
         "nogui",
       ]);
       set({ status: "online", uptime: 0, localIp: "127.0.0.1" });
-    } catch {
+    } catch (e) {
+      console.error("[startServer]", e);
       set({ status: "offline" });
     }
   },
