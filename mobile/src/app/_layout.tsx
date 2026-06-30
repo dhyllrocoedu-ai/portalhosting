@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { colors } from "../constants/theme";
 import { useProcessEvents } from "../hooks/useProcessEvents";
+import { useServerStore } from "../stores/serverStore";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -12,6 +13,7 @@ export default function RootLayout() {
   useProcessEvents();
 
   useEffect(() => {
+    useServerStore.getState().loadPersistedState();
     SplashScreen.hideAsync();
   }, []);
 

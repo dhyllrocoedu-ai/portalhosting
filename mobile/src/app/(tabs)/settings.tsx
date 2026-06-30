@@ -1,8 +1,14 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Switch, Alert, Platform } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { router } from "expo-router";
 import { colors, spacing, fontSize, borderRadius } from "../../constants/theme";
 import { useServerStore } from "../../stores/serverStore";
+
+const COMMON_JAVA_PATHS = [
+  "/data/data/com.termux/files/usr/bin/java",
+  "/system/bin/java",
+  "/system/xbin/java",
+];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -26,14 +32,46 @@ export default function SettingsScreen() {
   const [autoStart, setAutoStart] = useState(false);
   const [scheduledRestart, setScheduledRestart] = useState("");
   const [tunnelInput, setTunnelInput] = useState("");
+  const [javaInput, setJavaInput] = useState("");
 
-  const { serverName, serverInstalled, tunnelAddress, javaPath, setTunnelAddress, setJavaPath } = useServerStore();
+  const { serverName, serverInstalled, tunnelAddress, javaPath, saveJavaPath, saveTunnelAddress, deleteServer } = useServerStore();
+
+  useEffect(() => {
+    setJavaInput(javaPath);
+    setTunnelInput(tunnelAddress ?? "");
+  }, [javaPath, tunnelAddress]);
+
+  const handleSaveJava = () => {
+    if (javaInput.trim()) {
+      saveJavaPath(javaInput.trim());
+      Alert.alert("Saved", "Java path saved.");
+    }
+  };
+
+  const handleAutoDetectJava = () => {
+    if (Platform.OS !== "android") {
+      Alert.alert("Not Available", "Auto-detect only works on Android.");
+      return;
+    }
+    Alert.alert(
+      "Auto-detect Java",
+      "Common Java paths:\n\n" + COMMON_JAVA_PATHS.join("\n") + "\n\nTermux is the most common way to install Java on Android.",
+      [
+        { text: "Cancel", style: "cancel" },
+        ...COMMON_JAVA_PATHS.map((path) => ({
+          text: path,
+          onPress: () => {
+            setJavaInput(path);
+            saveJavaPath(path);
+          },
+        })),
+      ],
+    );
+  };
 
   const handleSaveTunnel = () => {
-    if (tunnelInput.trim()) {
-      setTunnelAddress(tunnelInput.trim());
-      Alert.alert("Saved", "Tunnel address saved. It will appear on the dashboard when the server is running.");
-    }
+    saveTunnelAddress(tunnelInput.trim() || null);
+    Alert.alert("Saved", "Tunnel address saved. It will appear on the dashboard when the server is running.");
   };
 
   const handleCreateNewServer = () => {
@@ -43,13 +81,13 @@ export default function SettingsScreen() {
   const handleDeleteServer = () => {
     Alert.alert(
       "Delete Server",
-      "This will permanently delete all server files.",
+      "This will permanently delete all server files and configuration.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
-          onPress: () => useServerStore.getState().setServerInstalled(false),
+          onPress: () => deleteServer(),
         },
       ],
     );
@@ -92,13 +130,21 @@ export default function SettingsScreen() {
           <Text style={styles.javaPathLabel}>Java Path</Text>
           <TextInput
             style={styles.javaPathInput}
-            value={javaPath}
-            onChangeText={setJavaPath}
+            value={javaInput}
+            onChangeText={setJavaInput}
             placeholder='/data/data/com.termux/files/usr/bin/java'
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {Platform.OS === "android" && (
+            <TouchableOpacity style={styles.javaDetectBtn} onPress={handleAutoDetectJava}>
+              <Text style={styles.javaDetectBtnText}>Auto-detect</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.javaSaveBtn} onPress={handleSaveJava}>
+            <Text style={styles.javaSaveBtnText}>Save Java Path</Text>
+          </TouchableOpacity>
         </View>
         <Row label="Auto-start">
           <Switch
@@ -256,6 +302,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceLight,
+    gap: spacing.sm,
   },
   javaPathLabel: {
     fontSize: fontSize.sm,
@@ -263,7 +310,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 1,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   javaPathInput: {
     backgroundColor: colors.surfaceLight,
@@ -273,5 +320,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: borderRadius.sm,
+  },
+  javaDetectBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  javaDetectBtnText: {
+    fontSize: fontSize.xs,
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  javaSaveBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.sm,
+    alignItems: "center",
+  },
+  javaSaveBtnText: {
+    fontSize: fontSize.sm,
+    color: colors.text,
+    fontWeight: "600",
   },
 });

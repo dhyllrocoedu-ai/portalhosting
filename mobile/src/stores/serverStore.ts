@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { serverManager } from "../lib/serverManager";
 import { fileManager } from "../lib/fileManager";
+import { persistence } from "../lib/persistence";
 
 interface ServerState {
   status: "online" | "offline" | "starting" | "stopping";
@@ -34,10 +35,14 @@ interface ServerState {
   setEula: (accepted: boolean) => void;
   setJavaPath: (path: string) => void;
   setTunnelAddress: (address: string | null) => void;
-  configureServer: (name: string, jarPath: string, ramMB: number, eula: boolean, props: { maxPlayers: number; onlineMode: boolean; seed: string; gamemode: string; difficulty: string }) => void;
+  configureServer: (name: string, jarPath: string, serverDir: string, ramMB: number, eula: boolean, props: { maxPlayers: number; onlineMode: boolean; seed: string; gamemode: string; difficulty: string }) => void;
+  saveJavaPath: (path: string) => Promise<void>;
+  saveTunnelAddress: (address: string | null) => Promise<void>;
   startServer: () => Promise<void>;
   stopServer: () => Promise<void>;
   restartServer: () => Promise<void>;
+  loadPersistedState: () => Promise<void>;
+  deleteServer: () => Promise<void>;
 }
 
 export const useServerStore = create<ServerState>((set, get) => ({
@@ -73,10 +78,64 @@ export const useServerStore = create<ServerState>((set, get) => ({
   setJavaPath: (javaPath) => set({ javaPath }),
   setTunnelAddress: (tunnelAddress) => set({ tunnelAddress }),
 
-  configureServer: (name, jarPath, ramMB, eula, props) =>
+  saveJavaPath: async (path) => {
+    set({ javaPath: path });
+    await persistence.save({ javaPath: path });
+  },
+
+  saveTunnelAddress: async (address) => {
+    set({ tunnelAddress: address });
+    await persistence.save({ tunnelAddress: address });
+  },
+
+  loadPersistedState: async () => {
+    const config = await persistence.load();
     set({
+      javaPath: config.javaPath,
+      serverName: config.serverName,
+      serverDir: config.serverDir,
+      jarPath: config.jarPath,
+      ramMB: config.ramMB,
+      eula: config.eula,
+      serverInstalled: config.serverInstalled,
+      tunnelAddress: config.tunnelAddress,
+      maxPlayers: config.maxPlayers,
+      onlineMode: config.onlineMode,
+      seed: config.seed,
+      gamemode: config.gamemode,
+      difficulty: config.difficulty,
+      localPort: config.localPort,
+    });
+  },
+
+  deleteServer: async () => {
+    const { serverDir } = get();
+    set({
+      serverInstalled: false,
+      status: "offline",
+      serverName: "",
+      serverDir: null,
+      jarPath: null,
+      ramMB: 1024,
+      eula: false,
+      uptime: 0,
+      maxPlayers: 20,
+      onlineMode: true,
+      seed: "",
+      gamemode: "survival",
+      difficulty: "normal",
+    });
+    await persistence.clear();
+    if (serverDir) {
+      await fileManager.deleteDir(serverDir);
+    }
+  },
+
+  configureServer: (name, jarPath, serverDir, ramMB, eula, props) => {
+    const newState = {
       serverName: name,
       jarPath,
+      serverDir,
       ramMB,
       eula,
       maxPlayers: props.maxPlayers,
@@ -86,7 +145,10 @@ export const useServerStore = create<ServerState>((set, get) => ({
       difficulty: props.difficulty,
       serverInstalled: true,
       status: "offline",
-    }),
+    };
+    set(newState);
+    persistence.save(newState);
+  },
 
   startServer: async () => {
     const { jarPath: rawJarPath, ramMB, serverDir, javaPath } = get();

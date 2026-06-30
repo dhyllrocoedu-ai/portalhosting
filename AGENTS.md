@@ -20,9 +20,9 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 - **Uptime counter**: Interval increments every second while status is `"online"`
 
 ## Server Runner (Android)
-- **Native module**: `android/app/src/main/java/com/portalhost/app/server/ServerProcessModule.kt`
-- `ReactContextBaseJavaModule` subclass using `ProcessBuilder` to spawn Java
-- Stdin/stdout/stderr piped via daemon threads; events emitted via `DeviceEventEmitter`
+- **Native module**: `mobile/modules/server-process-module/android/src/main/java/expo/modules/serverprocessmodule/ServerProcessModule.kt`
+- Expo Module (not legacy `ReactContextBaseJavaModule`) using `ProcessBuilder` to spawn Java
+- Stdin/stdout/stderr piped via daemon threads; events emitted via `Events("onStdout", "onExit")`
 - stderr merged into stdout (`redirectErrorStream(true)`) for simpler console display
 - Java path is configurable in Settings (default `"java"` — install Termux Java for device use)
 - `file://` scheme stripped from jarPath before passing to native module
@@ -33,6 +33,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 3. User provides their own server .jar file via document picker
 4. EULA and server.properties written to server directory before first start
 5. Server stored in app document directory (`FileSystem.documentDirectory/servers/<name>/`)
+6. Store state persisted to `portalhost_config.json` via `expo-file-system` (survives app restart)
 
 ## Key Changes in v1.1.0
 - **Fixed**: `file://` prefix on jarPath caused native module to fail silently (status showed "online" but nothing ran)
@@ -42,24 +43,37 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 - **Icon**: Updated to `portal_host_icon.png`
 - APK renamed to `PortalHost.apk`
 
+## Key Changes in v1.1.1
+- **Migrated** native module from legacy `ReactContextBaseJavaModule` to Expo Modules API (`mobile/modules/server-process-module/`)
+- **Added** `portalhost_config.json` persistence via `mobile/src/lib/persistence.ts` — Java path, server config, tunnel address all survive app restarts
+- **Added** explicit "Save Java Path" button and "Auto-detect" button in Settings
+- **Fixed** server data loss on app restart (was only in-memory via Zustand)
+- **Module source**: `mobile/modules/server-process-module/android/src/main/java/expo/modules/serverprocessmodule/ServerProcessModule.kt`
+- **Autolinking**: Module found by `expo-modules-autolinking` from `mobile/modules/server-process-module/expo-module.config.json`
+
+## Key Changes in v1.1.2 (this build)
+- **Version bump** to 1.1.2
+- Release APK: `PortalHost.apk` (copied to repo root)
+
 ## Critical Context
-- `mobile/android/` is gitignored (standard Expo), but `android/app/src/main/java/com/portalhost/app/server/` is un-ignored via `.gitignore` negation to preserve the custom native module
-- If `expo prebuild` regenerates the android directory, the native module files in `.../server/` must be recreated (run `expo prebuild --clean` then manually restore the `server/` directory)
-- Release APK: `mobile/android/app/build/outputs/apk/release/PortalHost.apk`
+- `mobile/android/` is gitignored (standard Expo), but `mobile/modules/server-process-module/` is the live source
+- If `expo prebuild --clean` runs, the old `android/` dir is regenerated; the module lives in `modules/` so it's always picked up by autolinking
+- Release APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
 - Build: `cd mobile/android; .\gradlew.bat assembleRelease`
-- Version: `1.1.0`, package: `com.portalhost.app`
+- Version: `1.1.2`, package: `com.portalhost.app`
 - The app has no production keystore; release builds use `signingConfig signingConfigs.debug`
 - `expo-file-system/legacy` import used (SDK 56 has new File/Directory API)
 
 ## Relevant Files
-- `mobile/android/app/src/main/java/com/portalhost/app/server/ServerProcessModule.kt` — native Kotlin module
-- `mobile/android/app/src/main/java/com/portalhost/app/server/ServerProcessPackage.kt` — ReactPackage registration
-- `mobile/android/app/src/main/java/com/portalhost/app/MainApplication.kt` — `add(ServerProcessPackage())` in packageList
-- `mobile/src/lib/serverManager.ts` — NativeModules + NativeEventEmitter bridge, strips `file://` prefix
-- `mobile/src/stores/serverStore.ts` — State: status, players, uptime, javaPath, serverDir, jarPath
+- `mobile/modules/server-process-module/android/src/main/java/expo/modules/serverprocessmodule/ServerProcessModule.kt` — native Kotlin module (Expo Modules API)
+- `mobile/modules/server-process-module/index.ts` — TS wrapper, re-exports native module
+- `mobile/modules/server-process-module/expo-module.config.json` — autolinking config
+- `mobile/src/lib/serverManager.ts` — Wraps module TS functions, strips `file://` prefix
+- `mobile/src/lib/persistence.ts` — Saves/loads config to `portalhost_config.json`
+- `mobile/src/stores/serverStore.ts` — State: status, players, uptime, javaPath, serverDir, jarPath; now persisted
 - `mobile/src/hooks/useProcessEvents.ts` — Process events → store wiring (logs, players, uptime, exit cleanup)
 - `mobile/src/app/server/create.tsx` — 5-step server creation wizard (JAR picker, name, RAM, config, EULA)
-- `mobile/src/app/(tabs)/settings.tsx` — Java path, tunnel address, server management
+- `mobile/src/app/(tabs)/settings.tsx` — Java path (save + auto-detect), tunnel address, server management
 - `mobile/src/lib/fileManager.ts` — File system operations (EULA, server.properties, directory management)
-- `mobile/app.json` — App config (icon: `portal_host_icon.png`, version: `1.1.0`)
+- `mobile/app.json` — App config (icon: `portal_host_icon.png`, version: `1.1.2`)
 - `portal_host_icon.png` — App icon source (root); copied to `mobile/assets/images/` at build time

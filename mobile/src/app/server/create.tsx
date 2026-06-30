@@ -57,8 +57,7 @@ export default function CreateServerScreen() {
       const dir = dest.replace("/server.jar", "");
       await fileManager.writeEula(dir);
       await fileManager.writeServerProperties(dir, props);
-      useServerStore.getState().configureServer(serverName.trim(), dest, ramMB, eula, props);
-      useServerStore.getState().setServerDir(dir);
+      useServerStore.getState().configureServer(serverName.trim(), dest, dir, ramMB, eula, props);
       Alert.alert("Server Created", `"${serverName}" is ready to start.`, [
         { text: "Go to Dashboard", onPress: () => router.replace("/(tabs)/dashboard") },
       ]);
