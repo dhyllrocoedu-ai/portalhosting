@@ -21,11 +21,11 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 
 ## Server Runner (Android)
 - **Native module**: `mobile/modules/server-process-module/android/src/main/java/expo/modules/serverprocessmodule/ServerProcessModule.kt`
-- Expo Module (not legacy `ReactContextBaseJavaModule`) using `ProcessBuilder` to spawn Java
-- Stdin/stdout/stderr piped via daemon threads; events emitted via `Events("onStdout", "onExit")`
-- stderr merged into stdout (`redirectErrorStream(true)`) for simpler console display
-- Java path is configurable in Settings (default `"java"` — install Termux Java for device use)
+- **v1.1.3+**: Uses **TCP-Termux architecture** — PortalHost opens TCP ServerSocket on 127.0.0.1, sends `RUN_COMMAND` intent to Termux; Java process runs via `bash /dev/tcp` for bidirectional IPC (no cross-app sandboxing issues)
+- Files (JAR, EULA, server.properties) copied to `/storage/emulated/0/Download/PortalHost/<serverName>/` via `MediaStore.Downloads` for Termux access
+- Falls back to direct `ProcessBuilder` when Termux is not installed
 - `file://` scheme stripped from jarPath before passing to native module
+- Stdin writes forwarded to TCP socket; `stopProcess` sends `"stop\n"` + 8s timeout, then `killall java` via Termux
 
 ## Server Setup Flow
 1. User taps "Create Server" (dashboard or settings)
@@ -51,10 +51,26 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 - **Module source**: `mobile/modules/server-process-module/android/src/main/java/expo/modules/serverprocessmodule/ServerProcessModule.kt`
 - **Autolinking**: Module found by `expo-modules-autolinking` from `mobile/modules/server-process-module/expo-module.config.json`
 
-## Key Changes in v1.1.2 (this build)
+## Key Changes in v1.1.2
 - **Version bump** to 1.1.2
 - **Fixed**: `Cannot find native module 'ServerProcessModule'` crash — must run `npx expo prebuild --clean` after module changes to regenerate `android/` with proper autolinking
+
+## Key Changes in v1.1.3 (this build)
+- **Version bump** to 1.1.3
+- **Fixed**: Server failed to start on Android 16 (scoped storage) — cross-app sandboxing blocked direct ProcessBuilder of Termux Java
+- **Rewrote** native module with **TCP-Termux architecture**: `bash /dev/tcp` loopback for bidirectional IPC via Termux RunCommandService
+- **Added** `MediaStore.Downloads` file sharing: JAR/eula/server.properties copied to shared storage before launch
+- **Added** `resolveTermuxJava()`: maps `"java"` to `/data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/bin/java`
+- **Added** `INTERNET` permission for loopback ServerSocket
+- **Added** `Gauge.tsx` guard for `max=0` (prevents NaN percent)
+- **Fixed** `redirectErrorStream(true)` (was `false` in v1.1.2)
 - Release APK: `PortalHost.apk` (copied to repo root)
+
+## Key Changes in v1.1.4 (this build)
+- **Version bump** to 1.1.4
+- **Fixed**: MediaStore `relativePath` had redundant `"Download/"` prefix — files saved to wrong directory, bash CD'd to wrong path
+- **Fixed**: Shell command only passed `-Xmx` arg, dropped `-Xms` and other JVM flags
+- **Added**: Comprehensive logging via `Log.e(TAG, ...)` (visible in `adb logcat`) and `sendEvent("onStdout", ...)` (visible in Console tab)
 
 ## Critical Build Note
 - **Always run `npx expo prebuild --clean` before building** if you've added/modified native modules or bumped the version in `app.json`. The `mobile/android/` dir is gitignored and must be regenerated to pick up autolinking changes.
@@ -64,7 +80,7 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 - If `expo prebuild --clean` runs, the old `android/` dir is regenerated; the module lives in `modules/` so it's always picked up by autolinking
 - Release APK: `mobile/android/app/build/outputs/apk/release/app-release.apk`
 - Build: `cd mobile/android; .\gradlew.bat assembleRelease`
-- Version: `1.1.2`, package: `com.portalhost.app`
+- Version: `1.1.4`, package: `com.portalhost.app`
 - The app has no production keystore; release builds use `signingConfig signingConfigs.debug`
 - `expo-file-system/legacy` import used (SDK 56 has new File/Directory API)
 
@@ -79,5 +95,5 @@ Read the exact versioned docs at https://docs.expo.dev/versions/v56.0.0/ before 
 - `mobile/src/app/server/create.tsx` — 5-step server creation wizard (JAR picker, name, RAM, config, EULA)
 - `mobile/src/app/(tabs)/settings.tsx` — Java path (save + auto-detect), tunnel address, server management
 - `mobile/src/lib/fileManager.ts` — File system operations (EULA, server.properties, directory management)
-- `mobile/app.json` — App config (icon: `portal_host_icon.png`, version: `1.1.2`)
+- `mobile/app.json` — App config (icon: `portal_host_icon.png`, version: `1.1.4`)
 - `portal_host_icon.png` — App icon source (root); copied to `mobile/assets/images/` at build time

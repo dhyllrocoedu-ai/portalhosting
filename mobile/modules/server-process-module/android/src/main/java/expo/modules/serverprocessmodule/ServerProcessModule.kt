@@ -8,9 +8,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.MediaStore
+import android.util.Log
 import java.io.*
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
+
+private const val TAG = "ServerProcessModule"
 
 class ServerProcessModule : Module() {
   private var serverSocket: ServerSocket? = null
@@ -31,10 +34,13 @@ class ServerProcessModule : Module() {
         try {
           startViaTermux(context, jarPath, javaPath, jvmArgs)
         } catch (e: Exception) {
+          Log.e(TAG, "startViaTermux failed: ${e.message}", e)
+          sendEvent("onStdout", mapOf("data" to "[PortalHost] startViaTermux failed: ${e.message}"))
           cleanupTcp()
           throw e
         }
       } else {
+        Log.i(TAG, "Termux not found, using direct ProcessBuilder")
         startViaDirect(jarPath, javaPath, jvmArgs)
       }
     }
@@ -90,7 +96,15 @@ class ServerProcessModule : Module() {
   private fun isTermuxInstalled(ctx: Context): Boolean = try {
     ctx.packageManager.getPackageInfo("com.termux", PackageManager.PackageInfoFlags.of(0))
     true
-  } catch (_: PackageManager.NameNotFoundException) { false }
+  } catch (_: PackageManager.NameNotFoundException) {
+    Log.w(TAG, "Termux not installed, falling back to direct ProcessBuilder")
+    false
+  }
+
+  private fun sendError(msg: String) {
+    Log.e(TAG, msg)
+    sendEvent("onStdout", mapOf("data" to "[PortalHost] $msg"))
+  }
 
   // ── Termux TCP mode ──────────────────────────────────────
 
@@ -112,17 +126,22 @@ class ServerProcessModule : Module() {
     Thread {
       try {
         ss.soTimeout = 30000
+        Log.i(TAG, "TCP server listening on 127.0.0.1:$port, waiting for Termux...")
         val client = ss.accept()
+        Log.i(TAG, "Termux TCP connection established from ${client.inetAddress}:${client.port}")
         clientSocket = client
         val rdr = BufferedReader(InputStreamReader(client.inputStream, "UTF-8"))
         var line: String? = null
         while (!cleanupRequested && rdr.readLine().also { line = it } != null) {
           sendEvent("onStdout", mapOf("data" to line!!))
         }
-      } catch (_: SocketTimeoutException) {
+      } catch (e: SocketTimeoutException) {
+        Log.w(TAG, "TCP accept timed out (30s) - Termux never connected")
         sendEvent("onStdout", mapOf("data" to "[PortalHost] Timed out waiting for Termux connection"))
-      } catch (_: IOException) {
-        // connection closed normally
+      } catch (e: IOException) {
+        Log.i(TAG, "TCP connection closed (${e.message})")
+      } catch (e: Exception) {
+        Log.e(TAG, "TCP thread error: ${e.message}", e)
       }
 
       if (!cleanupRequested) {
@@ -131,16 +150,17 @@ class ServerProcessModule : Module() {
       cleanupTcp()
     }.apply { isDaemon = true }.start()
 
-    // 4. Build command
-    val ramArg = jvmArgs.find { it.startsWith("-Xmx") } ?: "-Xmx1024M"
+    // 4. Build command — pass all JVM flags, replace -jar path with bare filename
     val termuxJava = resolveTermuxJava(javaPath)
+    val jvmFlags = jvmArgs.filter { it.startsWith("-") && it != "-jar" }
     val shellCmd = buildString {
       append("cd '${sharedDir}' && ")
-      append("exec '${termuxJava}' ${ramArg} -jar '${jarName}' nogui ")
+      append("exec '${termuxJava}' ${jvmFlags.joinToString(" ")} -jar '${jarName}' nogui ")
       append("0<>/dev/tcp/127.0.0.1/${port} 1>&0 2>&0")
     }
 
     // 5. Send RUN_COMMAND intent
+    Log.i(TAG, "Starting Termux with: ${shellCmd.take(120)}…")
     val intent = Intent("com.termux.RUN_COMMAND_SERVICE").apply {
       `package` = "com.termux"
       putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
@@ -148,7 +168,14 @@ class ServerProcessModule : Module() {
       putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
       putExtra("com.termux.RUN_COMMAND_WORKDIR", sharedDir)
     }
-    ctx.startService(intent)
+    try {
+      ctx.startService(intent)
+      Log.i(TAG, "Termux RUN_COMMAND_SERVICE intent sent")
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to send Termux intent: ${e.message}", e)
+      sendError("Failed to start Termux: ${e.message}")
+      throw e
+    }
   }
 
   /** Use user-configured path; if bare "java", expand via Termux's resolved path. */
@@ -160,7 +187,7 @@ class ServerProcessModule : Module() {
   // ── MediaStore file sharing ──────────────────────────────
 
   private fun ensureSharedFiles(ctx: Context, jarPath: String, serverDir: String, serverName: String): String {
-    val relativePath = "Download/PortalHost/${serverName}/"
+    val relativePath = "PortalHost/${serverName}/"
     val sharedDir = "/storage/emulated/0/Download/PortalHost/${serverName}"
     val cr = ctx.contentResolver
     val jarFile = File(jarPath)
