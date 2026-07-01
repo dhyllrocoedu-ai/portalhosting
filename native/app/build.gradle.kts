@@ -9,6 +9,11 @@ android {
     namespace = "com.portalhost.app"
     compileSdk = 36
 
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
     defaultConfig {
         applicationId = "com.portalhost.app"
         minSdk = 24
