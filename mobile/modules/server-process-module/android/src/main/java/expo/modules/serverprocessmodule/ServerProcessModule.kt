@@ -5,6 +5,7 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.MediaStore
@@ -116,8 +117,7 @@ class ServerProcessModule : Module() {
 
     // 1. Copy files to shared storage so Termux can read them
     val sharedDir = ensureSharedFiles(ctx, jarPath, serverDir, serverName)
-
-    // 2. Create TCP server on loopback
+    val prefixedJar = "PortalHost_${serverName}_server.jar"
     val ss = ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1"))
     serverSocket = ss
     val port = ss.localPort
@@ -150,27 +150,37 @@ class ServerProcessModule : Module() {
       cleanupTcp()
     }.apply { isDaemon = true }.start()
 
-    // 4. Build command — pass all JVM flags, replace -jar path with bare filename
+    // 4. Build shell command – single-FIFO pipeline IPC.
+    //    nc reads FIFO → TCP; nc stdout → pipe → java stdin;
+    //    java stdout/stderr → FIFO → nc stdin → TCP back to PortalHost.
     val termuxJava = resolveTermuxJava(javaPath)
     val jvmFlags = jvmArgs.filter { it.startsWith("-") && it != "-jar" }
+    val targetDir = "/storage/emulated/0/data/PortalHost/${serverName}"
     val shellCmd = buildString {
-      append("cd '${sharedDir}' && ")
-      append("exec '${termuxJava}' ${jvmFlags.joinToString(" ")} -jar '${jarName}' nogui ")
-      append("0<>/dev/tcp/127.0.0.1/${port} 1>&0 2>&0")
+      append("F=/data/data/com.termux/files/usr/tmp/ph_fifo.\$\$; ")
+      append("mkfifo \"\$F\"; ")
+      append("mkdir -p '${targetDir}'; ")
+      append("cd '${targetDir}'; ")
+      append("/system/bin/netcat -q0 127.0.0.1 ${port} < \"\$F\" | ")
+      append("'${termuxJava}' ${jvmFlags.joinToString(" ")} -jar 'server.jar' nogui > \"\$F\" 2>&1; ")
+      append("rm -f \"\$F\"")
     }
 
     // 5. Send RUN_COMMAND intent
-    Log.i(TAG, "Starting Termux with: ${shellCmd.take(120)}…")
-    val intent = Intent("com.termux.RUN_COMMAND_SERVICE").apply {
-      `package` = "com.termux"
+    Log.i(TAG, "Starting Termux with: ${shellCmd.take(350)}…")
+    val intent = Intent("com.termux.RUN_COMMAND").apply {
+      component = ComponentName("com.termux", "com.termux.app.RunCommandService")
       putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
       putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", shellCmd))
-      putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
-      putExtra("com.termux.RUN_COMMAND_WORKDIR", sharedDir)
     }
     try {
-      ctx.startService(intent)
-      Log.i(TAG, "Termux RUN_COMMAND_SERVICE intent sent")
+      val result = ctx.startService(intent)
+      if (result != null) {
+        Log.i(TAG, "Termux RUN_COMMAND_SERVICE intent sent (result=$result)")
+      } else {
+        Log.e(TAG, "Termux startService returned null — service not found")
+        sendError("Termux RunCommandService not found")
+      }
     } catch (e: Exception) {
       Log.e(TAG, "Failed to send Termux intent: ${e.message}", e)
       sendError("Failed to start Termux: ${e.message}")
@@ -186,19 +196,22 @@ class ServerProcessModule : Module() {
 
   // ── MediaStore file sharing ──────────────────────────────
 
+  /** API 36 only allows "Download" as primary directory in RELATIVE_PATH.
+   *  Use flat filenames prefixed with server name in the Downloads root. */
   private fun ensureSharedFiles(ctx: Context, jarPath: String, serverDir: String, serverName: String): String {
-    val relativePath = "PortalHost/${serverName}/"
-    val sharedDir = "/storage/emulated/0/Download/PortalHost/${serverName}"
+    val sharedDir = "/storage/emulated/0/Download"
     val cr = ctx.contentResolver
-    val jarFile = File(jarPath)
 
-    fun putFile(displayName: String, mime: String, src: File) {
-      if (!src.exists()) return
-      if (mediaStoreExists(cr, displayName, relativePath, src.length())) return
-      deleteMediaFile(cr, displayName, relativePath)
+    fun pfx(name: String) = "PortalHost_${serverName}_${name}"
+
+    fun put(src: File, localName: String, mime: String) {
+      if (!src.exists()) { Log.w(TAG, "ensureSharedFiles: src missing: ${src.absolutePath} — skipping"); return }
+      val displayName = pfx(localName)
+      if (mediaFileExists(cr, displayName, src.length())) { Log.i(TAG, "ensureSharedFiles: $displayName exists, skipping"); return }
+      deleteMediaFile(cr, displayName)
       val v = ContentValues().apply {
         put(MediaStore.Downloads.DISPLAY_NAME, displayName)
-        put(MediaStore.Downloads.RELATIVE_PATH, relativePath)
+        put(MediaStore.Downloads.RELATIVE_PATH, "")
         put(MediaStore.Downloads.MIME_TYPE, mime)
         put("is_pending", 1)
       }
@@ -208,35 +221,52 @@ class ServerProcessModule : Module() {
         ?: throw Exception("MediaStore write failed for $displayName")
       v.clear(); v.put("is_pending", 0)
       cr.update(uri, v, null, null)
+      Log.i(TAG, "ensureSharedFiles: wrote $displayName to ${sharedDir}/${displayName}")
     }
 
-    putFile("server.jar", "application/java-archive", jarFile)
-    putFile("eula.txt", "text/plain", File(serverDir, "eula.txt"))
-    putFile("server.properties", "text/plain", File(serverDir, "server.properties"))
+    // If eula.txt or server.properties are missing from the app directory, create defaults.
+    // This handles the case where the server was created pre-v1.1.4 or app data was wiped.
+    val eulaFile = File(serverDir, "eula.txt")
+    if (!eulaFile.exists()) {
+      eulaFile.writeText("eula=true\n")
+      Log.i(TAG, "Created default eula.txt at ${eulaFile.absolutePath}")
+    }
+    val propsFile = File(serverDir, "server.properties")
+    if (!propsFile.exists()) {
+      propsFile.writeText(
+        "max-players=20\nonline-mode=false\nlevel-seed=\ngamemode=survival\ndifficulty=easy\n" +
+        "spawn-protection=16\npvp=true\nallow-nether=true\nenable-command-block=false\nmotd=A PortalHost Server\n"
+      )
+      Log.i(TAG, "Created default server.properties at ${propsFile.absolutePath}")
+    }
+
+    put(File(jarPath), "server.jar", "application/java-archive")
+    put(File(serverDir, "eula.txt"), "eula.txt", "text/plain")
+    put(File(serverDir, "server.properties"), "server.properties", "text/plain")
 
     return sharedDir
   }
 
-  private fun mediaStoreExists(cr: ContentResolver, name: String, path: String, size: Long): Boolean {
+  private fun mediaFileExists(cr: ContentResolver, name: String, size: Long): Boolean {
     val cols = arrayOf(MediaStore.Downloads.SIZE)
-    val sel = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
-    cr.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cols, sel, arrayOf(name, path), null)?.use { c ->
+    val sel = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+    cr.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cols, sel, arrayOf(name), null)?.use { c ->
       if (c.moveToFirst()) return c.getLong(c.getColumnIndexOrThrow(MediaStore.Downloads.SIZE)) == size
     }
     return false
   }
 
-  private fun deleteMediaFile(cr: ContentResolver, name: String, path: String) {
-    val sel = "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?"
-    cr.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI, sel, arrayOf(name, path))
+  private fun deleteMediaFile(cr: ContentResolver, name: String) {
+    val sel = "${MediaStore.Downloads.DISPLAY_NAME} = ?"
+    cr.delete(MediaStore.Downloads.EXTERNAL_CONTENT_URI, sel, arrayOf(name))
   }
 
   // ── Kill helper ──────────────────────────────────────────
 
   private fun killJavaInTermux(ctx: Context) {
     try {
-      val i = Intent("com.termux.RUN_COMMAND_SERVICE").apply {
-        `package` = "com.termux"
+      val i = Intent("com.termux.RUN_COMMAND").apply {
+        component = ComponentName("com.termux", "com.termux.app.RunCommandService")
         putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash")
         putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", "killall java 2>/dev/null || true"))
         putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)

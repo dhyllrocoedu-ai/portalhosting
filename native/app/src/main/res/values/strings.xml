@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PortalHost</string>
+    <string name="channel_server">Minecraft Server</string>
+    <string name="notification_server_running">Minecraft server is running</string>
+</resources>

@@ -17,6 +17,10 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+native/.gradle/
+native/app/build/
+native/gradle/.gradle/
+native/gradle/wrapper/gradle-wrapper.jar
 
 # Metro
 .metro-health-check*
@@ -41,6 +45,11 @@ example
 # generated native folders
 mobile/ios/
 mobile/android/
+mobile/modules/server-process-module/android/build/
+
+# generated APKs
+PortalHost.apk
+native/*.apk
 
 # monorepo - ignore nested node_modules
 mobile/node_modules/

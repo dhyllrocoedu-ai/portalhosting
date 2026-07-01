@@ -128,7 +128,6 @@ export default function DashboardScreen() {
         <Text style={styles.metricsTitle}>Performance</Text>
         <Gauge label="RAM" value={ramUsed} max={ramTotal} unit="GB" color={colors.accent} />
         <Gauge label="CPU" value={cpu} max={100} unit="%" color={colors.primary} />
-        <Gauge label="Disk" value={0} max={100} unit="GB" color={colors.secondary} />
       </View>
     </ScrollView>
   );
