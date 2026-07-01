@@ -60,7 +60,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            PortalHostTheme(darkTheme = true) {
+            var darkTheme by remember { mutableStateOf(true) }
+            PortalHostTheme(darkTheme = darkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -73,7 +74,9 @@ class MainActivity : ComponentActivity() {
                         javaRuntimeManager = javaRuntimeManager,
                         activityLog = activityLog,
                         networkManager = networkManager,
-                        storageInfo = storageInfo
+                        storageInfo = storageInfo,
+                        darkTheme = darkTheme,
+                        onToggleTheme = { darkTheme = !darkTheme }
                     )
                 }
             }
@@ -95,7 +98,9 @@ private fun AppEntry(
     javaRuntimeManager: JavaRuntimeManager,
     activityLog: ActivityLog,
     networkManager: NetworkManager,
-    storageInfo: StorageInfo
+    storageInfo: StorageInfo,
+    darkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     var jdkInstalled by remember { mutableStateOf(javaRuntimeManager.isInstalled) }
@@ -162,6 +167,8 @@ private fun AppEntry(
         onClearAppData = onClearAppData,
         activityLog = activityLog,
         networkManager = networkManager,
-        storageInfo = storageInfo
+        storageInfo = storageInfo,
+        darkTheme = darkTheme,
+        onToggleTheme = onToggleTheme
     )
 }

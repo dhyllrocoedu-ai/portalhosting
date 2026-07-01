@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.ui.model.ServerConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -18,7 +19,11 @@ fun SettingsScreen(
     onReinstallJava: () -> Unit,
     onUninstallJava: () -> Unit,
     onFixupJava: () -> Unit,
-    onClearAppData: () -> Unit
+    onClearAppData: () -> Unit,
+    darkTheme: Boolean,
+    onToggleTheme: () -> Unit,
+    activeServer: ServerConfig?,
+    onUpdateServer: (ServerConfig) -> Unit
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
@@ -35,6 +40,71 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Appearance
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Palette, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Appearance", style = MaterialTheme.typography.titleSmall)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (darkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (darkTheme) "Dark Theme" else "Light Theme",
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = darkTheme, onCheckedChange = { onToggleTheme() })
+                    }
+                }
+            }
+
+            // Server Defaults
+            if (activeServer != null) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Dns, contentDescription = null)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Server Defaults (${activeServer.name})", style = MaterialTheme.typography.titleSmall)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Auto-restart on crash", modifier = Modifier.weight(1f))
+                            Switch(checked = activeServer.autoRestart, onCheckedChange = { enabled ->
+                                onUpdateServer(activeServer.copy(autoRestart = enabled))
+                            })
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Auto-backup on stop", modifier = Modifier.weight(1f))
+                            Switch(checked = activeServer.autoBackup, onCheckedChange = { enabled ->
+                                onUpdateServer(activeServer.copy(autoBackup = enabled))
+                            })
+                        }
+                    }
+                }
+            }
+
             // Java Runtime
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -114,7 +184,7 @@ fun SettingsScreen(
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("About", style = MaterialTheme.typography.titleSmall)
-                            Text("PortalHost v2.0.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("PortalHost v2.1.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

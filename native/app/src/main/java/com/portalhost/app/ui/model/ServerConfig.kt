@@ -17,5 +17,6 @@ data class ServerConfig(
     val difficulty: String = "easy",
     val motd: String = "A Minecraft Server",
     val eulaAccepted: Boolean = false,
-    val autoRestart: Boolean = false
+    val autoRestart: Boolean = false,
+    val autoBackup: Boolean = false
 )

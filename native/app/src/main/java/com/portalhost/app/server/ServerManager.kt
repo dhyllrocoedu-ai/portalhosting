@@ -46,6 +46,7 @@ class ServerManager(
     private var lastServerDir: String? = null
     private var restartCount = 0
     private var sawHashFailure = false
+    private var autoRestartEnabled = false
 
     private val _state = MutableStateFlow(ServerState())
     val state: StateFlow<ServerState> = _state.asStateFlow()
@@ -178,6 +179,7 @@ use-native-transport=true
             lastJarPath = jarPath
             lastJavaArgs = javaArgs
             lastServerDir = serverDir
+            autoRestartEnabled = config?.autoRestart ?: false
 
             // Ensure system library shims exist before starting JVM
             javaRuntimeManager.fixupLibraries()
@@ -245,11 +247,18 @@ use-native-transport=true
                         uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000
                     )
                     process = null
-                    // Auto-retry on Paperclip hash failure
-                    if (sawHashFailure && restartCount < MAX_RESTART_RETRIES) {
+
+                    // Save crash log if process exited abnormally
+                    if (code != 0) {
+                        saveCrashLog(workDir, code)
+                    }
+
+                    // Auto-restart if enabled and within retry limit
+                    val shouldRestart = (autoRestartEnabled || sawHashFailure) && restartCount < MAX_RESTART_RETRIES
+                    if (shouldRestart) {
                         sawHashFailure = false
                         restartCount++
-                        Log.i(TAG, "Hash failure detected, auto-restart attempt $restartCount/$MAX_RESTART_RETRIES")
+                        Log.i(TAG, "Auto-restart attempt $restartCount/$MAX_RESTART_RETRIES")
                         delay(3000)
                         lastJarPath?.let { jar ->
                             lastJavaArgs?.let { args ->
@@ -374,6 +383,27 @@ use-native-transport=true
                 players = _state.value.players - name
             )
             activityLog.addPlayerLeave(name)
+        }
+    }
+
+    private fun saveCrashLog(workDir: File, exitCode: Int) {
+        try {
+            val logDir = File(workDir, "logs").also { it.mkdirs() }
+            val crashFile = File(logDir, "crash_${System.currentTimeMillis()}.log")
+            val lines = consoleStreamer.lines
+            val content = buildString {
+                appendLine("=== Crash Report ===")
+                appendLine("Time: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())}")
+                appendLine("Exit code: $exitCode")
+                appendLine("Uptime: ${_state.value.uptimeSeconds}s")
+                appendLine("Players: ${_state.value.players.joinToString(", ")}")
+                appendLine("=== Last ${lines.size} console lines ===")
+                lines.forEach { appendLine(it) }
+            }
+            crashFile.writeText(content)
+            Log.i(TAG, "Crash log saved: ${crashFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save crash log: ${e.message}")
         }
     }
 

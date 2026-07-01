@@ -42,7 +42,9 @@ fun AppNavigation(
     onClearAppData: () -> Unit,
     activityLog: ActivityLog,
     networkManager: NetworkManager,
-    storageInfo: StorageInfo
+    storageInfo: StorageInfo,
+    darkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -228,7 +230,14 @@ fun AppNavigation(
                     onReinstallJava = onReinstallJava,
                     onUninstallJava = onUninstallJava,
                     onFixupJava = onFixupJava,
-                    onClearAppData = onClearAppData
+                    onClearAppData = onClearAppData,
+                    darkTheme = darkTheme,
+                    onToggleTheme = onToggleTheme,
+                    activeServer = activeServer,
+                    onUpdateServer = { updated ->
+                        repository.update(updated)
+                        servers = repository.list()
+                    }
                 )
             }
 

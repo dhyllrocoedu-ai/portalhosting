@@ -71,6 +71,7 @@ fun ConsoleScreen(
     // Auto-scroll (only when not in search mode and at bottom)
     LaunchedEffect(consoleLines.size) {
         if (showSearch || searchQuery.isNotBlank()) return@LaunchedEffect
+        if (consoleLines.isEmpty()) return@LaunchedEffect
         val lastIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
         val totalItems = listState.layoutInfo.totalItemsCount
         if (lastIndex == null || lastIndex >= totalItems - 2) {
@@ -95,7 +96,7 @@ fun ConsoleScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { /* trigger handled by LaunchedEffect */ }),
                         trailingIcon = {
-                            if (searchQuery.isNotBlank()) {
+                            if (searchQuery.isNotBlank() && searchResults.isNotEmpty()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("${currentSearchIdx + 1}/${searchResults.size}", style = MaterialTheme.typography.labelSmall)
                                     IconButton(onClick = { currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1) }) {
