@@ -60,7 +60,9 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
-    onDeleteServer: (ServerConfig) -> Unit
+    onDeleteServer: (ServerConfig) -> Unit,
+    publicIp: String = "",
+    tunnelUrl: String = ""
 ) {
     val activeServer = serverConfigs.find { it.id == activeServerId }
     val clipboardManager = LocalClipboardManager.current
@@ -107,6 +109,8 @@ fun HomeScreen(
                     serverState = serverState,
                     statusColor = statusColor,
                     networkInfo = networkInfo,
+                    publicIp = publicIp,
+                    tunnelUrl = tunnelUrl,
                     onSelectServer = onSelectServer,
                     onCreateServer = onCreateServer,
                     onDeleteServer = onDeleteServer
@@ -227,6 +231,8 @@ private fun ServerCard(
     serverState: ServerState,
     statusColor: Color,
     networkInfo: NetworkInfo,
+    publicIp: String = "",
+    tunnelUrl: String = "",
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit
@@ -311,6 +317,62 @@ private fun ServerCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = FontFamily.Monospace
                         )
+                    }
+                    // Public IP
+                    if (publicIp.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Public,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "$publicIp:${activeServer.port}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                    // Tunnel URL (e.g. playit.gg)
+                    if (tunnelUrl.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Cloud,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = tunnelUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                    // Cellular warning
+                    if (networkInfo.isCellular && serverState.status == ServerStatus.ONLINE) {
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = Color(0xFFFFC107)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = "Mobile data — port forwarding may not work",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFFFC107)
+                            )
+                        }
                     }
                 }
             }
@@ -483,6 +545,14 @@ private fun LiveStatsGrid(
             ) {
                 StatCard("TPS", String.format("%.1f", processStats.tps), Modifier.weight(1f))
                 StatCard("Players", "${serverState.players.size} / 20", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatCard("↓ Down", processStats.rxFormatted, Modifier.weight(1f))
+                StatCard("↑ Up", processStats.txFormatted, Modifier.weight(1f))
             }
         }
     }

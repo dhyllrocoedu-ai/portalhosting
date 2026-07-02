@@ -153,6 +153,12 @@ private fun AppEntry(
         repository.clear()
     }
 
+    var tunnelUrl by remember { mutableStateOf(networkManager.loadTunnelUrl()) }
+    val onTunnelUrlChange: (String) -> Unit = {
+        tunnelUrl = it
+        networkManager.saveTunnelUrl(it)
+    }
+
     AppNavigation(
         serverManager = serverManager,
         consoleStreamer = consoleStreamer,
@@ -169,6 +175,8 @@ private fun AppEntry(
         networkManager = networkManager,
         storageInfo = storageInfo,
         darkTheme = darkTheme,
-        onToggleTheme = onToggleTheme
+        onToggleTheme = onToggleTheme,
+        tunnelUrl = tunnelUrl,
+        onTunnelUrlChange = onTunnelUrlChange
     )
 }

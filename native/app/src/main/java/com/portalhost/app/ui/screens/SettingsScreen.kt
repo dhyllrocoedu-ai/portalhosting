@@ -27,7 +27,9 @@ fun SettingsScreen(
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
     activeServer: ServerConfig?,
-    onUpdateServer: (ServerConfig) -> Unit
+    onUpdateServer: (ServerConfig) -> Unit,
+    tunnelUrl: String = "",
+    onTunnelUrlChange: (String) -> Unit = {}
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
@@ -106,6 +108,29 @@ fun SettingsScreen(
                             })
                         }
                     }
+                }
+            }
+
+            // Tunnel (playit.gg / ngrok)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Cloud, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Tunnel Address", style = MaterialTheme.typography.titleSmall)
+                            Text("Paste your playit.gg or ngrok URL here", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tunnelUrl,
+                        onValueChange = onTunnelUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("e.g. https://minecraft123.playit.gg") },
+                        singleLine = true,
+                        label = { Text("Tunnel URL") }
+                    )
                 }
             }
 

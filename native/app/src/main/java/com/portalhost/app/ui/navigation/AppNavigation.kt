@@ -51,7 +51,9 @@ fun AppNavigation(
     networkManager: NetworkManager,
     storageInfo: StorageInfo,
     darkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    tunnelUrl: String,
+    onTunnelUrlChange: (String) -> Unit
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -83,15 +85,24 @@ fun AppNavigation(
     // Network info + storage stats
     var networkInfo by remember { mutableStateOf(networkManager.getNetworkInfo()) }
     var storageStats by remember { mutableStateOf(storageInfo.getServerStorage(File(filesDir, "servers"))) }
+    var publicIp by remember { mutableStateOf("") }
 
     LaunchedEffect(state.status) {
         withContext(Dispatchers.IO) {
-            networkInfo = networkManager.getNetworkInfo()
+            networkInfo = networkManager.getNetworkInfo().copy(tunnelUrl = tunnelUrl)
+            if (publicIp.isEmpty()) {
+                val ip = networkManager.fetchPublicIp()
+                if (ip.isNotBlank()) publicIp = ip
+            }
             if (activeServerId != null) {
                 val serverDir = repository.getServerDir(activeServerId!!)
                 storageStats = storageInfo.getServerStorage(serverDir)
             }
         }
+    }
+
+    LaunchedEffect(tunnelUrl) {
+        networkInfo = networkInfo.copy(tunnelUrl = tunnelUrl)
     }
 
     val activeServer = servers.find { it.id == activeServerId }
@@ -187,6 +198,8 @@ fun AppNavigation(
                     networkInfo = networkInfo,
                     storageStats = storageStats,
                     jdkInstalled = jdkInstalled,
+                    publicIp = publicIp,
+                    tunnelUrl = tunnelUrl,
                     jdkInstalling = jdkInstalling,
                     onStart = onStart,
                     onStop = onStop,
@@ -264,7 +277,9 @@ fun AppNavigation(
                     onUpdateServer = { updated ->
                         repository.update(updated)
                         servers = repository.list()
-                    }
+                    },
+                    tunnelUrl = tunnelUrl,
+                    onTunnelUrlChange = onTunnelUrlChange
                 )
             }
 

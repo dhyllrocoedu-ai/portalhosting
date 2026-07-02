@@ -8,16 +8,23 @@ data class ProcessStats(
     val cpuPercent: Float = 0f,
     val ramBytes: Long = 0,
     val maxRamBytes: Long = 0,
-    val tps: Float = 20.0f
+    val tps: Float = 20.0f,
+    val rxBytesPerSec: Long = 0,
+    val txBytesPerSec: Long = 0
 ) {
     val ramFormatted: String get() = ProcessMonitor.formatBytes(ramBytes)
     val maxRamFormatted: String get() = ProcessMonitor.formatBytes(maxRamBytes)
+    val rxFormatted: String get() = ProcessMonitor.formatBytes(rxBytesPerSec) + "/s"
+    val txFormatted: String get() = ProcessMonitor.formatBytes(txBytesPerSec) + "/s"
 }
 
 class ProcessMonitor {
     private val TAG = "ProcessMonitor"
     private var lastCpuTime = 0L
     private var lastWallTime = 0L
+    private var lastNetRx = 0L
+    private var lastNetTx = 0L
+    private var lastNetTime = 0L
 
     fun getStats(process: Process?, maxRamMegabytes: Int = 2048): ProcessStats {
         if (process == null || !process.isAlive) {
@@ -27,12 +34,15 @@ class ProcessMonitor {
         val pid = getPid(process)
         val cpuPercent = if (pid != null) measureCpu(pid) else 0f
         val ramBytes = if (pid != null) readRss(pid) else 0L
+        val (rxRate, txRate) = if (pid != null) measureNetworkRate(pid) else 0L to 0L
 
         return ProcessStats(
             cpuPercent = cpuPercent,
             ramBytes = ramBytes,
             maxRamBytes = maxRamMegabytes * 1_000_000L,
-            tps = 20.0f
+            tps = 20.0f,
+            rxBytesPerSec = rxRate,
+            txBytesPerSec = txRate
         )
     }
 
@@ -94,6 +104,42 @@ class ProcessMonitor {
             0L
         } catch (_: Exception) {
             0L
+        }
+    }
+
+    private fun measureNetworkRate(pid: Int): Pair<Long, Long> {
+        return try {
+            val netFile = File("/proc/$pid/net/dev")
+            if (!netFile.exists()) return 0L to 0L
+            var rx: Long = 0
+            var tx: Long = 0
+            netFile.readLines().forEach { line ->
+                // Lines: "  eth0: 12345 0 0 0 0 0 0 0 54321 ..."
+                if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
+                    val parts = line.trim().split("\\s+".toRegex())
+                    if (parts.size >= 10) {
+                        rx += parts[1].toLongOrNull() ?: 0
+                        tx += parts[9].toLongOrNull() ?: 0
+                    }
+                }
+            }
+            val now = System.nanoTime()
+            val elapsedNs = now - lastNetTime
+            if (lastNetTime == 0L || elapsedNs <= 0) {
+                lastNetRx = rx
+                lastNetTx = tx
+                lastNetTime = now
+                return 0L to 0L
+            }
+            val elapsedSec = elapsedNs / 1_000_000_000.0
+            val rxRate = if (elapsedSec > 0) ((rx - lastNetRx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
+            val txRate = if (elapsedSec > 0) ((tx - lastNetTx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
+            lastNetRx = rx
+            lastNetTx = tx
+            lastNetTime = now
+            rxRate to txRate
+        } catch (_: Exception) {
+            0L to 0L
         }
     }
 

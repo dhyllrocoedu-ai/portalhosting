@@ -18,6 +18,7 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 native/.gradle/
+native/build/
 native/app/build/
 native/gradle/.gradle/
 native/gradle/wrapper/gradle-wrapper.jar
