@@ -56,7 +56,6 @@ fun HomeScreen(
     onRestart: () -> Unit,
     onCommand: (String) -> Unit,
     onOpenConsole: () -> Unit,
-    onOpenPlayerManagement: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenSettings: () -> Unit,
     onSelectServer: (String) -> Unit,
@@ -196,8 +195,8 @@ fun HomeScreen(
             item {
                 PlayerListCard(
                     players = serverState.players,
-                    maxPlayers = 20,
-                    onOpenPlayerManagement = onOpenPlayerManagement
+                    isOnline = serverState.status == ServerStatus.ONLINE,
+                    onCommand = onCommand
                 )
             }
 
@@ -696,14 +695,18 @@ private fun ConsolePreview(
 
 // ── Section 6 — Player List ──
 
+private const val PLAYER_PAGE_SIZE = 5
+
 @Composable
 private fun PlayerListCard(
     players: List<String>,
-    maxPlayers: Int,
-    onOpenPlayerManagement: () -> Unit
+    isOnline: Boolean,
+    onCommand: (String) -> Unit
 ) {
-    var showAll by remember { mutableStateOf(false) }
-    val displayPlayers = if (showAll || players.size <= 5) players else players.take(5)
+    var expanded by remember { mutableStateOf(false) }
+    var page by remember { mutableIntStateOf(0) }
+    val totalPages = ((players.size - 1) / PLAYER_PAGE_SIZE).coerceAtLeast(0) + 1
+    val pagePlayers = players.drop(page * PLAYER_PAGE_SIZE).take(PLAYER_PAGE_SIZE)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -716,9 +719,11 @@ private fun PlayerListCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Online Players", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onOpenPlayerManagement) {
-                    Text("Player Management →")
+                Text("Online Players (${players.size})", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (players.isNotEmpty()) {
+                    TextButton(onClick = { expanded = !expanded }) {
+                        Text(if (expanded) "Collapse" else "Player Management →")
+                    }
                 }
             }
 
@@ -729,13 +734,60 @@ private fun PlayerListCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
+            } else if (expanded) {
+                Spacer(Modifier.height(8.dp))
+                pagePlayers.forEach { player ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(28.dp),
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text(player, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            if (isOnline) {
+                                ActionChip("Kick") { onCommand("/kick $player") }
+                                Spacer(Modifier.width(4.dp))
+                                ActionChip("Ban") { onCommand("/ban $player") }
+                                Spacer(Modifier.width(4.dp))
+                                ActionChip("OP") { onCommand("/op $player") }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+                // Pagination
+                if (totalPages > 1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { if (page > 0) page-- }, enabled = page > 0, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", modifier = Modifier.size(20.dp))
+                        }
+                        Text("Page ${page + 1} of $totalPages", style = MaterialTheme.typography.labelSmall)
+                        IconButton(onClick = { if (page < totalPages - 1) page++ }, enabled = page < totalPages - 1, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Next", modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
             } else {
                 Spacer(Modifier.height(8.dp))
-                displayPlayers.forEach { player ->
+                players.take(5).forEach { player ->
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         PlayerIcon(size = 18.dp)
@@ -744,16 +796,29 @@ private fun PlayerListCard(
                     }
                 }
                 if (players.size > 5) {
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(
-                        onClick = { showAll = !showAll },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (showAll) "Show less" else "Show all (${players.size})")
+                    TextButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Show all (${players.size})")
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ActionChip(label: String, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 

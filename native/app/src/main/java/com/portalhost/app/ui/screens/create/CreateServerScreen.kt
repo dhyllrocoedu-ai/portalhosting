@@ -2,6 +2,7 @@ package com.portalhost.app.ui.screens.create
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -62,18 +63,23 @@ fun CreateServerScreen(
     val ramOptions = listOf("512", "1024", "2048", "4096", "6144", "8192")
     val ramLabels = listOf("512 MB", "1 GB", "2 GB", "4 GB", "6 GB", "8 GB")
 
+    val context = LocalContext.current
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             jarUri = uri
-            jarName = uri.lastPathSegment?.substringAfterLast('/') ?: "server.jar"
+            // Query ContentResolver for the actual display name
+            jarName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
+            } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "server.jar"
             createSource = CreateSource.PICK_FILE
         }
     }
 
     // Auto-detect MC version from picked JAR
-    val context = LocalContext.current
     LaunchedEffect(jarUri) {
         if (jarUri != null && createSource == CreateSource.PICK_FILE) {
             val detected = JarAnalyzer.detectVersion(context, jarUri!!)
