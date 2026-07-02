@@ -1,19 +1,14 @@
 package com.portalhost.app
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.core.content.ContextCompat
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
@@ -50,26 +45,20 @@ class MainActivity : ComponentActivity() {
         javaRuntimeManager = JavaRuntimeManager(this)
         consoleStreamer = ConsoleStreamer()
         activityLog = ActivityLog()
-        serverManager = ServerManager(javaRuntimeManager, consoleStreamer, activityLog)
+
+        // Reuse existing ServerManager if a server is still running in the background
+        val existing = MinecraftService.ServerManagerHolder.manager
+        if (existing != null && existing.isRunning) {
+            serverManager = existing
+            Log.i(TAG, "Reusing existing ServerManager (server still running)")
+        } else {
+            serverManager = ServerManager(javaRuntimeManager, consoleStreamer, activityLog)
+            MinecraftService.ServerManagerHolder.manager = serverManager
+        }
+
         repository = ServerRepository(this)
         networkManager = NetworkManager(this)
         storageInfo = StorageInfo()
-
-        MinecraftService.ServerManagerHolder.manager = serverManager
-
-        // Request notification permission on Android 13+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val notificationPermissionLauncher = registerForActivityResult(
-                ActivityResultContracts.RequestPermission()
-            ) { granted ->
-                Log.i(TAG, "POST_NOTIFICATIONS granted=$granted")
-            }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
 
         // Wire console streaming
         val consoleJob = serverScope.launch {

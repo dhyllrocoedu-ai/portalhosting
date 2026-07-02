@@ -4,14 +4,17 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -116,24 +119,19 @@ fun AppNavigation(
 
     val activeServer = servers.find { it.id == activeServerId }
 
-    fun startServer(server: ServerConfig) {
-        if (!jdkInstalled) return
-        // POST_NOTIFICATIONS required on Android 13+ for foreground service notification
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            android.util.Log.w("AppNavigation", "Cannot start server: POST_NOTIFICATIONS not granted")
-            return
-        }
-        // Start foreground service for background keep-alive + notification
+    // ---- Permission handling ----
+    var pendingServerForPermission by remember { mutableStateOf<ServerConfig?>(null) }
+    var showPermissionRationale by remember { mutableStateOf(false) }
+    var showPermissionSettings by remember { mutableStateOf(false) }
+
+    // Defined first so the launcher callback can reference it
+    fun doStartServer(server: ServerConfig) {
         val fgIntent = Intent(context, MinecraftService::class.java).apply {
             action = MinecraftService.ACTION_FOREGROUND
         }
         ContextCompat.startForegroundService(context, fgIntent)
         scope.launch {
             val serverDir = repository.getServerDir(server.id).absolutePath
-            // Pre-seed Mojang jar for Paper servers to avoid Paperclip hash failure
             if (server.serverType == "paper" && server.mcVersion.isNotBlank()) {
                 val mojangFile = File(serverDir, "mojang_${server.mcVersion}.jar")
                 if (!mojangFile.exists()) {
@@ -152,6 +150,56 @@ fun AppNavigation(
                 config = server
             )
         }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val server = pendingServerForPermission
+        pendingServerForPermission = null
+        if (granted && server != null) {
+            doStartServer(server)
+        } else if (!granted && server != null) {
+            val showRationale = try {
+                ActivityCompat.shouldShowRequestPermissionRationale(
+                    context as android.app.Activity,
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
+            } catch (_: Exception) { false }
+            if (!showRationale) {
+                showPermissionSettings = true
+            }
+        }
+    }
+
+    fun requestNotificationPermissionOrSettings(server: ServerConfig) {
+        pendingServerForPermission = server
+        val showRationale = try {
+            ActivityCompat.shouldShowRequestPermissionRationale(
+                context as android.app.Activity,
+                Manifest.permission.POST_NOTIFICATIONS
+            )
+        } catch (_: Exception) { false }
+        if (showRationale) {
+            showPermissionRationale = true
+        } else {
+            showPermissionSettings = true
+        }
+    }
+
+    fun startServer(server: ServerConfig) {
+        if (!jdkInstalled) {
+            Toast.makeText(context, "JDK not installed yet. Please wait.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotificationPermissionOrSettings(server)
+            return
+        }
+        doStartServer(server)
     }
 
     val onStart: () -> Unit = {
@@ -346,5 +394,43 @@ fun AppNavigation(
                 )
             }
         }
+    }
+
+    // ---- Permission dialogs ----
+    if (showPermissionRationale) {
+        AlertDialog(
+            onDismissRequest = { showPermissionRationale = false },
+            title = { Text("Enable Notifications") },
+            text = { Text("PortalHost needs notification permission to show the server status and keep your Minecraft server running in the background.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPermissionRationale = false
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }) { Text("Allow") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionRationale = false }) { Text("Not Now") }
+            }
+        )
+    }
+
+    if (showPermissionSettings) {
+        AlertDialog(
+            onDismissRequest = { showPermissionSettings = false },
+            title = { Text("Permission Required") },
+            text = { Text("Notification permission was previously denied. Without it, the server cannot stay running in the background.\n\nOpen Settings > Apps > PortalHost > Notifications and enable notifications.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPermissionSettings = false
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) { Text("Open Settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionSettings = false }) { Text("Cancel") }
+            }
+        )
     }
 }

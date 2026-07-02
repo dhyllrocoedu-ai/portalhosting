@@ -13,12 +13,13 @@ class PortalHostApp : Application() {
     }
 
     private fun createNotificationChannel() {
+        // v3 — IMPORTANCE_LOW (no sound) + new ID so existing installs get the silent channel
         val channel = NotificationChannel(
             CHANNEL_SERVER,
             "Minecraft Server",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Minecraft server status notifications"
+            description = "Minecraft server status and background keep-alive notifications"
             setShowBadge(false)
         }
         val manager = getSystemService(NotificationManager::class.java)
@@ -29,6 +30,6 @@ class PortalHostApp : Application() {
         lateinit var instance: PortalHostApp
             private set
 
-        const val CHANNEL_SERVER = "minecraft_server"
+        const val CHANNEL_SERVER = "minecraft_server_v3"
     }
 }

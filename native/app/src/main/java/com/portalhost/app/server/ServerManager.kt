@@ -238,9 +238,12 @@ use-native-transport=true
                                 _processStats.value = _processStats.value.copy(tps = tps)
                             }
                         }
+                        Log.i(TAG, "processJob: read loop ended normally (EOF)")
                     }
-                } catch (_: IOException) {
-                    // Process terminated, stream closed
+                } catch (e: IOException) {
+                    Log.i(TAG, "processJob: read loop ended via IOException: ${e.message}")
+                } catch (e: Exception) {
+                    Log.w(TAG, "processJob: read loop ended via unexpected exception: ${e.message}", e)
                 } finally {
                     val code = try {
                         proc.exitValue()
@@ -338,7 +341,11 @@ use-native-transport=true
 
     /** Gracefully stop the server. */
     suspend fun stop() {
-        val proc = process ?: return
+        val proc = process ?: run {
+            Log.w(TAG, "stop() called but process is null")
+            return
+        }
+        Log.i(TAG, "stop() called — capturing caller stack trace", Exception("caller trace"))
         autoRestartEnabled = false
         _state.value = _state.value.copy(status = ServerStatus.STOPPING)
 
@@ -349,14 +356,19 @@ use-native-transport=true
         withContext(Dispatchers.IO) {
             try {
                 // Send "stop" command via stdin
+                Log.i(TAG, "stop(): writing 'stop\\n' to stdin")
                 proc.outputStream.write("stop\n".toByteArray())
                 proc.outputStream.flush()
-
+                Log.i(TAG, "stop(): waiting up to 10s for process to exit")
                 // Wait up to 10 seconds for graceful shutdown
                 if (!proc.waitFor(10, TimeUnit.SECONDS)) {
+                    Log.w(TAG, "stop(): timeout — force killing")
                     proc.destroyForcibly()
+                } else {
+                    Log.i(TAG, "stop(): process exited gracefully")
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w(TAG, "stop(): exception, force killing: ${e.message}")
                 proc.destroyForcibly()
             }
         }
@@ -438,7 +450,18 @@ use-native-transport=true
 
     fun resolveJavaPath(): String = javaRuntimeManager.resolveJavaPath()
 
+    /**
+     * Called when activity is destroyed (user switches apps).
+     * Does NOT kill the process — the foreground service keeps everything running.
+     * Scope is kept alive so polling jobs continue and notification stays fresh.
+     * Full cleanup happens in dispose() when the service stops.
+     */
     fun destroy() {
+        // No-op — process, scope, and polling all survive activity destruction.
+    }
+
+    /** Full cleanup — call from Service.onDestroy(), not Activity.onDestroy(). */
+    fun dispose() {
         kill()
         scope.cancel()
     }

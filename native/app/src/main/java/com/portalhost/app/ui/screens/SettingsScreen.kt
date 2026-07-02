@@ -1,5 +1,8 @@
 package com.portalhost.app.ui.screens
 
+import android.content.Intent
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -7,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.portalhost.app.ui.components.CraftingIcon
 import com.portalhost.app.ui.components.GrassIcon
@@ -181,6 +185,52 @@ fun SettingsScreen(
                             Spacer(Modifier.width(4.dp))
                             Text("Remove")
                         }
+                    }
+                }
+            }
+
+            // Battery Optimization
+            val context = LocalContext.current
+            val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
+            var isBatteryExempt by remember { mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName)) }
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.BatteryFull, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Background Keep-Alive", style = MaterialTheme.typography.titleSmall)
+                            Text("Battery optimization: ${if (isBatteryExempt) "Disabled (server will survive in background)" else "Enabled (server may be killed when backgrounded)"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isBatteryExempt) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    if (!isBatteryExempt) {
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(onClick = {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = android.net.Uri.parse("package:${context.packageName}")
+                            }
+                            context.startActivity(intent)
+                        }) {
+                            Icon(Icons.Default.BatteryChargingFull, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Disable Battery Optimization")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Tap the button above, then toggle \"Allow background operation\" on the next screen.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        Text("After toggling, come back here and the status will update.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Spacer(Modifier.height(8.dp))
+                        Text("The server can stay alive in the background without being killed by the system.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
