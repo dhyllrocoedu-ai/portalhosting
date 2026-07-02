@@ -7,12 +7,17 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.portalhost.app.MainActivity
 import com.portalhost.app.PortalHostApp
-import com.portalhost.app.R
-import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
 import kotlinx.coroutines.*
 import java.util.Locale
 
+/**
+ * Foreground service that keeps the server process alive in the background
+ * and shows live stats (RAM/TPS/players/uptime) in the notification.
+ *
+ * Server lifecycle is managed externally (AppNavigation) — this service
+ * only provides the foreground notification + notification action buttons.
+ */
 class MinecraftService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var notificationJob: Job? = null
@@ -24,22 +29,24 @@ class MinecraftService : Service() {
         val manager = ServerManagerHolder.manager
 
         when (action) {
-            ACTION_START -> {
-                val jarPath = intent?.getStringExtra(EXTRA_JAR_PATH) ?: return START_NOT_STICKY
-                val javaArgs = intent?.getStringArrayListExtra(EXTRA_JAVA_ARGS) ?: arrayListOf()
-                val serverDir = intent?.getStringExtra(EXTRA_SERVER_DIR)
-
+            ACTION_FOREGROUND -> {
                 startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
                 startNotificationUpdater()
-                startServer(jarPath, javaArgs, serverDir)
             }
 
             ACTION_STOP -> {
-                stopServer()
+                notificationJob?.cancel()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
             }
 
             ACTION_NOTIFICATION_STOP -> {
-                serviceScope.launch { manager?.stop() }
+                serviceScope.launch {
+                    manager?.stop()
+                    notificationJob?.cancel()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
             }
 
             ACTION_NOTIFICATION_RESTART -> {
@@ -48,27 +55,6 @@ class MinecraftService : Service() {
         }
 
         return START_STICKY
-    }
-
-    private fun startServer(jarPath: String, javaArgs: List<String>, serverDir: String?) {
-        val manager = ServerManagerHolder.manager ?: return
-        serviceScope.launch {
-            manager.start(
-                jarPath = jarPath,
-                javaArgs = javaArgs,
-                serverDir = serverDir ?: jarPath.substringBeforeLast("/")
-            )
-        }
-    }
-
-    private fun stopServer() {
-        val manager = ServerManagerHolder.manager
-        serviceScope.launch {
-            manager?.stop()
-        }
-        notificationJob?.cancel()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
     }
 
     private fun startNotificationUpdater() {
@@ -165,17 +151,14 @@ class MinecraftService : Service() {
             .build()
 
     object ServerManagerHolder {
-        var manager: ServerManager? = null
+        var manager: com.portalhost.app.server.ServerManager? = null
     }
 
     companion object {
-        const val ACTION_START = "com.portalhost.action.START_SERVER"
-        const val ACTION_STOP = "com.portalhost.action.STOP_SERVER"
+        const val ACTION_FOREGROUND = "com.portalhost.action.FOREGROUND"
+        const val ACTION_STOP = "com.portalhost.action.STOP_SERVICE"
         const val ACTION_NOTIFICATION_STOP = "com.portalhost.action.NOTIFICATION_STOP"
         const val ACTION_NOTIFICATION_RESTART = "com.portalhost.action.NOTIFICATION_RESTART"
-        const val EXTRA_JAR_PATH = "jar_path"
-        const val EXTRA_JAVA_ARGS = "java_args"
-        const val EXTRA_SERVER_DIR = "server_dir"
         const val NOTIFICATION_ID = 1001
     }
 }

@@ -286,7 +286,7 @@ private fun ServerCard(
                 )
                 if (activeServer != null) {
                     Text(
-                        text = "${serverTypeLabel(activeServer.serverType)} ${activeServer.mcVersion} · ${serverState.status.name}",
+                        text = "${activeServer.jarName} · ${activeServer.mcVersion.ifBlank { serverTypeLabel(activeServer.serverType) }} · ${serverState.status.name}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -299,42 +299,30 @@ private fun ServerCard(
                     }
                     // Connection info inline
                     Spacer(Modifier.height(4.dp))
-                    val address = if (serverState.status == ServerStatus.ONLINE && networkInfo.localIp != "Unknown")
-                        "${networkInfo.localIp}:${activeServer.port}"
-                    else
-                        "Server not running"
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.Lan,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = address,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                    // Public IP
-                    if (publicIp.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
+                    if (serverState.status == ServerStatus.ONLINE) {
+                        if (publicIp.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                Spacer(Modifier.width(4.dp))
+                                Text(text = "$publicIp:${activeServer.port}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
+                            }
+                            Spacer(Modifier.height(2.dp))
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Public,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                text = "$publicIp:${activeServer.port}",
+                                text = if (networkInfo.localIp != "Unknown") "${networkInfo.localIp}:${activeServer.port}" else "Local IP unknown",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = FontFamily.Monospace
                             )
+                        }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(4.dp))
+                            Text(text = "Server not running", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                         }
                     }
                     // Tunnel URL (e.g. playit.gg)
@@ -665,7 +653,7 @@ private fun ConsolePreview(
                     items(consoleLines.takeLast(5)) { line ->
                         Text(
                             text = line,
-                            color = Color(0xFF00FF41),
+                            color = consoleLineColor(line),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,
                             lineHeight = 13.sp

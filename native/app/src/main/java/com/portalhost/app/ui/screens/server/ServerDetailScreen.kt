@@ -41,6 +41,7 @@ fun ServerDetailScreen(
     onStop: () -> Unit,
     onCommand: (String) -> Unit,
     onBack: () -> Unit,
+    onUpdateServer: (ServerConfig) -> Unit = {},
     serverDir: File
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -78,7 +79,7 @@ fun ServerDetailScreen(
             when (selectedTab) {
                 0 -> OverviewTab(server, serverState, statusColor, consoleLines, onStart, onStop, onCommand, { text -> commandInput = text; selectedTab = 1 })
                 1 -> ConsoleTab(consoleLines, onCommand, serverState.status == ServerStatus.ONLINE, commandInput, { commandInput = it })
-                2 -> PropertiesTab(server)
+                2 -> PropertiesTab(server, serverDir, onUpdateServer)
                 3 -> WorldsTab(serverDir)
                 4 -> PluginsTab(serverDir)
                 5 -> ModsTab(serverDir)
@@ -236,29 +237,77 @@ private fun ConsoleTab(consoleLines: List<String>, onCommand: (String) -> Unit, 
 // ─── PROPERTIES ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun PropertiesTab(server: ServerConfig) {
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { PropertyRow("Name", server.name) }
-        item { PropertyRow("JAR", server.jarName) }
-        item { PropertyRow("Min RAM", server.minRam) }
-        item { PropertyRow("Max RAM", server.maxRam) }
-        item { PropertyRow("Port", server.port.toString()) }
-        item { PropertyRow("Gamemode", server.gamemode.replaceFirstChar { it.uppercase() }) }
-        item { PropertyRow("Difficulty", server.difficulty.replaceFirstChar { it.uppercase() }) }
-        item { PropertyRow("MOTD", server.motd) }
-        item { PropertyRow("EULA Accepted", if (server.eulaAccepted) "Yes" else "No") }
-        item { PropertyRow("Server Type", server.serverType.replaceFirstChar { it.uppercase() }) }
-        item { PropertyRow("MC Version", server.mcVersion.ifBlank { "—" }) }
+private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
+    var name by remember(server) { mutableStateOf(server.name) }
+    var portText by remember(server) { mutableStateOf(server.port.toString()) }
+    var gamemode by remember(server) { mutableStateOf(server.gamemode) }
+    var difficulty by remember(server) { mutableStateOf(server.difficulty) }
+    var motd by remember(server) { mutableStateOf(server.motd) }
+    var saved by remember { mutableStateOf(false) }
+
+    val gamemodes = listOf("survival", "creative", "adventure", "spectator")
+    val difficulties = listOf("peaceful", "easy", "normal", "hard")
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Server Properties", style = MaterialTheme.typography.titleSmall)
+
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = portText, onValueChange = { portText = it.filter { c -> c.isDigit() }.take(5) }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Text("Gamemode", style = MaterialTheme.typography.labelSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            gamemodes.forEach { gm ->
+                FilterChip(selected = gamemode == gm, onClick = { gamemode = gm }, label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
+            }
+        }
+        Text("Difficulty", style = MaterialTheme.typography.labelSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            difficulties.forEach { diff ->
+                FilterChip(selected = difficulty == diff, onClick = { difficulty = diff }, label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
+            }
+        }
+        OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+        Button(
+            onClick = {
+                val newPort = portText.toIntOrNull() ?: server.port
+                val propsFile = File(serverDir, "server.properties")
+                if (propsFile.exists()) {
+                    var content = propsFile.readText()
+                    content = content.replace(Regex("(?m)^server-port=\\d+"), "server-port=$newPort")
+                    content = content.replace(Regex("(?m)^gamemode=\\w+"), "gamemode=$gamemode")
+                    content = content.replace(Regex("(?m)^difficulty=\\w+"), "difficulty=$difficulty")
+                    content = content.replace(Regex("(?m)^motd=.*"), "motd=$motd")
+                    propsFile.writeText(content)
+                }
+                val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd)
+                onUpdateServer(updated)
+                saved = true
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Save Properties") }
+
+        Text("Read-only", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                PropertyRowReadOnly("JAR", server.jarName)
+                PropertyRowReadOnly("Min RAM", server.minRam)
+                PropertyRowReadOnly("Max RAM", server.maxRam)
+                PropertyRowReadOnly("Server Type", server.serverType.replaceFirstChar { it.uppercase() })
+                PropertyRowReadOnly("MC Version", server.mcVersion.ifBlank { "—" })
+            }
+        }
+
+        if (saved) {
+            Text("Properties updated. Restart server to apply changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
     }
 }
 
 @Composable
-private fun PropertyRow(label: String, value: String) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(12.dp)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.bodyMedium)
-        }
+private fun PropertyRowReadOnly(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodySmall)
     }
 }
 

@@ -19,7 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -62,7 +64,7 @@ fun ServerFilesScreen(
     var compressResult by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<File?>(null) }
     var editingFile by remember { mutableStateOf<File?>(null) }
-    var editorText by remember { mutableStateOf("") }
+    var editorValue by remember { mutableStateOf(TextFieldValue("")) }
     var showSnackbar by remember { mutableStateOf("") }
 
     // Export launcher (for a single file)
@@ -222,7 +224,8 @@ fun ServerFilesScreen(
                                     currentDir = entry.file
                                 } else if (isEditableFile(entry.file)) {
                                     editingFile = entry.file
-                                    editorText = entry.file.readText()
+                                    val text = entry.file.readText()
+                                    editorValue = TextFieldValue(text, selection = TextRange(text.length))
                                 } else {
                                     showSnackbar = "Cannot edit binary file"
                                 }
@@ -232,7 +235,8 @@ fun ServerFilesScreen(
                             onEdit = {
                                 if (isEditableFile(it)) {
                                     editingFile = it
-                                    editorText = it.readText()
+                                    val text = it.readText()
+                                    editorValue = TextFieldValue(text, selection = TextRange(text.length))
                                 } else {
                                     showSnackbar = "Cannot edit binary file"
                                 }
@@ -304,7 +308,7 @@ fun ServerFilesScreen(
                         actions = {
                             TextButton(onClick = {
                                 try {
-                                    file.writeText(editorText)
+                                    file.writeText(editorValue.text)
                                     showSnackbar = "Saved ${file.name}"
                                     editingFile = null
                                     refreshDir(currentDir, sortBy, sortAsc) { entries = it }
@@ -317,8 +321,8 @@ fun ServerFilesScreen(
                     )
                     // Editor content
                     OutlinedTextField(
-                        value = editorText,
-                        onValueChange = { editorText = it },
+                        value = editorValue,
+                        onValueChange = { editorValue = it },
                         modifier = Modifier.fillMaxSize().padding(8.dp),
                         textStyle = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,

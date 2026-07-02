@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.server.JarAnalyzer
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
@@ -71,7 +72,15 @@ fun CreateServerScreen(
         }
     }
 
+    // Auto-detect MC version from picked JAR
     val context = LocalContext.current
+    LaunchedEffect(jarUri) {
+        if (jarUri != null && createSource == CreateSource.PICK_FILE) {
+            val detected = JarAnalyzer.detectVersion(context, jarUri!!)
+            if (detected.isNotBlank()) mcVersion = detected
+        }
+    }
+
     val scope = rememberCoroutineScope()
     val downloader = remember { ServerDownloader() }
     val scrollState = rememberScrollState()

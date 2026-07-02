@@ -8,10 +8,12 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -29,6 +32,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.sample
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -54,6 +60,9 @@ fun ConsoleScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
+    // Track whether user is near bottom for auto-scroll
+    var isNearBottom by remember { mutableStateOf(true) }
+
     // Filtered lines for search
     val displayLines = if (searchQuery.isNotBlank()) {
         consoleLines.filterIndexed { idx, _ -> idx in searchResults }
@@ -71,19 +80,25 @@ fun ConsoleScreen(
         }
     }
 
-    // Auto-scroll to latest line when at bottom
+    // Track scroll position — user near bottom?
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= info.totalItemsCount - 3
+        }
+            .distinctUntilChanged()
+            .collect { near -> isNearBottom = near }
+    }
+
+    // Auto-scroll when new lines arrive AND user is near bottom
     LaunchedEffect(consoleLines.size) {
         if (showSearch || searchQuery.isNotBlank()) return@LaunchedEffect
         if (consoleLines.isEmpty()) return@LaunchedEffect
+        if (!isNearBottom) return@LaunchedEffect
         try {
-            val lastIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            val totalItems = listState.layoutInfo.totalItemsCount
-            if (lastIndex == null || lastIndex >= totalItems - 2) {
-                listState.scrollToItem(consoleLines.size - 1)
-            }
-        } catch (_: Exception) {
-            // Layout not ready yet — skip
-        }
+            listState.scrollToItem(consoleLines.size - 1)
+        } catch (_: Exception) {}
     }
 
     Scaffold(
@@ -173,11 +188,39 @@ fun ConsoleScreen(
                     items(displayLines) { line ->
                         Text(
                             text = line,
-                            color = Color(0xFF00FF41),
+                            color = consoleLineColor(line),
                             fontFamily = FontFamily.Monospace,
                             fontSize = 12.sp,
                             lineHeight = 16.sp
                         )
+                    }
+                }
+
+                // Scroll-to-bottom button when scrolled up
+                if (!isNearBottom && !showSearch) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                scope.launch {
+                                    listState.animateScrollToItem(consoleLines.size - 1)
+                                }
+                            },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        tonalElevation = 4.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Scroll to bottom",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -262,6 +305,32 @@ private fun copyLogs(context: Context, lines: List<String>) {
     val text = lines.joinToString("\n").takeLast(50000)
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText("Console Logs", text))
+}
+
+/** Color-code a console line based on its content. */
+fun consoleLineColor(line: String): Color {
+    val upper = line.uppercase()
+    return when {
+        // Errors — red
+        upper.contains("[SEVERE]") || upper.contains("[ERROR]") || upper.contains("[FATAL]") ||
+            upper.startsWith("[ERROR]") -> Color(0xFFFF4444)
+        // Warnings — gold
+        upper.contains("[WARN]") || upper.contains("[WARNING]") -> Color(0xFFFFAA00)
+        // Player join — cyan
+        upper.contains("JOINED THE GAME") -> Color(0xFF55FFFF)
+        // Player leave — yellow
+        upper.contains("LEFT THE GAME") -> Color(0xFFFFFF55)
+        // Chat messages — light purple
+        line.contains("<") && line.contains(">") -> Color(0xFFAA55FF)
+        // Debug/trace — dim gray
+        upper.contains("[DEBUG]") || upper.contains("[FINE]") || upper.contains("[FINER]") ||
+            upper.contains("[FINEST]") || upper.contains("[TRACE]") || upper.contains("[VERBOSE]") -> Color(0xFF666666)
+        // Info / notice — light gray
+        upper.contains("[INFO]") || upper.contains("[NOTICE]") || upper.contains("[CONFIG]") ||
+            upper.contains("]: ") -> Color(0xFFAAAAAA)
+        // Everything else — terminal green
+        else -> Color(0xFF00FF41)
+    }
 }
 
 private fun saveLogs(context: Context, lines: List<String>, serverDir: File?) {

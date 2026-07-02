@@ -1,12 +1,15 @@
 package com.portalhost.app.ui.navigation
 
+import android.content.Intent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -19,6 +22,7 @@ import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.CmdBlockIcon
@@ -57,6 +61,7 @@ fun AppNavigation(
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val state by serverManager.state.collectAsState()
     val processStats by serverManager.processStats.collectAsState()
     val tabs = AppTab.entries
@@ -109,6 +114,11 @@ fun AppNavigation(
 
     fun startServer(server: ServerConfig) {
         if (!jdkInstalled) return
+        // Start foreground service for background keep-alive + notification
+        val fgIntent = Intent(context, MinecraftService::class.java).apply {
+            action = MinecraftService.ACTION_FOREGROUND
+        }
+        ContextCompat.startForegroundService(context, fgIntent)
         scope.launch {
             val serverDir = repository.getServerDir(server.id).absolutePath
             // Pre-seed Mojang jar for Paper servers to avoid Paperclip hash failure
@@ -140,7 +150,13 @@ fun AppNavigation(
         }
     }
 
-    val onStop: () -> Unit = { scope.launch { serverManager.stop() } }
+    val onStop: () -> Unit = {
+        scope.launch { serverManager.stop() }
+        val stopIntent = Intent(context, MinecraftService::class.java).apply {
+            action = MinecraftService.ACTION_STOP
+        }
+        context.startService(stopIntent)
+    }
     val onRestart: () -> Unit = { scope.launch { serverManager.restart() } }
 
     Scaffold(
@@ -307,6 +323,10 @@ fun AppNavigation(
                         onStop = { scope.launch { serverManager.stop() } },
                         onCommand = { serverManager.writeCommand(it) },
                         onBack = { navController.popBackStack() },
+                        onUpdateServer = { updated ->
+                            repository.update(updated)
+                            servers = repository.list()
+                        },
                         serverDir = repository.getServerDir(server.id)
                     )
                 }

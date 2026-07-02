@@ -1,14 +1,19 @@
 package com.portalhost.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
@@ -51,6 +56,20 @@ class MainActivity : ComponentActivity() {
         storageInfo = StorageInfo()
 
         MinecraftService.ServerManagerHolder.manager = serverManager
+
+        // Request notification permission on Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val notificationPermissionLauncher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                Log.i(TAG, "POST_NOTIFICATIONS granted=$granted")
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
 
         // Wire console streaming
         val consoleJob = serverScope.launch {
