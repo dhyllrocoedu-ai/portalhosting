@@ -8,6 +8,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.ui.components.CraftingIcon
+import com.portalhost.app.ui.components.GrassIcon
+import com.portalhost.app.ui.components.RedstoneIcon
+import com.portalhost.app.ui.components.PickaxeIcon
 import com.portalhost.app.ui.model.ServerConfig
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,7 +48,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Palette, contentDescription = null)
+                        GrassIcon(size = 20.dp)
                         Spacer(Modifier.width(12.dp))
                         Text("Appearance", style = MaterialTheme.typography.titleSmall)
                     }
@@ -73,7 +77,7 @@ fun SettingsScreen(
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Dns, contentDescription = null)
+                            RedstoneIcon(size = 20.dp)
                             Spacer(Modifier.width(12.dp))
                             Text("Server Defaults (${activeServer.name})", style = MaterialTheme.typography.titleSmall)
                         }
@@ -109,7 +113,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Code, contentDescription = null)
+                        PickaxeIcon(size = 20.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Java Runtime", style = MaterialTheme.typography.titleSmall)
@@ -129,7 +133,10 @@ fun SettingsScreen(
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         OutlinedButton(onClick = onReinstallJava, enabled = !jdkInstalling) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
@@ -176,16 +183,43 @@ fun SettingsScreen(
                 }
             }
 
-            // About
+            // App Info
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null)
+                        CraftingIcon(size = 20.dp)
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text("About", style = MaterialTheme.typography.titleSmall)
+                            Text("App Info", style = MaterialTheme.typography.titleSmall)
                             Text("PortalHost v2.1.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = { /* TODO: open GitHub releases */ },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Check for Updates")
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = { /* TODO: open GitHub issues */ },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Report Issue")
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = { /* TODO: share intent */ },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Share App")
                     }
                 }
             }

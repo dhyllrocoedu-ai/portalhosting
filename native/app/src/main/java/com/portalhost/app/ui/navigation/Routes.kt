@@ -21,4 +21,5 @@ object Routes {
     fun serverDetail(id: String) = "server/$id"
     const val SERVER_FILES = "server_files/{serverId}"
     fun serverFiles(id: String) = "server_files/$id"
+    const val FULL_CONSOLE = "console_full"
 }

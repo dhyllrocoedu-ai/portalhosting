@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,7 +39,9 @@ fun ConsoleScreen(
     consoleLines: List<String>,
     onCommand: (String) -> Unit,
     isOnline: Boolean,
-    serverDir: File? = null
+    serverDir: File? = null,
+    onBack: (() -> Unit)? = null,
+    isFullScreen: Boolean = false
 ) {
     var commandInput by remember { mutableStateOf("") }
     var commandHistory by remember { mutableStateOf(listOf<String>()) }
@@ -68,51 +71,66 @@ fun ConsoleScreen(
         }
     }
 
-    // Auto-scroll (only when not in search mode and at bottom)
+    // Auto-scroll to latest line when at bottom
     LaunchedEffect(consoleLines.size) {
         if (showSearch || searchQuery.isNotBlank()) return@LaunchedEffect
         if (consoleLines.isEmpty()) return@LaunchedEffect
-        val lastIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        val totalItems = listState.layoutInfo.totalItemsCount
-        if (lastIndex == null || lastIndex >= totalItems - 2) {
-            scope.launch { listState.animateScrollToItem(consoleLines.size - 1) }
+        try {
+            val lastIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            val totalItems = listState.layoutInfo.totalItemsCount
+            if (lastIndex == null || lastIndex >= totalItems - 2) {
+                listState.scrollToItem(consoleLines.size - 1)
+            }
+        } catch (_: Exception) {
+            // Layout not ready yet — skip
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { if (showSearch) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search logs...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { /* trigger handled by LaunchedEffect */ }),
-                        trailingIcon = {
-                            if (searchQuery.isNotBlank() && searchResults.isNotEmpty()) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${currentSearchIdx + 1}/${searchResults.size}", style = MaterialTheme.typography.labelSmall)
-                                    IconButton(onClick = { currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1) }) {
-                                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
-                                    }
-                                    IconButton(onClick = { currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0) }) {
-                                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Prev")
+                title = {
+                    if (showSearch) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search logs...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { /* trigger handled by LaunchedEffect */ }),
+                            trailingIcon = {
+                                if (searchQuery.isNotBlank() && searchResults.isNotEmpty()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("${currentSearchIdx + 1}/${searchResults.size}", style = MaterialTheme.typography.labelSmall)
+                                        IconButton(onClick = { currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1) }) {
+                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
+                                        }
+                                        IconButton(onClick = { currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0) }) {
+                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Prev")
+                                        }
                                     }
                                 }
+                                IconButton(onClick = { showSearch = false; searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close search")
+                                }
                             }
-                            IconButton(onClick = { showSearch = false; searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close search")
+                        )
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (onBack != null) {
+                                IconButton(onClick = onBack) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                }
                             }
+                            Text("Console")
                         }
-                    )
-                } else Text("Console") },
+                    }
+                },
                 actions = {
                     if (!showSearch) {
                         IconButton(onClick = { showSearch = true }) { Icon(Icons.Default.Search, contentDescription = "Search") }

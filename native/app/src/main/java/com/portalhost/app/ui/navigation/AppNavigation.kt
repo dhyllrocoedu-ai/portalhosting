@@ -1,9 +1,12 @@
 package com.portalhost.app.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -17,6 +20,10 @@ import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.storage.StorageInfo
+import com.portalhost.app.ui.components.GrassIcon
+import com.portalhost.app.ui.components.CmdBlockIcon
+import com.portalhost.app.ui.components.CraftingIcon
+import com.portalhost.app.ui.components.ChestIcon
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.*
@@ -56,6 +63,7 @@ fun AppNavigation(
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
 
+    // Bottom bar hidden on full-screen routes
     val showBottomBar = currentRoute in tabs.map { it.route }
 
     // Track active server
@@ -129,15 +137,31 @@ fun AppNavigation(
             if (showBottomBar) {
                 NavigationBar {
                     tabs.forEach { tab ->
+                        val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
                         NavigationBarItem(
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            icon = {
+                                when (tab) {
+                                    AppTab.HOME -> GrassIcon(modifier = Modifier, size = 20.dp)
+                                    AppTab.SERVERS -> ChestIcon(modifier = Modifier, size = 20.dp)
+                                    AppTab.CONSOLE -> CmdBlockIcon(modifier = Modifier, size = 20.dp)
+                                    AppTab.SETTINGS -> CraftingIcon(modifier = Modifier, size = 20.dp)
+                                }
+                            },
                             label = { Text(tab.label) },
-                            selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true,
+                            selected = selected,
                             onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+                                if (tab == AppTab.CONSOLE) {
+                                    navController.navigate(Routes.FULL_CONSOLE) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                } else {
+                                    navController.navigate(tab.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 }
                             }
                         )
@@ -168,7 +192,7 @@ fun AppNavigation(
                     onStop = onStop,
                     onRestart = onRestart,
                     onCommand = { serverManager.writeCommand(it) },
-                    onOpenConsole = { navController.navigate(AppTab.CONSOLE.route) },
+                    onOpenConsole = { navController.navigate(Routes.FULL_CONSOLE) },
                     onOpenFiles = {
                         activeServer?.let { s ->
                             navController.navigate(Routes.serverFiles(s.id))
@@ -200,13 +224,16 @@ fun AppNavigation(
                 )
             }
 
-            composable(AppTab.CONSOLE.route) {
+            // Full-screen console (no bottom nav, has back button)
+            composable(Routes.FULL_CONSOLE) {
                 val serverDir = activeServer?.let { repository.getServerDir(it.id) }
                 ConsoleScreen(
                     consoleLines = consoleStreamer.lines,
                     onCommand = { serverManager.writeCommand(it) },
                     isOnline = state.status == ServerStatus.ONLINE,
-                    serverDir = serverDir
+                    serverDir = serverDir,
+                    onBack = { navController.popBackStack() },
+                    isFullScreen = true
                 )
             }
 

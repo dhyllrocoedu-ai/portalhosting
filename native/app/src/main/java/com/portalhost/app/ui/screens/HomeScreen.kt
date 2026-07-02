@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -31,6 +32,8 @@ import com.portalhost.app.server.ProcessStats
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.storage.StorageStats
+import com.portalhost.app.ui.components.GrassIcon
+import com.portalhost.app.ui.components.PlayerIcon
 import com.portalhost.app.ui.model.ServerConfig
 import java.text.SimpleDateFormat
 import java.util.*
@@ -75,10 +78,11 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PortalHost", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GrassIcon(size = 24.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("PortalHost", fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -102,6 +106,7 @@ fun HomeScreen(
                     serverConfigs = serverConfigs,
                     serverState = serverState,
                     statusColor = statusColor,
+                    networkInfo = networkInfo,
                     onSelectServer = onSelectServer,
                     onCreateServer = onCreateServer,
                     onDeleteServer = onDeleteServer
@@ -172,17 +177,7 @@ fun HomeScreen(
                 )
             }
 
-            // Section 4 — Connection
-            item {
-                ConnectionCard(
-                    networkInfo = networkInfo,
-                    port = activeServer?.port ?: 25565,
-                    isRunning = serverState.status == ServerStatus.ONLINE,
-                    clipboardManager = clipboardManager
-                )
-            }
-
-            // Section 5 — Console Preview
+            // Section 4 — Console Preview
             item {
                 ConsolePreview(
                     consoleLines = consoleLines,
@@ -192,7 +187,7 @@ fun HomeScreen(
                 )
             }
 
-            // Section 6 — Player List
+            // Section 5 — Player List
             item {
                 PlayerListCard(
                     players = serverState.players,
@@ -201,17 +196,17 @@ fun HomeScreen(
                 )
             }
 
-            // Section 7 — Recent Activity
+            // Section 6 — Recent Activity
             item {
                 RecentActivityCard(activityLog = activityLog)
             }
 
-            // Section 8 — Storage
+            // Section 7 — Storage
             item {
                 StorageCard(storageStats = storageStats)
             }
 
-            // Section 9 — Shortcuts
+            // Section 8 — Shortcuts
             item {
                 ShortcutGrid(
                     onFiles = onOpenFiles,
@@ -231,6 +226,7 @@ private fun ServerCard(
     serverConfigs: List<ServerConfig>,
     serverState: ServerState,
     statusColor: Color,
+    networkInfo: NetworkInfo,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit
@@ -293,6 +289,27 @@ private fun ServerCard(
                             text = "Started ${formatRelativeTime(serverState.uptimeSeconds)} ago",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // Connection info inline
+                    Spacer(Modifier.height(4.dp))
+                    val address = if (serverState.status == ServerStatus.ONLINE && networkInfo.localIp != "Unknown")
+                        "${networkInfo.localIp}:${activeServer.port}"
+                    else
+                        "Server not running"
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Lan,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = address,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = FontFamily.Monospace
                         )
                     }
                 }
@@ -626,6 +643,9 @@ private fun PlayerListCard(
     maxPlayers: Int,
     onOpenConsole: () -> Unit
 ) {
+    var showAll by remember { mutableStateOf(false) }
+    val displayPlayers = if (showAll || players.size <= 5) players else players.take(5)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -652,21 +672,25 @@ private fun PlayerListCard(
                 )
             } else {
                 Spacer(Modifier.height(8.dp))
-                players.forEach { player ->
+                displayPlayers.forEach { player ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = Color(0xFF4CAF50)
-                        )
+                        PlayerIcon(size = 18.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(player, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (players.size > 5) {
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        onClick = { showAll = !showAll },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (showAll) "Show less" else "Show all (${players.size})")
                     }
                 }
             }
