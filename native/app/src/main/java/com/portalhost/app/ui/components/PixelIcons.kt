@@ -142,6 +142,113 @@ fun WaterIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
     ), colors = mapOf(0 to Color.Transparent, 1 to WaterBlue))
 }
 
+// Steve/Alex skin colors
+private val SkinPale = Color(0xFFF0C8A0)
+private val SkinOlive = Color(0xFFC8A070)
+private val SkinDarkBrown = Color(0xFF6B3E1E)
+private val SkinObsidian = Color(0xFF2B1E0E)
+private val HairBrown = Color(0xFF5C3A1E)
+private val HairBlack = Color(0xFF1A1A1A)
+private val HairBlond = Color(0xFFE6B800)
+private val HairRed = Color(0xFFB83C1A)
+private val HairGinger = Color(0xFFD47A28)
+private val ShirtCyan = Color(0xFF33AACC)
+private val ShirtPurple = Color(0xFF9933CC)
+private val ShirtGreen = Color(0xFF33CC66)
+private val ShirtRed = Color(0xFFCC3333)
+private val ShirtBlue = Color(0xFF3366CC)
+private val ShirtYellow = Color(0xFFCCAA33)
+private val EyeGreen = Color(0xFF33CC33)
+private val EyeBrown = Color(0xFF663300)
+
+// Minecraft head variants (8x8 face, front view)
+private data class HeadVariant(val pixels: List<List<Int>>, val colors: Map<Int, Color>)
+private val HEAD_VARIANTS = listOf(
+    HeadVariant(
+        listOf(
+            listOf(0, 0, 0, 0, 0, 0, 0, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 0, 4, 4, 4, 4, 0, 0),
+        ), mapOf(0 to Color.Transparent, 1 to SkinTan, 2 to HairBrown, 3 to EyeBlue, 4 to ShirtCyan)
+    ),
+    HeadVariant(
+        listOf(
+            listOf(0, 0, 0, 0, 0, 0, 0, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 0, 4, 4, 4, 4, 0, 0),
+        ), mapOf(0 to Color.Transparent, 1 to SkinPale, 2 to HairGinger, 3 to EyeGreen, 4 to ShirtGreen)
+    ),
+    HeadVariant(
+        listOf(
+            listOf(0, 0, 0, 0, 0, 0, 0, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 0, 4, 4, 4, 4, 0, 0),
+        ), mapOf(0 to Color.Transparent, 1 to SkinObsidian, 2 to HairBlack, 3 to Color.White, 4 to ShirtBlue)
+    ),
+    HeadVariant(
+        listOf(
+            listOf(0, 0, 0, 0, 0, 0, 0, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 0, 4, 4, 4, 4, 0, 0),
+        ), mapOf(0 to Color.Transparent, 1 to SkinOlive, 2 to HairBlond, 3 to EyeBrown, 4 to ShirtRed)
+    ),
+    HeadVariant(
+        listOf(
+            listOf(0, 0, 0, 0, 0, 0, 0, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 0, 4, 4, 4, 4, 0, 0),
+        ), mapOf(0 to Color.Transparent, 1 to SkinDarkBrown, 2 to HairBlack, 3 to EyeGreen, 4 to ShirtPurple)
+    ),
+    HeadVariant(
+        listOf(
+            listOf(0, 0, 0, 0, 0, 0, 0, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 3, 3, 2, 1, 0),
+            listOf(0, 1, 2, 2, 2, 2, 1, 0),
+            listOf(0, 0, 1, 1, 1, 1, 0, 0),
+            listOf(0, 0, 4, 4, 4, 4, 0, 0),
+        ), mapOf(0 to Color.Transparent, 1 to SkinPale, 2 to HairRed, 3 to EyeBlue, 4 to ShirtYellow)
+    ),
+)
+
+/**
+ * Deterministic Minecraft-style head icon based on player name hash.
+ * Picks from 6 variants (Steve, Alex, Herobrine, Nordic, Gothic, Sunny).
+ */
+@Composable
+fun MinecraftHeadIcon(player: String, modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    val idx = player.hashCode().let { if (it == Int.MIN_VALUE) 0 else kotlin.math.abs(it) % HEAD_VARIANTS.size }
+    val variant = HEAD_VARIANTS[idx]
+    PixelArt(modifier = modifier, size = size, pixels = variant.pixels, colors = variant.colors)
+}
+
 // Generic 8x8 pixel art renderer
 @Composable
 private fun PixelArt(

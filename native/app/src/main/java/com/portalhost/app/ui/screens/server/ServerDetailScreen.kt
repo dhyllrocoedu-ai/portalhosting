@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.BackupManager
 import com.portalhost.app.server.ServerState
+import kotlin.math.roundToInt
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
@@ -70,7 +71,54 @@ fun ServerDetailScreen(
 
 // ─── PROPERTIES ───────────────────────────────────────────────────────────────
 
-private val RAM_OPTIONS = listOf("512M", "1G", "2G", "3G", "4G", "6G", "8G", "12G", "16G")
+private val RAM_OPTIONS_MB = listOf(512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384)
+
+@Composable
+private fun RamSlider(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val idx = RAM_OPTIONS_MB.indexOf(value).coerceAtLeast(0)
+    var sliderPos by remember { mutableFloatStateOf(idx.toFloat()) }
+
+    Column(modifier = modifier) {
+        Text("$label: ${formatRamMb(value)}", style = MaterialTheme.typography.labelSmall)
+        Slider(
+            value = sliderPos,
+            onValueChange = { sliderPos = it },
+            onValueChangeFinished = {
+                val newIdx = sliderPos.roundToInt().coerceIn(0, RAM_OPTIONS_MB.size - 1)
+                onValueChange(RAM_OPTIONS_MB[newIdx])
+            },
+            valueRange = 0f..(RAM_OPTIONS_MB.size - 1).toFloat(),
+            steps = RAM_OPTIONS_MB.size - 2,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("512 MB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("16 GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private fun formatRamMb(mb: Int): String = when {
+    mb < 1024 -> "${mb}M"
+    mb % 1024 == 0 -> "${mb / 1024}G"
+    else -> "${"%.1f".format(mb.toDouble() / 1024)}G"
+}
+
+private fun parseRamToMb(ram: String): Int {
+    val upper = ram.uppercase().trim()
+    return when {
+        upper.endsWith("G") -> (upper.removeSuffix("G").toDoubleOrNull()?.times(1024)?.toInt() ?: 2048)
+        upper.endsWith("M") -> (upper.removeSuffix("M").toIntOrNull() ?: 512)
+        else -> 2048
+    }
+}
+
+private fun formatRamValue(mb: Int): String = formatRamMb(mb)
 
 @Composable
 private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
@@ -79,8 +127,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var gamemode by remember(server) { mutableStateOf(server.gamemode) }
     var difficulty by remember(server) { mutableStateOf(server.difficulty) }
     var motd by remember(server) { mutableStateOf(server.motd) }
-    var minRam by remember(server) { mutableStateOf(server.minRam) }
-    var maxRam by remember(server) { mutableStateOf(server.maxRam) }
+    var minRamMb by remember(server) { mutableStateOf(parseRamToMb(server.minRam)) }
+    var maxRamMb by remember(server) { mutableStateOf(parseRamToMb(server.maxRam)) }
     var saved by remember { mutableStateOf(false) }
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
@@ -105,18 +153,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
         }
         OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
-        Text("Minimum RAM", style = MaterialTheme.typography.labelSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            RAM_OPTIONS.forEach { ram ->
-                FilterChip(selected = minRam == ram, onClick = { minRam = ram }, label = { Text(ram, style = MaterialTheme.typography.labelSmall) })
-            }
-        }
-        Text("Maximum RAM", style = MaterialTheme.typography.labelSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            RAM_OPTIONS.forEach { ram ->
-                FilterChip(selected = maxRam == ram, onClick = { maxRam = ram }, label = { Text(ram, style = MaterialTheme.typography.labelSmall) })
-            }
-        }
+        RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) })
+        RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) })
 
         Button(
             onClick = {
@@ -130,7 +168,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                     content = content.replace(Regex("(?m)^motd=.*"), "motd=$motd")
                     propsFile.writeText(content)
                 }
-                val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = minRam, maxRam = maxRam)
+                val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = formatRamMb(minRamMb), maxRam = formatRamMb(maxRamMb))
                 onUpdateServer(updated)
                 saved = true
             },

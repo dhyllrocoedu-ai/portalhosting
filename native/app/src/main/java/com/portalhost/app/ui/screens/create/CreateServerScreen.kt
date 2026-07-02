@@ -74,7 +74,12 @@ fun CreateServerScreen(
             jarName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
-            } ?: uri.lastPathSegment?.substringAfterLast('/') ?: "server.jar"
+            } ?: try {
+                // Fallback: decode URI path and extract filename
+                val decoded = java.net.URLDecoder.decode(uri.toString(), "UTF-8")
+                val name = decoded.substringAfterLast('/').substringAfterLast(':')
+                name.ifBlank { null }
+            } catch (_: Exception) { null } ?: "server.jar"
             createSource = CreateSource.PICK_FILE
         }
     }

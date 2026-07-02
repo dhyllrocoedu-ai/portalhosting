@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.portalhost.app.MainActivity
 import com.portalhost.app.PortalHostApp
@@ -30,20 +31,24 @@ class MinecraftService : Service() {
 
         when (action) {
             ACTION_FOREGROUND -> {
-                startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
+                try {
+                    startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
+                } catch (e: Exception) {
+                    Log.e(TAG, "startForeground failed", e)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
                 startNotificationUpdater()
             }
 
-            ACTION_STOP -> {
+            ACTION_STOP, ACTION_NOTIFICATION_STOP -> {
                 notificationJob?.cancel()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-
-            ACTION_NOTIFICATION_STOP -> {
                 serviceScope.launch {
-                    manager?.stop()
-                    notificationJob?.cancel()
+                    try {
+                        manager?.stop()
+                    } catch (e: Exception) {
+                        Log.e(TAG, "error stopping server", e)
+                    }
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
@@ -51,6 +56,18 @@ class MinecraftService : Service() {
 
             ACTION_NOTIFICATION_RESTART -> {
                 serviceScope.launch { manager?.restart() }
+            }
+
+            null -> {
+                // START_STICKY recreation — system restarted the service after kill
+                try {
+                    startForeground(NOTIFICATION_ID, buildNotification("Reconnecting..."))
+                } catch (e: Exception) {
+                    Log.e(TAG, "startForeground (null intent) failed", e)
+                    stopSelf()
+                    return START_NOT_STICKY
+                }
+                startNotificationUpdater()
             }
         }
 
@@ -155,6 +172,7 @@ class MinecraftService : Service() {
     }
 
     companion object {
+        const val TAG = "MinecraftService"
         const val ACTION_FOREGROUND = "com.portalhost.action.FOREGROUND"
         const val ACTION_STOP = "com.portalhost.action.STOP_SERVICE"
         const val ACTION_NOTIFICATION_STOP = "com.portalhost.action.NOTIFICATION_STOP"

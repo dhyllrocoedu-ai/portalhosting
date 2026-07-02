@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.activity.ActivityEntry
@@ -33,6 +34,7 @@ import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.storage.StorageStats
 import com.portalhost.app.ui.components.GrassIcon
+import com.portalhost.app.ui.components.MinecraftHeadIcon
 import com.portalhost.app.ui.components.PlayerIcon
 import com.portalhost.app.ui.model.ServerConfig
 import java.text.SimpleDateFormat
@@ -57,7 +59,7 @@ fun HomeScreen(
     onCommand: (String) -> Unit,
     onOpenConsole: () -> Unit,
     onOpenFiles: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenPlayers: () -> Unit,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
@@ -196,7 +198,8 @@ fun HomeScreen(
                 PlayerListCard(
                     players = serverState.players,
                     isOnline = serverState.status == ServerStatus.ONLINE,
-                    onCommand = onCommand
+                    onCommand = onCommand,
+                    onOpenPlayers = onOpenPlayers
                 )
             }
 
@@ -213,8 +216,7 @@ fun HomeScreen(
             // Section 8 — Shortcuts
             item {
                 ShortcutGrid(
-                    onFiles = onOpenFiles,
-                    onSettings = onOpenSettings
+                    onFiles = onOpenFiles
                 )
             }
         }
@@ -523,41 +525,48 @@ private fun LiveStatsGrid(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatCard("CPU", "${processStats.cpuPercent.roundToInt()}%", Modifier.weight(1f))
-                StatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}", Modifier.weight(1f))
+                SmallStatCard("CPU", "${processStats.cpuPercent.roundToInt()}%", Modifier.weight(1f))
+                SmallStatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}", Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatCard("TPS", String.format("%.1f", processStats.tps), Modifier.weight(1f))
-                StatCard("Players", "${serverState.players.size} / 20", Modifier.weight(1f))
+                SmallStatCard("TPS", String.format("%.1f", processStats.tps), Modifier.weight(1f))
+                SmallStatCard("Players", "${serverState.players.size} / 20", Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatCard("↓ Down", processStats.rxFormatted, Modifier.weight(1f))
-                StatCard("↑ Up", processStats.txFormatted, Modifier.weight(1f))
+                SmallStatCard("↓ Down", processStats.rxFormatted, Modifier.weight(1f))
+                SmallStatCard("↑ Up", processStats.txFormatted, Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+private fun SmallStatCard(label: String, value: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                value,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -695,19 +704,13 @@ private fun ConsolePreview(
 
 // ── Section 6 — Player List ──
 
-private const val PLAYER_PAGE_SIZE = 5
-
 @Composable
 private fun PlayerListCard(
     players: List<String>,
     isOnline: Boolean,
-    onCommand: (String) -> Unit
+    onCommand: (String) -> Unit,
+    onOpenPlayers: () -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    var page by remember { mutableIntStateOf(0) }
-    val totalPages = ((players.size - 1) / PLAYER_PAGE_SIZE).coerceAtLeast(0) + 1
-    val pagePlayers = players.drop(page * PLAYER_PAGE_SIZE).take(PLAYER_PAGE_SIZE)
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -720,10 +723,8 @@ private fun PlayerListCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Online Players (${players.size})", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (players.isNotEmpty()) {
-                    TextButton(onClick = { expanded = !expanded }) {
-                        Text(if (expanded) "Collapse" else "Player Management →")
-                    }
+                TextButton(onClick = onOpenPlayers) {
+                    Text("Player Management →")
                 }
             }
 
@@ -734,55 +735,6 @@ private fun PlayerListCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
-            } else if (expanded) {
-                Spacer(Modifier.height(8.dp))
-                pagePlayers.forEach { player ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Surface(
-                                modifier = Modifier.size(28.dp),
-                                shape = MaterialTheme.shapes.small,
-                                color = MaterialTheme.colorScheme.primaryContainer
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                                }
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Text(player, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                            if (isOnline) {
-                                ActionChip("Kick") { onCommand("/kick $player") }
-                                Spacer(Modifier.width(4.dp))
-                                ActionChip("Ban") { onCommand("/ban $player") }
-                                Spacer(Modifier.width(4.dp))
-                                ActionChip("OP") { onCommand("/op $player") }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-                // Pagination
-                if (totalPages > 1) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { if (page > 0) page-- }, enabled = page > 0, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", modifier = Modifier.size(20.dp))
-                        }
-                        Text("Page ${page + 1} of $totalPages", style = MaterialTheme.typography.labelSmall)
-                        IconButton(onClick = { if (page < totalPages - 1) page++ }, enabled = page < totalPages - 1, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.ChevronRight, contentDescription = "Next", modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
             } else {
                 Spacer(Modifier.height(8.dp))
                 players.take(5).forEach { player ->
@@ -790,13 +742,13 @@ private fun PlayerListCard(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        PlayerIcon(size = 18.dp)
+                        MinecraftHeadIcon(player = player, size = 18.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(player, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 if (players.size > 5) {
-                    TextButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onOpenPlayers, modifier = Modifier.fillMaxWidth()) {
                         Text("Show all (${players.size})")
                     }
                 }
@@ -947,8 +899,7 @@ private fun StorageMiniCard(label: String, value: String, icon: ImageVector, mod
 
 @Composable
 private fun ShortcutGrid(
-    onFiles: () -> Unit,
-    onSettings: () -> Unit
+    onFiles: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -960,7 +911,6 @@ private fun ShortcutGrid(
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 ShortcutCard(Icons.Default.Folder, "File Manager", onFiles, Modifier.weight(1f))
-                ShortcutCard(Icons.Default.Settings, "Settings", onSettings, Modifier.weight(1f))
             }
         }
     }

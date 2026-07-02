@@ -1,6 +1,9 @@
 package com.portalhost.app.ui.navigation
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Terminal
@@ -33,6 +36,7 @@ import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.*
 import com.portalhost.app.ui.screens.create.CreateServerScreen
 import com.portalhost.app.ui.screens.server.ServerDetailScreen
+import com.portalhost.app.ui.screens.PlayersScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -114,6 +118,14 @@ fun AppNavigation(
 
     fun startServer(server: ServerConfig) {
         if (!jdkInstalled) return
+        // POST_NOTIFICATIONS required on Android 13+ for foreground service notification
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            android.util.Log.w("AppNavigation", "Cannot start server: POST_NOTIFICATIONS not granted")
+            return
+        }
         // Start foreground service for background keep-alive + notification
         val fgIntent = Intent(context, MinecraftService::class.java).apply {
             action = MinecraftService.ACTION_FOREGROUND
@@ -151,7 +163,6 @@ fun AppNavigation(
     }
 
     val onStop: () -> Unit = {
-        scope.launch { serverManager.stop() }
         val stopIntent = Intent(context, MinecraftService::class.java).apply {
             action = MinecraftService.ACTION_STOP
         }
@@ -170,25 +181,16 @@ fun AppNavigation(
                                 when (tab) {
                                     AppTab.HOME -> GrassIcon(modifier = Modifier, size = 20.dp)
                                     AppTab.SERVERS -> ChestIcon(modifier = Modifier, size = 20.dp)
-                                    AppTab.CONSOLE -> CmdBlockIcon(modifier = Modifier, size = 20.dp)
                                     AppTab.SETTINGS -> CraftingIcon(modifier = Modifier, size = 20.dp)
                                 }
                             },
                             label = { Text(tab.label) },
                             selected = selected,
                             onClick = {
-                                if (tab == AppTab.CONSOLE) {
-                                    navController.navigate(Routes.FULL_CONSOLE) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                } else {
-                                    navController.navigate(tab.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
+                                navController.navigate(tab.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
                             }
                         )
@@ -227,7 +229,11 @@ fun AppNavigation(
                             navController.navigate(Routes.serverFiles(s.id))
                         }
                     },
-                    onOpenSettings = { navController.navigate(AppTab.SETTINGS.route) },
+                    onOpenPlayers = {
+                        activeServer?.let { s ->
+                            navController.navigate(Routes.PLAYER_MANAGEMENT)
+                        }
+                    },
                     onSelectServer = { id -> activeServerId = id },
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onDeleteServer = { server ->
@@ -326,6 +332,18 @@ fun AppNavigation(
                         serverDir = repository.getServerDir(server.id)
                     )
                 }
+            }
+
+            composable(Routes.PLAYER_MANAGEMENT) {
+                val serverDir = activeServer?.let { repository.getServerDir(it.id) }
+                PlayersScreen(
+                    serverDir = serverDir,
+                    onCommand = { serverManager.writeCommand(it) },
+                    isOnline = state.status == ServerStatus.ONLINE,
+                    currentPlayers = state.players,
+                    status = state.status,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }
