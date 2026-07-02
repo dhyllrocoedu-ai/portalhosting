@@ -47,6 +47,7 @@ class ServerManager(
     private var restartCount = 0
     private var sawHashFailure = false
     private var autoRestartEnabled = false
+    private var stoppingManually = false
 
     private val _state = MutableStateFlow(ServerState())
     val state: StateFlow<ServerState> = _state.asStateFlow()
@@ -317,6 +318,7 @@ use-native-transport=true
     /** Gracefully stop the server. */
     suspend fun stop() {
         val proc = process ?: return
+        autoRestartEnabled = false
         _state.value = _state.value.copy(status = ServerStatus.STOPPING)
 
         withContext(Dispatchers.IO) {
@@ -333,6 +335,8 @@ use-native-transport=true
                 proc.destroyForcibly()
             }
         }
+        process = null
+        _state.value = _state.value.copy(status = ServerStatus.OFFLINE, exitCode = 0, uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000)
         activityLog.addServerStop()
     }
 
