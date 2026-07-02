@@ -56,6 +56,7 @@ fun HomeScreen(
     onRestart: () -> Unit,
     onCommand: (String) -> Unit,
     onOpenConsole: () -> Unit,
+    onOpenPlayerManagement: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenSettings: () -> Unit,
     onSelectServer: (String) -> Unit,
@@ -196,7 +197,7 @@ fun HomeScreen(
                 PlayerListCard(
                     players = serverState.players,
                     maxPlayers = 20,
-                    onOpenConsole = onOpenConsole
+                    onOpenPlayerManagement = onOpenPlayerManagement
                 )
             }
 
@@ -699,7 +700,7 @@ private fun ConsolePreview(
 private fun PlayerListCard(
     players: List<String>,
     maxPlayers: Int,
-    onOpenConsole: () -> Unit
+    onOpenPlayerManagement: () -> Unit
 ) {
     var showAll by remember { mutableStateOf(false) }
     val displayPlayers = if (showAll || players.size <= 5) players else players.take(5)
@@ -716,8 +717,8 @@ private fun PlayerListCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Online Players", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onOpenConsole) {
-                    Text("Console →")
+                TextButton(onClick = onOpenPlayerManagement) {
+                    Text("Player Management →")
                 }
             }
 

@@ -9,10 +9,12 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,6 +41,25 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+enum class LogLevel { ALL, ERROR, WARN, INFO, PLAYER, CHAT, OTHER }
+
+private val ALL_LEVELS = LogLevel.entries.toList()
+
+fun classifyLogLevel(line: String): LogLevel {
+    val upper = line.uppercase()
+    return when {
+        upper.contains("[SEVERE]") || upper.contains("[ERROR]") || upper.contains("[FATAL]") -> LogLevel.ERROR
+        upper.contains("[WARN]") || upper.contains("[WARNING]") -> LogLevel.WARN
+        upper.contains("JOINED THE GAME") || upper.contains("LEFT THE GAME") -> LogLevel.PLAYER
+        line.contains("<") && line.contains(">") -> LogLevel.CHAT
+        upper.contains("[DEBUG]") || upper.contains("[FINE]") || upper.contains("[FINER]") ||
+            upper.contains("[FINEST]") || upper.contains("[TRACE]") || upper.contains("[VERBOSE]") ||
+            upper.contains("[INFO]") || upper.contains("[NOTICE]") || upper.contains("[CONFIG]") ||
+            upper.contains("]: ") -> LogLevel.INFO
+        else -> LogLevel.OTHER
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConsoleScreen(
@@ -56,19 +77,27 @@ fun ConsoleScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf(listOf<Int>()) }
     var currentSearchIdx by remember { mutableIntStateOf(0) }
+    var activeLevel by remember { mutableStateOf(LogLevel.ALL) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // Track whether user is near bottom for auto-scroll
     var isNearBottom by remember { mutableStateOf(true) }
 
-    // Filtered lines for search
-    val displayLines = if (searchQuery.isNotBlank()) {
-        consoleLines.filterIndexed { idx, _ -> idx in searchResults }
-    } else consoleLines
+    // Apply log level filter
+    val levelFiltered = if (activeLevel == LogLevel.ALL) consoleLines
+        else consoleLines.filter { classifyLogLevel(it) == activeLevel }
 
-    // Search logic
+    // Apply search on top of level filter
+    val displayLines = if (searchQuery.isNotBlank()) {
+        levelFiltered.filterIndexed { idx, _ ->
+            val originalIdx = if (activeLevel == LogLevel.ALL) idx
+                else consoleLines.indexOf(levelFiltered[idx])
+            originalIdx in searchResults
+        }
+    } else levelFiltered
+
+    // Search logic (indexes into original consoleLines)
     LaunchedEffect(searchQuery) {
         if (searchQuery.isNotBlank()) {
             searchResults = consoleLines.mapIndexedNotNull { idx, line ->
@@ -80,7 +109,7 @@ fun ConsoleScreen(
         }
     }
 
-    // Track scroll position — user near bottom?
+    // Track scroll position
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
@@ -97,8 +126,33 @@ fun ConsoleScreen(
         if (consoleLines.isEmpty()) return@LaunchedEffect
         if (!isNearBottom) return@LaunchedEffect
         try {
-            listState.scrollToItem(consoleLines.size - 1)
+            listState.scrollToItem(displayLines.size - 1)
         } catch (_: Exception) {}
+    }
+
+    // Timestamp-based log rotation: auto-save every 500 new lines
+    var lastSavedCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(consoleLines.size) {
+        val serverDirVal = serverDir ?: return@LaunchedEffect
+        val count = consoleLines.size
+        if (count - lastSavedCount >= 500) {
+            lastSavedCount = count
+            val logsDir = File(serverDirVal, "logs")
+            logsDir.mkdirs()
+            // Rotate if current log > 2 MB
+            val existing = logsDir.listFiles()?.filter { it.name.startsWith("console_") && it.name.endsWith(".log") }
+            existing?.forEach { file ->
+                if (file.length() > 2 * 1024 * 1024) {
+                    val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date(file.lastModified()))
+                    file.renameTo(File(logsDir, "console_$ts.log"))
+                }
+            }
+            val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
+            val logFile = File(logsDir, "console_$ts.log")
+            try {
+                logFile.writeText(consoleLines.joinToString("\n"))
+            } catch (_: Exception) {}
+        }
     }
 
     Scaffold(
@@ -117,7 +171,7 @@ fun ConsoleScreen(
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { /* trigger handled by LaunchedEffect */ }),
+                            keyboardActions = KeyboardActions(onSearch = { }),
                             trailingIcon = {
                                 if (searchQuery.isNotBlank() && searchResults.isNotEmpty()) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -160,6 +214,21 @@ fun ConsoleScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding)
         ) {
+            // ── Log level filter chips ──
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                ALL_LEVELS.forEach { level ->
+                    FilterChip(
+                        selected = activeLevel == level,
+                        onClick = { activeLevel = level },
+                        label = { Text(level.name, fontSize = 11.sp) },
+                        leadingIcon = if (activeLevel == level) {{ Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }} else null
+                    )
+                }
+            }
+
             // Search result highlight
             if (searchResults.isNotEmpty()) {
                 Surface(
@@ -206,7 +275,7 @@ fun ConsoleScreen(
                             .clip(CircleShape)
                             .clickable {
                                 scope.launch {
-                                    listState.animateScrollToItem(consoleLines.size - 1)
+                                    listState.animateScrollToItem(displayLines.size - 1)
                                 }
                             },
                         shape = CircleShape,
@@ -254,7 +323,6 @@ fun ConsoleScreen(
                         )
                     )
                     Spacer(Modifier.width(4.dp))
-                    // Up arrow (command history previous)
                     IconButton(
                         onClick = {
                             if (commandHistory.isNotEmpty()) {
@@ -267,7 +335,6 @@ fun ConsoleScreen(
                         enabled = isOnline && commandHistory.isNotEmpty(),
                         modifier = Modifier.size(36.dp)
                     ) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(20.dp)) }
-                    // Down arrow (command history next)
                     IconButton(
                         onClick = {
                             if (historyIndex >= 0) {
@@ -311,24 +378,16 @@ private fun copyLogs(context: Context, lines: List<String>) {
 fun consoleLineColor(line: String): Color {
     val upper = line.uppercase()
     return when {
-        // Errors — red
         upper.contains("[SEVERE]") || upper.contains("[ERROR]") || upper.contains("[FATAL]") ||
             upper.startsWith("[ERROR]") -> Color(0xFFFF4444)
-        // Warnings — gold
         upper.contains("[WARN]") || upper.contains("[WARNING]") -> Color(0xFFFFAA00)
-        // Player join — cyan
         upper.contains("JOINED THE GAME") -> Color(0xFF55FFFF)
-        // Player leave — yellow
         upper.contains("LEFT THE GAME") -> Color(0xFFFFFF55)
-        // Chat messages — light purple
         line.contains("<") && line.contains(">") -> Color(0xFFAA55FF)
-        // Debug/trace — dim gray
         upper.contains("[DEBUG]") || upper.contains("[FINE]") || upper.contains("[FINER]") ||
             upper.contains("[FINEST]") || upper.contains("[TRACE]") || upper.contains("[VERBOSE]") -> Color(0xFF666666)
-        // Info / notice — light gray
         upper.contains("[INFO]") || upper.contains("[NOTICE]") || upper.contains("[CONFIG]") ||
             upper.contains("]: ") -> Color(0xFFAAAAAA)
-        // Everything else — terminal green
         else -> Color(0xFF00FF41)
     }
 }
@@ -338,13 +397,11 @@ private fun saveLogs(context: Context, lines: List<String>, serverDir: File?) {
     val text = lines.joinToString("\n")
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && serverDir != null) {
-        // Save to server's logs directory
         val logsDir = File(serverDir, "logs")
         logsDir.mkdirs()
         val logFile = File(logsDir, "console_$timestamp.log")
         logFile.writeText(text)
     } else {
-        // Fallback: save to Downloads via MediaStore
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, "console_$timestamp.log")
             put(MediaStore.Downloads.MIME_TYPE, "text/plain")

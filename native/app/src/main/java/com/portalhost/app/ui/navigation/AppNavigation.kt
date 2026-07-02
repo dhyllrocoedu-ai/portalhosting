@@ -222,6 +222,7 @@ fun AppNavigation(
                     onRestart = onRestart,
                     onCommand = { serverManager.writeCommand(it) },
                     onOpenConsole = { navController.navigate(Routes.FULL_CONSOLE) },
+                    onOpenPlayerManagement = { navController.navigate(Routes.PLAYER_MANAGEMENT) },
                     onOpenFiles = {
                         activeServer?.let { s ->
                             navController.navigate(Routes.serverFiles(s.id))
@@ -263,6 +264,16 @@ fun AppNavigation(
                     serverDir = serverDir,
                     onBack = { navController.popBackStack() },
                     isFullScreen = true
+                )
+            }
+
+            // Full-screen player management (no bottom nav, has back button)
+            composable(Routes.PLAYER_MANAGEMENT) {
+                PlayerManagementScreen(
+                    players = state.players,
+                    isOnline = state.status == ServerStatus.ONLINE,
+                    onCommand = { serverManager.writeCommand(it) },
+                    onBack = { navController.popBackStack() }
                 )
             }
 
@@ -318,10 +329,6 @@ fun AppNavigation(
                     ServerDetailScreen(
                         server = server,
                         serverState = state,
-                        consoleLines = consoleStreamer.lines,
-                        onStart = { startServer(server) },
-                        onStop = { scope.launch { serverManager.stop() } },
-                        onCommand = { serverManager.writeCommand(it) },
                         onBack = { navController.popBackStack() },
                         onUpdateServer = { updated ->
                             repository.update(updated)

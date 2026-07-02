@@ -3,9 +3,6 @@ package com.portalhost.app.ui.screens.server
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,9 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,34 +24,18 @@ import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
 
-private val ALL_TABS = listOf("Overview", "Console", "Properties", "Worlds", "Plugins", "Mods", "Backups")
+private val ALL_TABS = listOf("Properties", "Worlds", "Plugins", "Mods", "Backups")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServerDetailScreen(
     server: ServerConfig,
     serverState: ServerState,
-    consoleLines: List<String>,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-    onCommand: (String) -> Unit,
     onBack: () -> Unit,
     onUpdateServer: (ServerConfig) -> Unit = {},
     serverDir: File
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    // Shared command input — used by Console tab and Player command shortcuts
-    var commandInput by remember { mutableStateOf("") }
-
-    val statusColor by animateColorAsState(
-        targetValue = when (serverState.status) {
-            ServerStatus.ONLINE -> Color(0xFF4CAF50)
-            ServerStatus.STARTING -> Color(0xFFFFC107)
-            ServerStatus.STOPPING -> Color(0xFFFF9800)
-            ServerStatus.CRASHED -> Color(0xFFF44336)
-            ServerStatus.OFFLINE -> Color(0xFF9E9E9E)
-        }, label = "statusColor"
-    )
 
     val backupManager = remember(serverDir) { BackupManager(serverDir) }
 
@@ -77,164 +56,21 @@ fun ServerDetailScreen(
             }
 
             when (selectedTab) {
-                0 -> OverviewTab(server, serverState, statusColor, consoleLines, onStart, onStop, onCommand, { text -> commandInput = text; selectedTab = 1 })
-                1 -> ConsoleTab(consoleLines, onCommand, serverState.status == ServerStatus.ONLINE, commandInput, { commandInput = it })
-                2 -> PropertiesTab(server, serverDir, onUpdateServer)
-                3 -> WorldsTab(serverDir)
-                4 -> PluginsTab(serverDir)
-                5 -> ModsTab(serverDir)
-                6 -> BackupsTab(backupManager, serverState)
+                0 -> PropertiesTab(server, serverDir, onUpdateServer)
+                1 -> WorldsTab(serverDir)
+                2 -> PluginsTab(serverDir)
+                3 -> ModsTab(serverDir)
+                4 -> BackupsTab(backupManager, serverState)
             }
         }
     }
 }
 
-// ─── OVERVIEW ──────────────────────────────────────────────────────────────────
 
-@Composable
-private fun OverviewTab(
-    server: ServerConfig, serverState: ServerState, statusColor: Color,
-    consoleLines: List<String>, onStart: () -> Unit, onStop: () -> Unit,
-    onCommand: (String) -> Unit, fillCommand: (String) -> Unit
-) {
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        // Status card
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(12.dp).background(statusColor, MaterialTheme.shapes.small))
-                        Spacer(Modifier.width(8.dp))
-                        Text(serverState.status.name, style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.weight(1f))
-                        Text(server.jarName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text("RAM: ${server.minRam} – ${server.maxRam}  |  Port: ${server.port}  |  ${server.gamemode.replaceFirstChar { it.uppercase() }}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-
-        // Start/Stop buttons
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onStart, enabled = serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.CRASHED, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("Start")
-                }
-                OutlinedButton(onClick = onStop, enabled = serverState.status == ServerStatus.ONLINE, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Stop, contentDescription = null); Spacer(Modifier.width(4.dp)); Text("Stop")
-                }
-            }
-        }
-
-        // Error
-        serverState.error?.let { error ->
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                    Row(modifier = Modifier.padding(12.dp)) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text(error, color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 13.sp)
-                    }
-                }
-            }
-        }
-
-        // ── Player Manager ──
-        item { Text("Players (${serverState.players.size})", style = MaterialTheme.typography.titleSmall) }
-        if (serverState.players.isEmpty()) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Text("No players online", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else {
-            serverState.players.forEach { player ->
-                item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(player, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                            if (serverState.status == ServerStatus.ONLINE) {
-                                CompactCmdButton("Kick") { fillCommand("/kick $player "); onCommand("/kick $player ") }
-                                CompactCmdButton("Ban") { fillCommand("/ban $player "); onCommand("/ban $player ") }
-                                CompactCmdButton("OP") { fillCommand("/op $player"); onCommand("/op $player") }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Quick command shortcuts ──
-        if (serverState.status == ServerStatus.ONLINE) {
-            item { Text("Quick Commands", style = MaterialTheme.typography.titleSmall) }
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            CmdChip("Save-all") { fillCommand("/save-all"); onCommand("/save-all") }
-                            CmdChip("List") { fillCommand("/list"); onCommand("/list") }
-                            CmdChip("TPS") { fillCommand("/tps"); onCommand("/tps") }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            CmdChip("Weather Clear") { fillCommand("/weather clear"); onCommand("/weather clear") }
-                            CmdChip("Day") { fillCommand("/time set day"); onCommand("/time set day") }
-                            CmdChip("Gamemode Creative") { fillCommand("/gamemode creative"); onCommand("/gamemode creative") }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            CmdChip("Whitelist On") { fillCommand("/whitelist on"); onCommand("/whitelist on") }
-                            CmdChip("Whitelist Off") { fillCommand("/whitelist off"); onCommand("/whitelist off") }
-                            CmdChip("Stop") { fillCommand("/stop"); onCommand("/stop") }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CompactCmdButton(label: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp), modifier = Modifier.height(32.dp)) {
-        Text(label, fontSize = 11.sp)
-    }
-}
-
-@Composable
-private fun CmdChip(label: String, onClick: () -> Unit) {
-    SuggestionChip(onClick = onClick, label = { Text(label, fontSize = 11.sp) })
-}
-
-// ─── CONSOLE ──────────────────────────────────────────────────────────────────
-
-@Composable
-private fun ConsoleTab(consoleLines: List<String>, onCommand: (String) -> Unit, isOnline: Boolean, commandInput: String, onInputChange: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(Color(0xFF0D0D0D)).padding(8.dp)) {
-            LazyColumn {
-                items(consoleLines.takeLast(200)) { line ->
-                    Text(line, color = Color(0xFF00FF41), fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 14.sp)
-                }
-            }
-        }
-        Surface(shadowElevation = 8.dp) {
-            Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(value = commandInput, onValueChange = onInputChange, modifier = Modifier.weight(1f), placeholder = { Text("Enter command...") }, singleLine = true, enabled = isOnline)
-                Spacer(Modifier.width(8.dp))
-                IconButton(onClick = { if (commandInput.isNotBlank()) { onCommand(commandInput); onInputChange("") } }, enabled = isOnline) {
-                    Icon(Icons.Default.Send, contentDescription = "Send")
-                }
-            }
-        }
-    }
-}
 
 // ─── PROPERTIES ───────────────────────────────────────────────────────────────
+
+private val RAM_OPTIONS = listOf("512M", "1G", "2G", "3G", "4G", "6G", "8G", "12G", "16G")
 
 @Composable
 private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
@@ -243,6 +79,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var gamemode by remember(server) { mutableStateOf(server.gamemode) }
     var difficulty by remember(server) { mutableStateOf(server.difficulty) }
     var motd by remember(server) { mutableStateOf(server.motd) }
+    var minRam by remember(server) { mutableStateOf(server.minRam) }
+    var maxRam by remember(server) { mutableStateOf(server.maxRam) }
     var saved by remember { mutableStateOf(false) }
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
@@ -267,6 +105,19 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
         }
         OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
+        Text("Minimum RAM", style = MaterialTheme.typography.labelSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            RAM_OPTIONS.forEach { ram ->
+                FilterChip(selected = minRam == ram, onClick = { minRam = ram }, label = { Text(ram, style = MaterialTheme.typography.labelSmall) })
+            }
+        }
+        Text("Maximum RAM", style = MaterialTheme.typography.labelSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            RAM_OPTIONS.forEach { ram ->
+                FilterChip(selected = maxRam == ram, onClick = { maxRam = ram }, label = { Text(ram, style = MaterialTheme.typography.labelSmall) })
+            }
+        }
+
         Button(
             onClick = {
                 val newPort = portText.toIntOrNull() ?: server.port
@@ -279,19 +130,17 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                     content = content.replace(Regex("(?m)^motd=.*"), "motd=$motd")
                     propsFile.writeText(content)
                 }
-                val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd)
+                val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = minRam, maxRam = maxRam)
                 onUpdateServer(updated)
                 saved = true
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Save Properties") }
 
-        Text("Read-only", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Read-only info", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 PropertyRowReadOnly("JAR", server.jarName)
-                PropertyRowReadOnly("Min RAM", server.minRam)
-                PropertyRowReadOnly("Max RAM", server.maxRam)
                 PropertyRowReadOnly("Server Type", server.serverType.replaceFirstChar { it.uppercase() })
                 PropertyRowReadOnly("MC Version", server.mcVersion.ifBlank { "—" })
             }
