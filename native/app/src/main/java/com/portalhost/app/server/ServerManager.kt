@@ -63,6 +63,13 @@ class ServerManager(
 
     val isRunning: Boolean get() = process?.isAlive == true
 
+    /** Safe check that guards against [IllegalThreadStateException] on some Android runtimes. */
+    private fun isAlive(proc: java.lang.Process): Boolean = try {
+        proc.isAlive
+    } catch (_: IllegalThreadStateException) {
+        false
+    }
+
     /** Create essential server files and directories. */
     private fun initServerDir(workDir: File, config: ServerConfig? = null) {
         val port = config?.port ?: 25565
@@ -235,7 +242,19 @@ use-native-transport=true
                 } catch (_: IOException) {
                     // Process terminated, stream closed
                 } finally {
-                    val code = proc.exitValue()
+                    val code = try {
+                        proc.exitValue()
+                    } catch (_: IllegalThreadStateException) {
+                        if (!proc.waitFor(10, TimeUnit.SECONDS)) {
+                            proc.destroyForcibly()
+                            proc.waitFor()
+                        }
+                        try {
+                            proc.exitValue()
+                        } catch (_: IllegalThreadStateException) {
+                            -1
+                        }
+                    }
                     Log.i(TAG, "Process exited with code $code")
                     if (code != 0) {
                         activityLog.addServerCrash()
@@ -272,8 +291,9 @@ use-native-transport=true
 
             // Uptime counter
             uptimeJob = scope.launch {
-                while (isActive && proc.isAlive) {
+                while (isActive) {
                     delay(1000)
+                    if (!isAlive(proc)) break
                     val elapsed = (System.currentTimeMillis() - serverStartTime) / 1000
                     _state.value = _state.value.copy(uptimeSeconds = elapsed)
                 }
@@ -281,7 +301,8 @@ use-native-transport=true
 
             // Process stats polling (CPU, RAM)
             statsJob = scope.launch {
-                while (isActive && proc.isAlive) {
+                while (isActive) {
+                    if (!isAlive(proc)) break
                     val maxRam = lastJavaArgs?.let { args ->
                         args.find { it.startsWith("-Xmx") }?.drop(4)?.let {
                             when {
@@ -299,7 +320,7 @@ use-native-transport=true
             // Mark online after a brief delay (server fully started)
             scope.launch {
                 delay(5000)
-                if (proc.isAlive) {
+                if (isAlive(proc)) {
                     _state.value = _state.value.copy(status = ServerStatus.ONLINE)
                 }
             }
@@ -320,6 +341,10 @@ use-native-transport=true
         val proc = process ?: return
         autoRestartEnabled = false
         _state.value = _state.value.copy(status = ServerStatus.STOPPING)
+
+        // Cancel polling jobs *before* waiting so they don't race with exit
+        uptimeJob?.cancel()
+        statsJob?.cancel()
 
         withContext(Dispatchers.IO) {
             try {
