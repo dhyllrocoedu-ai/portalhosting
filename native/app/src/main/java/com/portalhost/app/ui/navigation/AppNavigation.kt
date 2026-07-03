@@ -130,7 +130,7 @@ fun AppNavigation(
             action = MinecraftService.ACTION_FOREGROUND
         }
         ContextCompat.startForegroundService(context, fgIntent)
-        scope.launch {
+        scope.launch(Dispatchers.IO) {
             val serverDir = repository.getServerDir(server.id).absolutePath
             if (server.serverType == "paper" && server.mcVersion.isNotBlank()) {
                 val mojangFile = File(serverDir, "mojang_${server.mcVersion}.jar")
@@ -273,6 +273,7 @@ fun AppNavigation(
                     onStop = onStop,
                     onRestart = onRestart,
                     onCommand = { serverManager.writeCommand(it) },
+                    onClearConsole = { consoleStreamer.clear() },
                     onOpenConsole = { navController.navigate(Routes.FULL_CONSOLE) },
                     onOpenFiles = {
                         activeServer?.let { s ->

@@ -33,7 +33,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.sample
@@ -137,21 +139,22 @@ fun ConsoleScreen(
         val count = consoleLines.size
         if (count - lastSavedCount >= 500) {
             lastSavedCount = count
-            val logsDir = File(serverDirVal, "logs")
-            logsDir.mkdirs()
-            // Rotate if current log > 2 MB
-            val existing = logsDir.listFiles()?.filter { it.name.startsWith("console_") && it.name.endsWith(".log") }
-            existing?.forEach { file ->
-                if (file.length() > 2 * 1024 * 1024) {
-                    val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date(file.lastModified()))
-                    file.renameTo(File(logsDir, "console_$ts.log"))
+            withContext(Dispatchers.IO) {
+                val logsDir = File(serverDirVal, "logs")
+                logsDir.mkdirs()
+                val existing = logsDir.listFiles()?.filter { it.name.startsWith("console_") && it.name.endsWith(".log") }
+                existing?.forEach { file ->
+                    if (file.length() > 2 * 1024 * 1024) {
+                        val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date(file.lastModified()))
+                        file.renameTo(File(logsDir, "console_$ts.log"))
+                    }
                 }
+                val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
+                val logFile = File(logsDir, "console_$ts.log")
+                try {
+                    logFile.writeText(consoleLines.joinToString("\n"))
+                } catch (_: Exception) {}
             }
-            val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
-            val logFile = File(logsDir, "console_$ts.log")
-            try {
-                logFile.writeText(consoleLines.joinToString("\n"))
-            } catch (_: Exception) {}
         }
     }
 

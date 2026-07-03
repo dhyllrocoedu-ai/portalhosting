@@ -1,5 +1,45 @@
 # Changelog
 
+## v2.8.5-native (2026-07-03)
+
+### Improvements
+- **Dashboard UI overhaul** — Left color border on server card, FlowRow stats (6-in-1 row), empty state with CTA, storage progress bar with color shift, Clear button in console preview, collapsed empty player section, section tinting
+- **Main thread safety** — All file I/O moved to `Dispatchers.IO` in `doStartServer`, console log rotation, `initServerDir`
+- **Removed stale Expo codebase** — Cleaned up `mobile/`, `shared/`, `desktop-agent/`, root npm config
+
+### Bug Fixes
+- Console log rotation no longer blocks UI thread (ANR fix)
+- Server start no longer freezes UI during jar download/dir init
+
+## v2.8.4-native (2026-07-02)
+
+### Bug Fixes
+- Fixed stop/restart race condition — `stop()` cancels `processJob`, `start()` cancels stale `processJob`, `processJob.finally` guards with `if (process === proc)`
+- Auto-clear console on server start via `consoleStreamer.clear()`
+
+## v2.8.3-native (2026-07-02)
+
+### Improvements
+- Replaced eye-straining neon green (`#00FF41`) console default with `#CCCCCC`
+- File editor text/cursor changed from neon green to `#E0E0E0`
+- PropertiesTab success message from `primary` to `onSurfaceVariant`
+
+## v2.8.2-native (2026-07-02)
+
+### Bug Fixes
+- Fixed import filename — `getFileName()` queries `ContentResolver` for `OpenableColumns.DISPLAY_NAME` instead of `uri.lastPathSegment` (which returns content URI hash like `msf:16353`)
+
+## v2.8.1-native (2026-07-02)
+
+### Bug Fixes
+- Fixed RAM allocation ignoring config — `AppNavigation.kt` now passes `javaArgs` from `server.minRam`/`server.maxRam` to `serverManager.start()` instead of hardcoded `-Xms512M -Xmx2G`
+- Fixed base-2 unit accuracy (`times(1024)` in G→MB, `1_048_576L` byte factor, binary formatting)
+
+## v2.8.0-native (2026-07-02)
+
+### Features
+- Added "Datapacks" tab to `ServerDetailScreen` — manage world/datapacks/ directory (list, upload, extract ZIP, delete)
+
 ## v2.0.0-native (2026-07-01)
 
 Native Android rewrite — Kotlin + Jetpack Compose. Runs Minecraft Java servers on-device without Termux or root.

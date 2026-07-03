@@ -71,7 +71,7 @@ class ServerManager(
     }
 
     /** Create essential server files and directories. */
-    private fun initServerDir(workDir: File, config: ServerConfig? = null) {
+    private suspend fun initServerDir(workDir: File, config: ServerConfig? = null) = withContext(Dispatchers.IO) {
         val port = config?.port ?: 25565
         val gamemode = config?.gamemode ?: "survival"
         val difficulty = config?.difficulty ?: "easy"

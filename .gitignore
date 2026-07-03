@@ -1,14 +1,5 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
-node_modules/
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
 # Native
 .kotlin/
 *.orig.*
@@ -22,9 +13,6 @@ native/build/
 native/app/build/
 native/gradle/.gradle/
 native/gradle/wrapper/gradle-wrapper.jar
-
-# Metro
-.metro-health-check*
 
 # debug
 npm-debug.*
@@ -41,18 +29,6 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-example
-
-# generated native folders
-mobile/ios/
-mobile/android/
-mobile/modules/server-process-module/android/build/
-
 # generated APKs
 PortalHost.apk
 native/*.apk
-
-# monorepo - ignore nested node_modules
-mobile/node_modules/
-desktop-agent/node_modules/
-shared/node_modules/

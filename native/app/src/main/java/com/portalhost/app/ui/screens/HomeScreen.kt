@@ -7,7 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -40,7 +41,7 @@ import com.portalhost.app.ui.model.ServerConfig
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     serverConfigs: List<ServerConfig>,
@@ -57,6 +58,7 @@ fun HomeScreen(
     onStop: () -> Unit,
     onRestart: () -> Unit,
     onCommand: (String) -> Unit,
+    onClearConsole: () -> Unit = {},
     onOpenConsole: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenPlayers: () -> Unit,
@@ -95,14 +97,40 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
+        if (serverConfigs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    GrassIcon(size = 64.dp)
+                    Spacer(Modifier.height(16.dp))
+                    Text("No servers yet", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Create your first Minecraft server",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Button(onClick = onCreateServer) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create Server")
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
             // Section 1 — Server Card
             item {
                 ServerCard(
@@ -189,6 +217,7 @@ fun HomeScreen(
                     consoleLines = consoleLines,
                     onOpenConsole = onOpenConsole,
                     onCommand = onCommand,
+                    onClearConsole = onClearConsole,
                     isOnline = serverState.status == ServerStatus.ONLINE
                 )
             }
@@ -221,6 +250,7 @@ fun HomeScreen(
             }
         }
     }
+}
 }
 
 // ── Section 1 — Server Card ──
@@ -261,26 +291,27 @@ private fun ServerCard(
         )
     }
 
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        color = MaterialTheme.colorScheme.surface
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
             Box(
                 modifier = Modifier
-                    .size(16.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .width(4.dp)
+                    .fillMaxHeight()
                     .background(statusColor)
             )
-            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = activeServer?.name ?: "No Server",
                     style = MaterialTheme.typography.titleLarge,
@@ -421,7 +452,9 @@ private fun ServerCard(
                 }
             }
         }
+        }
     }
+}
 }
 
 // ── Section 2 — Quick Actions ──
@@ -516,33 +549,22 @@ private fun LiveStatsGrid(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text("Performance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                SmallStatCard("CPU", "${processStats.cpuPercent.roundToInt()}%", Modifier.weight(1f))
-                SmallStatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}", Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SmallStatCard("TPS", String.format("%.1f", processStats.tps), Modifier.weight(1f))
-                SmallStatCard("Players", "${serverState.players.size} / 20", Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                SmallStatCard("↓ Down", processStats.rxFormatted, Modifier.weight(1f))
-                SmallStatCard("↑ Up", processStats.txFormatted, Modifier.weight(1f))
+                SmallStatCard("CPU", "${processStats.cpuPercent.roundToInt()}%")
+                SmallStatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}")
+                SmallStatCard("TPS", String.format("%.1f", processStats.tps))
+                SmallStatCard("Players", "${serverState.players.size} / 20")
+                SmallStatCard("↓ Down", processStats.rxFormatted)
+                SmallStatCard("↑ Up", processStats.txFormatted)
             }
         }
     }
@@ -629,6 +651,7 @@ private fun ConsolePreview(
     consoleLines: List<String>,
     onOpenConsole: () -> Unit,
     onCommand: (String) -> Unit,
+    onClearConsole: () -> Unit,
     isOnline: Boolean
 ) {
     var commandInput by remember { mutableStateOf("") }
@@ -640,15 +663,23 @@ private fun ConsolePreview(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Console", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onOpenConsole) {
-                    Text("Open Console →")
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Console", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onClearConsole,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "Clear console", modifier = Modifier.size(18.dp))
+                        }
+                        TextButton(onClick = onOpenConsole) {
+                            Text("Open Console →")
+                        }
+                    }
                 }
-            }
 
             Box(
                 modifier = Modifier
@@ -729,12 +760,14 @@ private fun PlayerListCard(
             }
 
             if (players.isEmpty()) {
-                Text(
-                    "No players online",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Text("0 online", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             } else {
                 Spacer(Modifier.height(8.dp))
                 players.take(5).forEach { player ->
@@ -845,10 +878,13 @@ private fun ActivityRow(entry: ActivityEntry) {
 
 @Composable
 private fun StorageCard(storageStats: StorageStats) {
+    val usedBytes = storageStats.totalBytes - storageStats.availableBytes
+    val progress = if (storageStats.totalBytes > 0) usedBytes.toFloat() / storageStats.totalBytes.toFloat() else 0f
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Storage", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -862,6 +898,17 @@ private fun StorageCard(storageStats: StorageStats) {
                 StorageMiniCard("Backups", storageStats.backupsFormatted, Icons.Default.Backup, Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                color = when {
+                    progress > 0.9f -> MaterialTheme.colorScheme.error
+                    progress > 0.7f -> Color(0xFFFFC107)
+                    else -> MaterialTheme.colorScheme.primary
+                }
+            )
+            Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
