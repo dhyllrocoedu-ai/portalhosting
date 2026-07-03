@@ -25,7 +25,7 @@ import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
 
-private val ALL_TABS = listOf("Properties", "Worlds", "Plugins", "Mods", "Backups")
+private val ALL_TABS = listOf("Properties", "Worlds", "Plugins", "Mods", "Datapacks", "Backups")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,8 +60,9 @@ fun ServerDetailScreen(
                 0 -> PropertiesTab(server, serverDir, onUpdateServer)
                 1 -> WorldsTab(serverDir)
                 2 -> PluginsTab(serverDir)
-                3 -> ModsTab(serverDir)
-                4 -> BackupsTab(backupManager, serverState)
+                 3 -> ModsTab(serverDir)
+                 4 -> DatapacksTab(serverDir)
+                 5 -> BackupsTab(backupManager, serverState)
             }
         }
     }
@@ -388,6 +389,65 @@ private fun ModsTab(serverDir: File) {
     }
 }
 
+// ─── DATAPACKS ────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DatapacksTab(serverDir: File) {
+    val context = LocalContext.current
+    val datapacksDir = remember { File(serverDir, "world/datapacks") }
+    var datapacks by remember { mutableStateOf(listOf<File>()) }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            importDatapack(context, uri, datapacksDir)
+            datapacks = listDatapacks(datapacksDir)
+        }
+    }
+
+    LaunchedEffect(Unit) { datapacks = listDatapacks(datapacksDir) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            SmallFloatingActionButton(onClick = { importLauncher.launch(arrayOf("application/zip", "*/*")) }) {
+                Icon(Icons.Default.Add, contentDescription = "Add Datapack")
+            }
+        }
+
+        if (datapacks.isEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                Text("No datapacks installed", modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(datapacks, key = { it.absolutePath }) { dp ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(dp.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                if (dp.isDirectory) "Directory" else formatSize(dp.length()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = {
+                            if (dp.isDirectory) dp.deleteRecursively() else dp.delete()
+                            datapacks = listDatapacks(datapacksDir)
+                        }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Remove", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ─── BACKUPS ──────────────────────────────────────────────────────────────────
 
 @Composable
@@ -510,6 +570,11 @@ private fun listJars(dir: File): List<File> {
     return dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList()
 }
 
+private fun listDatapacks(dir: File): List<File> {
+    if (!dir.exists()) return emptyList()
+    return dir.listFiles()?.filter { it.name.endsWith(".zip") || it.isDirectory }?.sortedBy { it.name } ?: emptyList()
+}
+
 private fun importJar(context: android.content.Context, uri: Uri, destDir: File) {
     try {
         destDir.mkdirs()
@@ -520,6 +585,20 @@ private fun importJar(context: android.content.Context, uri: Uri, destDir: File)
         }
     } catch (e: Exception) {
         android.util.Log.e("ServerDetail", "Import failed: ${e.message}")
+    }
+}
+
+private fun importDatapack(context: android.content.Context, uri: Uri, destDir: File) {
+    try {
+        destDir.mkdirs()
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "datapack.zip"
+            val cleanName = if (name.endsWith(".zip")) name else "$name.zip"
+            val dest = File(destDir, cleanName)
+            dest.outputStream().use { output -> input.copyTo(output) }
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("ServerDetail", "Datapack import failed: ${e.message}")
     }
 }
 
