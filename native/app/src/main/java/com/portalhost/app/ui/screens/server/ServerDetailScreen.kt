@@ -186,7 +186,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
         }
 
         if (saved) {
-            Text("Properties updated. Restart server to apply changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text("Properties updated. Restart server to apply changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

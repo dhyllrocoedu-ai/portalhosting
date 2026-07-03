@@ -327,14 +327,14 @@ fun ServerFilesScreen(
                         textStyle = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
-                            color = Color(0xFF00FF41)
+                            color = Color(0xFFE0E0E0)
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFF0D0D0D),
-                            unfocusedContainerColor = Color(0xFF0D0D0D),
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            cursorColor = Color(0xFF00FF41)
+                            focusedContainerColor = Color(0xFF1E1E1E),
+                            unfocusedContainerColor = Color(0xFF1E1E1E),
+                            focusedBorderColor = Color(0xFF555555),
+                            unfocusedBorderColor = Color(0xFF333333),
+                            cursorColor = Color(0xFFE0E0E0)
                         )
                     )
                 }
