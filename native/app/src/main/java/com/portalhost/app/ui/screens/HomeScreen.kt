@@ -76,6 +76,7 @@ fun HomeScreen(
             ServerStatus.ONLINE -> Color(0xFF4CAF50)
             ServerStatus.STARTING -> Color(0xFFFFC107)
             ServerStatus.STOPPING -> Color(0xFFFF9800)
+            ServerStatus.STOPPED -> Color(0xFFA5D6A7)
             ServerStatus.CRASHED -> Color(0xFFF44336)
             ServerStatus.OFFLINE -> Color(0xFF9E9E9E)
         }, label = "statusColor"
@@ -478,7 +479,7 @@ private fun QuickActions(
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val canStart = (serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.CRASHED) && activeServer != null
+            val canStart = (serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.STOPPED || serverState.status == ServerStatus.CRASHED) && activeServer != null
             val canStop = serverState.status == ServerStatus.ONLINE
             val canRestart = serverState.status == ServerStatus.ONLINE
 

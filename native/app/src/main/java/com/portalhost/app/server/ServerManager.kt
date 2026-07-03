@@ -19,7 +19,7 @@ private const val TAG = "ServerManager"
 private const val MAX_RESTART_RETRIES = 2
 
 enum class ServerStatus {
-    OFFLINE, STARTING, ONLINE, STOPPING, CRASHED
+    OFFLINE, STARTING, ONLINE, STOPPING, STOPPED, CRASHED
 }
 
 data class ServerState(
@@ -39,6 +39,7 @@ class ServerManager(
     private var process: Process? = null
     private var processJob: Job? = null
     private var uptimeJob: Job? = null
+    private var stoppedJob: Job? = null
     private var serverStartTime: Long = 0
 
     private var lastJarPath: String? = null
@@ -68,6 +69,27 @@ class ServerManager(
         proc.isAlive
     } catch (_: IllegalThreadStateException) {
         false
+    }
+
+    /** Set STOPPED state and schedule transition to OFFLINE after 3 seconds. */
+    private fun scheduleOfflineTransition(exitCode: Int) {
+        _state.value = _state.value.copy(
+            status = ServerStatus.STOPPED,
+            exitCode = exitCode,
+            uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000
+        )
+        if (exitCode != 0) {
+            activityLog.addServerCrash()
+        } else {
+            activityLog.addServerStop()
+        }
+        stoppedJob?.cancel()
+        stoppedJob = scope.launch {
+            delay(3000)
+            if (process == null && _state.value.status == ServerStatus.STOPPED) {
+                _state.value = _state.value.copy(status = ServerStatus.OFFLINE)
+            }
+        }
     }
 
     /** Create essential server files and directories. */
@@ -161,6 +183,7 @@ use-native-transport=true
     ): Result<Unit> {
         if (isRunning) return Result.failure(Exception("Server already running"))
         restartCount = 0
+        stoppedJob?.cancel()
         processJob?.cancel()
         processJob = null
         consoleStreamer.clear()
@@ -262,24 +285,13 @@ use-native-transport=true
                         }
                     }
                     Log.i(TAG, "Process exited with code $code")
-                    if (code != 0) {
-                        activityLog.addServerCrash()
-                    } else {
-                        activityLog.addServerStop()
-                    }
                     // Only clean up if we're still the current process (avoid race with stop+restart)
                     if (process === proc) {
-                        _state.value = _state.value.copy(
-                            status = ServerStatus.OFFLINE,
-                            exitCode = code,
-                            uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000
-                        )
+                        scheduleOfflineTransition(code)
                         process = null
-                    }
-
-                    // Save crash log if process exited abnormally
-                    if (code != 0) {
-                        saveCrashLog(workDir, code)
+                        if (code != 0) {
+                            saveCrashLog(workDir, code)
+                        }
                     }
 
                     // Auto-restart if enabled and within retry limit
@@ -353,11 +365,15 @@ use-native-transport=true
         }
         Log.i(TAG, "stop() called — capturing caller stack trace", Exception("caller trace"))
         autoRestartEnabled = false
+        sawHashFailure = false
         _state.value = _state.value.copy(status = ServerStatus.STOPPING)
 
         // Cancel polling jobs *before* waiting so they don't race with exit
         uptimeJob?.cancel()
         statsJob?.cancel()
+        // Set process null before cancelling processJob so its finally block
+        // sees process !== proc and skips state transition
+        process = null
         processJob?.cancel()
         processJob = null
 
@@ -380,9 +396,7 @@ use-native-transport=true
                 proc.destroyForcibly()
             }
         }
-        process = null
-        _state.value = _state.value.copy(status = ServerStatus.OFFLINE, exitCode = 0, uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000)
-        activityLog.addServerStop()
+        scheduleOfflineTransition(0)
     }
 
     /** Restart the server with the same args. */
@@ -397,6 +411,7 @@ use-native-transport=true
 
     /** Force-kill the server. */
     fun kill() {
+        stoppedJob?.cancel()
         process?.destroyForcibly()
         process = null
         _state.value = _state.value.copy(status = ServerStatus.OFFLINE)

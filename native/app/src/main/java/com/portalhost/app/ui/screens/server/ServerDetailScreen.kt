@@ -502,7 +502,7 @@ private fun BackupsTab(backupManager: BackupManager, serverState: ServerState) {
                     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.End) {
                         OutlinedButton(
                             onClick = { restoreTarget = backup.name },
-                            enabled = serverState.status == ServerStatus.OFFLINE,
+                            enabled = serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.STOPPED,
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Text("Restore", fontSize = 12.sp)

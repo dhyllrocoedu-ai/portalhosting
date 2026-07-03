@@ -256,12 +256,13 @@ fun AppNavigation(
         ) {
 
             composable(AppTab.HOME.route) {
+                val consoleLines by consoleStreamer.linesState.collectAsState()
                 HomeScreen(
                     serverConfigs = servers,
                     activeServerId = activeServerId,
                     serverState = state,
                     processStats = processStats,
-                    consoleLines = consoleStreamer.lines,
+                    consoleLines = consoleLines,
                     activityLog = activityLog,
                     networkInfo = networkInfo,
                     storageStats = storageStats,
@@ -288,7 +289,8 @@ fun AppNavigation(
                     onSelectServer = { id -> activeServerId = id },
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onDeleteServer = { server ->
-                        if (serverManager.state.value.status != ServerStatus.OFFLINE && server.id == activeServerId) {
+                        val s = serverManager.state.value.status
+                        if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == activeServerId) {
                             scope.launch { serverManager.stop() }
                         }
                         repository.remove(server.id)
@@ -302,7 +304,8 @@ fun AppNavigation(
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onServerClick = { server -> navController.navigate(Routes.serverDetail(server.id)) },
                     onDeleteServer = { server ->
-                        if (serverManager.state.value.status != ServerStatus.OFFLINE && server.id == activeServerId) {
+                        val s = serverManager.state.value.status
+                        if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == activeServerId) {
                             scope.launch { serverManager.stop() }
                         }
                         repository.remove(server.id)
@@ -313,8 +316,9 @@ fun AppNavigation(
             // Full-screen console (no bottom nav, has back button)
             composable(Routes.FULL_CONSOLE) {
                 val serverDir = activeServer?.let { repository.getServerDir(it.id) }
+                val consoleLines by consoleStreamer.linesState.collectAsState()
                 ConsoleScreen(
-                    consoleLines = consoleStreamer.lines,
+                    consoleLines = consoleLines,
                     onCommand = { serverManager.writeCommand(it) },
                     isOnline = state.status == ServerStatus.ONLINE,
                     serverDir = serverDir,

@@ -1,9 +1,17 @@
 package com.portalhost.app.server
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
 /** Manages console history and searching. */
 class ConsoleStreamer {
     private val _lines = mutableListOf<String>()
     val lines: List<String> get() = _lines.toList()
+
+    private val _linesState = MutableStateFlow<List<String>>(emptyList())
+    val linesState: StateFlow<List<String>> = _linesState.asStateFlow()
+
     private var _searchResults: List<Int> = emptyList()
     val searchResults: List<Int> get() = _searchResults
 
@@ -16,6 +24,7 @@ class ConsoleStreamer {
                 _lines.removeAt(0)
             }
         }
+        _linesState.value = _lines.toList()
     }
 
     fun search(query: String) {
@@ -34,6 +43,7 @@ class ConsoleStreamer {
         synchronized(_lines) {
             _lines.clear()
         }
+        _linesState.value = emptyList()
     }
 
     fun toFormattedText(): String {

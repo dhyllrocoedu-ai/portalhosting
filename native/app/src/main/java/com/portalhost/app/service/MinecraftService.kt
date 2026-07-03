@@ -119,6 +119,7 @@ class MinecraftService : Service() {
                     ServerStatus.ONLINE -> "Online"
                     ServerStatus.STARTING -> "Starting..."
                     ServerStatus.STOPPING -> "Stopping..."
+                    ServerStatus.STOPPED -> "Stopped"
                     ServerStatus.CRASHED -> "Crashed"
                     ServerStatus.OFFLINE -> "Offline"
                 }
