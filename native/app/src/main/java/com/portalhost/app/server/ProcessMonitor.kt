@@ -12,10 +12,10 @@ data class ProcessStats(
     val rxBytesPerSec: Long = 0,
     val txBytesPerSec: Long = 0
 ) {
-    val ramFormatted: String get() = ProcessMonitor.formatBytes(ramBytes)
-    val maxRamFormatted: String get() = ProcessMonitor.formatBytes(maxRamBytes)
-    val rxFormatted: String get() = ProcessMonitor.formatBytes(rxBytesPerSec) + "/s"
-    val txFormatted: String get() = ProcessMonitor.formatBytes(txBytesPerSec) + "/s"
+    val ramFormatted: String get() = ProcessMonitor.formatBinaryBytes(ramBytes)
+    val maxRamFormatted: String get() = ProcessMonitor.formatBinaryBytes(maxRamBytes)
+    val rxFormatted: String get() = ProcessMonitor.formatBinaryBytes(rxBytesPerSec) + "/s"
+    val txFormatted: String get() = ProcessMonitor.formatBinaryBytes(txBytesPerSec) + "/s"
 }
 
 class ProcessMonitor {
@@ -39,7 +39,7 @@ class ProcessMonitor {
         return ProcessStats(
             cpuPercent = cpuPercent,
             ramBytes = ramBytes,
-            maxRamBytes = maxRamMegabytes * 1_000_000L,
+            maxRamBytes = maxRamMegabytes * 1_048_576L,
             tps = 20.0f,
             rxBytesPerSec = rxRate,
             txBytesPerSec = txRate
@@ -150,11 +150,11 @@ class ProcessMonitor {
     }
 
     companion object {
-        fun formatBytes(bytes: Long): String {
+        fun formatBinaryBytes(bytes: Long): String {
             return when {
-                bytes >= 1_000_000_000 -> "%.1f GB".format(bytes / 1_000_000_000.0)
-                bytes >= 1_000_000 -> "%.0f MB".format(bytes / 1_000_000.0)
-                bytes >= 1_000 -> "%.0f KB".format(bytes / 1_000.0)
+                bytes >= 1_073_741_824L -> "%.1f GB".format(bytes / 1_073_741_824.0)
+                bytes >= 1_048_576L -> "%.0f MB".format(bytes / 1_048_576.0)
+                bytes >= 1_024L -> "%.0f KB".format(bytes / 1_024.0)
                 else -> "$bytes B"
             }
         }

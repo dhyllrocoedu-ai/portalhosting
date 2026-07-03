@@ -309,7 +309,7 @@ use-native-transport=true
                     val maxRam = lastJavaArgs?.let { args ->
                         args.find { it.startsWith("-Xmx") }?.drop(4)?.let {
                             when {
-                                it.endsWith("G") -> (it.dropLast(1).toFloatOrNull()?.times(1000) ?: 2048f).toInt()
+                                it.endsWith("G") -> (it.dropLast(1).toFloatOrNull()?.times(1024) ?: 2048f).toInt()
                                 it.endsWith("M") -> it.dropLast(1).toIntOrNull() ?: 2048
                                 else -> 2048
                             }

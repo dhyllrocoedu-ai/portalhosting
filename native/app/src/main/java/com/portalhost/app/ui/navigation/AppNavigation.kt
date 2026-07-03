@@ -144,8 +144,10 @@ fun AppNavigation(
                     }
                 }
             }
+            val javaArgs = listOf("-Xms${server.minRam}", "-Xmx${server.maxRam}")
             serverManager.start(
                 jarPath = server.jarPath,
+                javaArgs = javaArgs,
                 serverDir = serverDir,
                 config = server
             )
