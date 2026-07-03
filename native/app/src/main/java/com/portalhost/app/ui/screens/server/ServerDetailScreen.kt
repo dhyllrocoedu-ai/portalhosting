@@ -575,12 +575,22 @@ private fun listDatapacks(dir: File): List<File> {
     return dir.listFiles()?.filter { it.name.endsWith(".zip") || it.isDirectory }?.sortedBy { it.name } ?: emptyList()
 }
 
-private fun importJar(context: android.content.Context, uri: Uri, destDir: File) {
+private fun getFileName(context: android.content.Context, uri: android.net.Uri): String? {
+    return try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+        }
+    } catch (_: Exception) { null }
+}
+
+private fun importJar(context: android.content.Context, uri: android.net.Uri, destDir: File) {
     try {
         destDir.mkdirs()
         context.contentResolver.openInputStream(uri)?.use { input ->
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "plugin.jar"
-            val dest = File(destDir, name)
+            val name = getFileName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "plugin.jar"
+            val cleanName = if (name.endsWith(".jar")) name else "$name.jar"
+            val dest = File(destDir, cleanName)
             dest.outputStream().use { output -> input.copyTo(output) }
         }
     } catch (e: Exception) {
@@ -588,11 +598,11 @@ private fun importJar(context: android.content.Context, uri: Uri, destDir: File)
     }
 }
 
-private fun importDatapack(context: android.content.Context, uri: Uri, destDir: File) {
+private fun importDatapack(context: android.content.Context, uri: android.net.Uri, destDir: File) {
     try {
         destDir.mkdirs()
         context.contentResolver.openInputStream(uri)?.use { input ->
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "datapack.zip"
+            val name = getFileName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "datapack.zip"
             val cleanName = if (name.endsWith(".zip")) name else "$name.zip"
             val dest = File(destDir, cleanName)
             dest.outputStream().use { output -> input.copyTo(output) }
