@@ -161,6 +161,9 @@ use-native-transport=true
     ): Result<Unit> {
         if (isRunning) return Result.failure(Exception("Server already running"))
         restartCount = 0
+        processJob?.cancel()
+        processJob = null
+        consoleStreamer.clear()
 
         return try {
             _state.value = _state.value.copy(status = ServerStatus.STARTING, error = null)
@@ -264,12 +267,15 @@ use-native-transport=true
                     } else {
                         activityLog.addServerStop()
                     }
-                    _state.value = _state.value.copy(
-                        status = ServerStatus.OFFLINE,
-                        exitCode = code,
-                        uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000
-                    )
-                    process = null
+                    // Only clean up if we're still the current process (avoid race with stop+restart)
+                    if (process === proc) {
+                        _state.value = _state.value.copy(
+                            status = ServerStatus.OFFLINE,
+                            exitCode = code,
+                            uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000
+                        )
+                        process = null
+                    }
 
                     // Save crash log if process exited abnormally
                     if (code != 0) {
@@ -352,6 +358,8 @@ use-native-transport=true
         // Cancel polling jobs *before* waiting so they don't race with exit
         uptimeJob?.cancel()
         statsJob?.cancel()
+        processJob?.cancel()
+        processJob = null
 
         withContext(Dispatchers.IO) {
             try {
