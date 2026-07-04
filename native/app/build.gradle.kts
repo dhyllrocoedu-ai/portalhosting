@@ -18,8 +18,8 @@ android {
         applicationId = "com.portalhost.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "2.8.11"
+        versionCode = 8
+        versionName = "2.9.0"
     }
 
     buildTypes {

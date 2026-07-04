@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.portalhost.app.MainActivity
@@ -25,6 +26,7 @@ import java.util.Locale
 class MinecraftService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var notificationJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -50,6 +52,7 @@ class MinecraftService : Service() {
 
         when (action) {
             ACTION_FOREGROUND -> {
+                acquireWakeLock()
                 try {
                     Log.i(TAG, "Calling startForeground()…")
                     startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
@@ -65,6 +68,7 @@ class MinecraftService : Service() {
                                 .getNotificationChannel(PortalHostApp.CHANNEL_SERVER) != null
                         } catch (_: Exception) { "?" }
                     }", e)
+                    releaseWakeLock()
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -90,11 +94,13 @@ class MinecraftService : Service() {
 
             null -> {
                 // START_STICKY recreation — system restarted the service after kill
+                acquireWakeLock()
                 Log.i(TAG, "null intent (START_STICKY recreation)")
                 try {
                     startForeground(NOTIFICATION_ID, buildNotification("Reconnecting..."))
                 } catch (e: Exception) {
                     Log.e(TAG, "startForeground (null intent) failed: sdk=${Build.VERSION.SDK_INT}", e)
+                    releaseWakeLock()
                     stopSelf()
                     return START_NOT_STICKY
                 }
@@ -110,6 +116,7 @@ class MinecraftService : Service() {
         notificationJob = serviceScope.launch {
             var lastText = ""
             var lastStatusText = ""
+            var lastNotifyTime = 0L
             while (isActive) {
                 val manager = ServerManagerHolder.manager ?: break
                 val state = manager.state.value
@@ -129,9 +136,12 @@ class MinecraftService : Service() {
                 val players = state.players.size
                 val text = "$statusText • ${players}P • ${ram}/${maxRam} • ${tps}TPS"
 
-                if (text != lastText || statusText != lastStatusText) {
+                val now = System.currentTimeMillis()
+                val statusChanged = statusText != lastStatusText
+                if (text != lastText && (statusChanged || now - lastNotifyTime >= 3000)) {
                     lastText = text
                     lastStatusText = statusText
+                    lastNotifyTime = now
                     val notification = buildLiveNotification(
                         title = "Minecraft Server • $statusText",
                         text = text,
@@ -193,9 +203,36 @@ class MinecraftService : Service() {
             .build()
     }
 
+    private fun acquireWakeLock() {
+        try {
+            val pm = getSystemService(POWER_SERVICE) as? PowerManager ?: return
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PortalHost:ServerWakeLock").apply {
+                acquire()
+                Log.i(TAG, "WakeLock acquired")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to acquire WakeLock: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            wakeLock?.apply {
+                if (isHeld) {
+                    release()
+                    Log.i(TAG, "WakeLock released")
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to release WakeLock: ${e.message}")
+        }
+        wakeLock = null
+    }
+
     override fun onDestroy() {
         notificationJob?.cancel()
         serviceScope.cancel()
+        releaseWakeLock()
         ServerManagerHolder.manager?.dispose()
         ServerManagerHolder.manager = null
         super.onDestroy()
