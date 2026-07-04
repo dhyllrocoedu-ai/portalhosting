@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 
 /** Manages console history and searching. */
 class ConsoleStreamer {
-    private val _lines = mutableListOf<String>()
+    private var _lines = mutableListOf<String>()
     val lines: List<String> get() = _lines.toList()
 
     private val _linesState = MutableStateFlow<List<String>>(emptyList())
@@ -20,7 +20,8 @@ class ConsoleStreamer {
     private var _searchResults: List<Int> = emptyList()
     val searchResults: List<Int> get() = _searchResults
 
-    private var maxLines = 10_000
+    private var maxLines = 5_000
+    private val trimAmount = 1_000
     private val scope = CoroutineScope(Dispatchers.Default)
     private var snapshotJob: Job? = null
 
@@ -28,7 +29,7 @@ class ConsoleStreamer {
         synchronized(_lines) {
             _lines.add(line)
             if (_lines.size > maxLines) {
-                _lines.removeAt(0)
+                _lines = _lines.drop(trimAmount).toMutableList()
             }
         }
         scheduleSnapshot()

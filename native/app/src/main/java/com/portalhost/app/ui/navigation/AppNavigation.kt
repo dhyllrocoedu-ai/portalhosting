@@ -2,10 +2,7 @@ package com.portalhost.app.ui.navigation
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
@@ -14,202 +11,56 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.portalhost.app.activity.ActivityLog
-import com.portalhost.app.network.NetworkManager
-import com.portalhost.app.server.ConsoleStreamer
-import com.portalhost.app.server.ServerDownloader
-import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.service.MinecraftService
-import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.ui.components.GrassIcon
-import com.portalhost.app.ui.components.CmdBlockIcon
 import com.portalhost.app.ui.components.CraftingIcon
 import com.portalhost.app.ui.components.ChestIcon
 import com.portalhost.app.ui.model.ServerConfig
-import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.*
 import com.portalhost.app.ui.screens.create.CreateServerScreen
 import com.portalhost.app.ui.screens.server.ServerDetailScreen
-import com.portalhost.app.ui.screens.PlayersScreen
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun AppNavigation(
-    serverManager: ServerManager,
-    consoleStreamer: ConsoleStreamer,
-    repository: ServerRepository,
-    filesDir: File,
-    jdkInstalled: Boolean,
-    jdkInstalling: Boolean,
-    javaPath: String,
-    onReinstallJava: () -> Unit,
-    onUninstallJava: () -> Unit,
-    onFixupJava: () -> Unit,
-    onClearAppData: () -> Unit,
-    activityLog: ActivityLog,
-    networkManager: NetworkManager,
-    storageInfo: StorageInfo,
-    darkTheme: Boolean,
-    onToggleTheme: () -> Unit,
-    tunnelUrl: String,
-    onTunnelUrlChange: (String) -> Unit
-) {
+fun AppNavigation(appState: AppState) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val state by serverManager.state.collectAsState()
-    val processStats by serverManager.processStats.collectAsState()
     val tabs = AppTab.entries
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val currentRoute = currentDestination?.route
-
-    // Bottom bar hidden on full-screen routes
     val showBottomBar = currentRoute in tabs.map { it.route }
 
-    // Track active server
-    var activeServerId by remember { mutableStateOf<String?>(null) }
-    var servers by remember { mutableStateOf(repository.list()) }
+    val state by appState.serverManager.state.collectAsState()
+    val processStats by appState.serverManager.processStats.collectAsState()
 
-    // Refresh server list on resume
     LaunchedEffect(currentRoute) {
-        servers = repository.list()
-        if (activeServerId == null && servers.isNotEmpty()) {
-            activeServerId = servers.first().id
-        } else if (activeServerId != null && servers.none { it.id == activeServerId }) {
-            activeServerId = servers.firstOrNull()?.id
-        }
+        appState.refreshServers()
     }
 
-    // Network info + storage stats
-    var networkInfo by remember { mutableStateOf(networkManager.getNetworkInfo()) }
-    var storageStats by remember { mutableStateOf(storageInfo.getServerStorage(File(filesDir, "servers"))) }
-    var publicIp by remember { mutableStateOf("") }
-
-    LaunchedEffect(state.status) {
-        withContext(Dispatchers.IO) {
-            networkInfo = networkManager.getNetworkInfo().copy(tunnelUrl = tunnelUrl)
-            if (publicIp.isEmpty()) {
-                val ip = networkManager.fetchPublicIp()
-                if (ip.isNotBlank()) publicIp = ip
-            }
-            if (activeServerId != null) {
-                val serverDir = repository.getServerDir(activeServerId!!)
-                storageStats = storageInfo.getServerStorage(serverDir)
-            }
-        }
-    }
-
-    LaunchedEffect(tunnelUrl) {
-        networkInfo = networkInfo.copy(tunnelUrl = tunnelUrl)
-    }
-
-    val activeServer = servers.find { it.id == activeServerId }
-
-    // ---- Permission handling ----
-    var pendingServerForPermission by remember { mutableStateOf<ServerConfig?>(null) }
-    var showPermissionRationale by remember { mutableStateOf(false) }
-    var showPermissionSettings by remember { mutableStateOf(false) }
-
-    // Defined first so the launcher callback can reference it
-    fun doStartServer(server: ServerConfig) {
-        val fgIntent = Intent(context, MinecraftService::class.java).apply {
-            action = MinecraftService.ACTION_FOREGROUND
-        }
-        ContextCompat.startForegroundService(context, fgIntent)
-        scope.launch(Dispatchers.IO) {
-            val serverDir = repository.getServerDir(server.id).absolutePath
-            if (server.serverType == "paper" && server.mcVersion.isNotBlank()) {
-                val mojangFile = File(serverDir, "mojang_${server.mcVersion}.jar")
-                if (!mojangFile.exists()) {
-                    val downloader = ServerDownloader()
-                    val url = downloader.getVanillaDownloadUrl(server.mcVersion)
-                    if (url != null) {
-                        downloader.download(url, mojangFile, null).onFailure { e ->
-                            android.util.Log.w("AppNavigation", "Failed to pre-seed Mojang jar: ${e.message}")
-                        }
-                    }
-                }
-            }
-            val javaArgs = listOf("-Xms${server.minRam}", "-Xmx${server.maxRam}")
-            serverManager.start(
-                jarPath = server.jarPath,
-                javaArgs = javaArgs,
-                serverDir = serverDir,
-                config = server
-            )
-        }
-    }
-
+    // Permission launcher
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        val server = pendingServerForPermission
-        pendingServerForPermission = null
-        if (granted && server != null) {
-            doStartServer(server)
-        } else if (!granted && server != null) {
-            val showRationale = try {
-                ActivityCompat.shouldShowRequestPermissionRationale(
-                    context as android.app.Activity,
-                    Manifest.permission.POST_NOTIFICATIONS
-                )
-            } catch (_: Exception) { false }
-            if (!showRationale) {
-                showPermissionSettings = true
-            }
-        }
-    }
-
-    fun requestNotificationPermissionOrSettings(server: ServerConfig) {
-        pendingServerForPermission = server
-        val showRationale = try {
-            ActivityCompat.shouldShowRequestPermissionRationale(
-                context as android.app.Activity,
-                Manifest.permission.POST_NOTIFICATIONS
-            )
-        } catch (_: Exception) { false }
-        if (showRationale) {
-            showPermissionRationale = true
-        } else {
-            showPermissionSettings = true
-        }
-    }
-
-    fun startServer(server: ServerConfig) {
-        if (!jdkInstalled) {
-            Toast.makeText(context, "JDK not installed yet. Please wait.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestNotificationPermissionOrSettings(server)
-            return
-        }
-        doStartServer(server)
+        appState.handlePermissionResult(granted, context)
     }
 
     val onStart: () -> Unit = {
-        val server = activeServer ?: servers.firstOrNull()
+        val server = appState.activeServer ?: appState.servers.firstOrNull()
         if (server != null) {
-            if (server.id != activeServerId) activeServerId = server.id
-            startServer(server)
+            if (server.id != appState.activeServerId) appState.selectServer(server.id)
+            appState.startServer(server, context)
         }
     }
 
@@ -219,7 +70,7 @@ fun AppNavigation(
         }
         context.startService(stopIntent)
     }
-    val onRestart: () -> Unit = { scope.launch { serverManager.restart() } }
+    val onRestart: () -> Unit = { scope.launch { appState.serverManager.restart() } }
 
     Scaffold(
         bottomBar = {
@@ -255,76 +106,72 @@ fun AppNavigation(
             startDestination = AppTab.HOME.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-
             composable(AppTab.HOME.route) {
-                val consoleLines by consoleStreamer.linesState
+                val consoleLines by appState.consoleStreamer.linesState
                     .sample(100)
-                    .collectAsState(initial = consoleStreamer.lines)
+                    .collectAsState(initial = appState.consoleStreamer.lines)
                 HomeScreen(
-                    serverConfigs = servers,
-                    activeServerId = activeServerId,
+                    serverConfigs = appState.servers,
+                    activeServerId = appState.activeServerId,
                     serverState = state,
                     processStats = processStats,
                     consoleLines = consoleLines,
-                    activityLog = activityLog,
-                    networkInfo = networkInfo,
-                    storageStats = storageStats,
-                    jdkInstalled = jdkInstalled,
-                    publicIp = publicIp,
-                    tunnelUrl = tunnelUrl,
-                    jdkInstalling = jdkInstalling,
+                    activityLog = appState.activityLog,
+                    networkInfo = appState.networkInfo,
+                    storageStats = appState.storageStats,
+                    jdkInstalled = appState.jdkInstalled,
+                    publicIp = appState.publicIp,
+                    tunnelUrl = appState.tunnelUrl,
+                    jdkInstalling = appState.jdkInstalling,
                     onStart = onStart,
                     onStop = onStop,
                     onRestart = onRestart,
-                    onCommand = { serverManager.writeCommand(it) },
-                    onClearConsole = { consoleStreamer.clear() },
+                    onCommand = { appState.serverManager.writeCommand(it) },
+                    onClearConsole = { appState.consoleStreamer.clear() },
                     onOpenConsole = { navController.navigate(Routes.FULL_CONSOLE) },
                     onOpenFiles = {
-                        activeServer?.let { s ->
+                        appState.activeServer?.let { s ->
                             navController.navigate(Routes.serverFiles(s.id))
                         }
                     },
                     onOpenPlayers = {
-                        activeServer?.let { s ->
-                            navController.navigate(Routes.PLAYER_MANAGEMENT)
-                        }
+                        navController.navigate(Routes.PLAYER_MANAGEMENT)
                     },
-                    onSelectServer = { id -> activeServerId = id },
+                    onSelectServer = { id -> appState.selectServer(id) },
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onDeleteServer = { server ->
-                        val s = serverManager.state.value.status
-                        if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == activeServerId) {
-                            scope.launch { serverManager.stop() }
+                        val s = state.status
+                        if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == appState.activeServerId) {
+                            scope.launch { appState.serverManager.stop() }
                         }
-                        repository.remove(server.id)
+                        appState.deleteServer(server)
                     }
                 )
             }
 
             composable(AppTab.SERVERS.route) {
                 ServersScreen(
-                    repository = repository,
+                    repository = appState.repository,
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onServerClick = { server -> navController.navigate(Routes.serverDetail(server.id)) },
                     onDeleteServer = { server ->
-                        val s = serverManager.state.value.status
-                        if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == activeServerId) {
-                            scope.launch { serverManager.stop() }
+                        val s = state.status
+                        if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == appState.activeServerId) {
+                            scope.launch { appState.serverManager.stop() }
                         }
-                        repository.remove(server.id)
+                        appState.deleteServer(server)
                     }
                 )
             }
 
-            // Full-screen console (no bottom nav, has back button)
             composable(Routes.FULL_CONSOLE) {
-                val serverDir = activeServer?.let { repository.getServerDir(it.id) }
-                val consoleLines by consoleStreamer.linesState
+                val serverDir = appState.activeServer?.let { appState.repository.getServerDir(it.id) }
+                val consoleLines by appState.consoleStreamer.linesState
                     .sample(100)
-                    .collectAsState(initial = consoleStreamer.lines)
+                    .collectAsState(initial = appState.consoleStreamer.lines)
                 ConsoleScreen(
                     consoleLines = consoleLines,
-                    onCommand = { serverManager.writeCommand(it) },
+                    onCommand = { appState.serverManager.writeCommand(it) },
                     isOnline = state.status == ServerStatus.ONLINE,
                     serverDir = serverDir,
                     onBack = { navController.popBackStack() },
@@ -334,11 +181,11 @@ fun AppNavigation(
 
             composable(Routes.SERVER_FILES) { entry ->
                 val serverId = entry.arguments?.getString("serverId") ?: return@composable
-                val server = repository.getById(serverId)
+                val server = appState.repository.getById(serverId)
                 if (server != null) {
                     ServerFilesScreen(
                         serverName = server.name,
-                        serverDir = repository.getServerDir(server.id),
+                        serverDir = appState.repository.getServerDir(server.id),
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -346,31 +193,27 @@ fun AppNavigation(
 
             composable(AppTab.SETTINGS.route) {
                 SettingsScreen(
-                    javaPath = javaPath,
-                    jdkInstalled = jdkInstalled,
-                    jdkInstalling = jdkInstalling,
-                    onReinstallJava = onReinstallJava,
-                    onUninstallJava = onUninstallJava,
-                    onFixupJava = onFixupJava,
-                    onClearAppData = onClearAppData,
-                    darkTheme = darkTheme,
-                    onToggleTheme = onToggleTheme,
-                    activeServer = activeServer,
-                    onUpdateServer = { updated ->
-                        repository.update(updated)
-                        servers = repository.list()
-                    },
-                    tunnelUrl = tunnelUrl,
-                    onTunnelUrlChange = onTunnelUrlChange
+                    javaPath = appState.javaPath,
+                    jdkInstalled = appState.jdkInstalled,
+                    jdkInstalling = appState.jdkInstalling,
+                    onReinstallJava = appState.onReinstallJava,
+                    onUninstallJava = appState.onUninstallJava,
+                    onFixupJava = appState.onFixupJava,
+                    onClearAppData = appState.onClearAppData,
+                    darkTheme = appState.darkTheme,
+                    onToggleTheme = appState.onToggleTheme,
+                    activeServer = appState.activeServer,
+                    onUpdateServer = { updated -> appState.updateServer(updated) },
+                    tunnelUrl = appState.tunnelUrl,
+                    onTunnelUrlChange = { url -> appState.tunnelUrlChanged(url) }
                 )
             }
 
             composable(Routes.CREATE_SERVER) {
                 CreateServerScreen(
-                    repository = repository,
-                    onCreated = {
-                        servers = repository.list()
-                        activeServerId = it.id
+                    repository = appState.repository,
+                    onCreated = { server ->
+                        appState.serverCreated(server)
                         navController.popBackStack()
                     },
                     onBack = { navController.popBackStack() }
@@ -379,26 +222,23 @@ fun AppNavigation(
 
             composable(Routes.SERVER_DETAIL) { entry ->
                 val serverId = entry.arguments?.getString("serverId") ?: return@composable
-                val server = repository.getById(serverId)
+                val server = appState.repository.getById(serverId)
                 if (server != null) {
                     ServerDetailScreen(
                         server = server,
                         serverState = state,
                         onBack = { navController.popBackStack() },
-                        onUpdateServer = { updated ->
-                            repository.update(updated)
-                            servers = repository.list()
-                        },
-                        serverDir = repository.getServerDir(server.id)
+                        onUpdateServer = { updated -> appState.updateServer(updated) },
+                        serverDir = appState.repository.getServerDir(server.id)
                     )
                 }
             }
 
             composable(Routes.PLAYER_MANAGEMENT) {
-                val serverDir = activeServer?.let { repository.getServerDir(it.id) }
+                val serverDir = appState.activeServer?.let { appState.repository.getServerDir(it.id) }
                 PlayersScreen(
                     serverDir = serverDir,
-                    onCommand = { serverManager.writeCommand(it) },
+                    onCommand = { appState.serverManager.writeCommand(it) },
                     isOnline = state.status == ServerStatus.ONLINE,
                     currentPlayers = state.players,
                     status = state.status,
@@ -409,31 +249,31 @@ fun AppNavigation(
     }
 
     // ---- Permission dialogs ----
-    if (showPermissionRationale) {
+    if (appState.showPermissionRationale) {
         AlertDialog(
-            onDismissRequest = { showPermissionRationale = false },
+            onDismissRequest = { appState.showPermissionRationale = false },
             title = { Text("Enable Notifications") },
             text = { Text("PortalHost needs notification permission to show the server status and keep your Minecraft server running in the background.") },
             confirmButton = {
                 TextButton(onClick = {
-                    showPermissionRationale = false
+                    appState.showPermissionRationale = false
                     notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }) { Text("Allow") }
             },
             dismissButton = {
-                TextButton(onClick = { showPermissionRationale = false }) { Text("Not Now") }
+                TextButton(onClick = { appState.showPermissionRationale = false }) { Text("Not Now") }
             }
         )
     }
 
-    if (showPermissionSettings) {
+    if (appState.showPermissionSettings) {
         AlertDialog(
-            onDismissRequest = { showPermissionSettings = false },
+            onDismissRequest = { appState.showPermissionSettings = false },
             title = { Text("Permission Required") },
             text = { Text("Notification permission was previously denied. Without it, the server cannot stay running in the background.\n\nOpen Settings > Apps > PortalHost > Notifications and enable notifications.") },
             confirmButton = {
                 TextButton(onClick = {
-                    showPermissionSettings = false
+                    appState.showPermissionSettings = false
                     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                         data = android.net.Uri.fromParts("package", context.packageName, null)
                     }
@@ -441,7 +281,7 @@ fun AppNavigation(
                 }) { Text("Open Settings") }
             },
             dismissButton = {
-                TextButton(onClick = { showPermissionSettings = false }) { Text("Cancel") }
+                TextButton(onClick = { appState.showPermissionSettings = false }) { Text("Cancel") }
             }
         )
     }

@@ -19,6 +19,7 @@ import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.navigation.AppNavigation
+import com.portalhost.app.ui.navigation.rememberAppState
 import com.portalhost.app.ui.theme.PortalHostTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -169,7 +170,7 @@ private fun AppEntry(
         networkManager.saveTunnelUrl(it)
     }
 
-    AppNavigation(
+    val appState = rememberAppState(
         serverManager = serverManager,
         consoleStreamer = consoleStreamer,
         repository = repository,
@@ -189,4 +190,6 @@ private fun AppEntry(
         tunnelUrl = tunnelUrl,
         onTunnelUrlChange = onTunnelUrlChange
     )
+
+    AppNavigation(appState)
 }
