@@ -1,8 +1,13 @@
 package com.portalhost.app.server
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /** Manages console history and searching. */
 class ConsoleStreamer {
@@ -16,6 +21,8 @@ class ConsoleStreamer {
     val searchResults: List<Int> get() = _searchResults
 
     private var maxLines = 10_000
+    private val scope = CoroutineScope(Dispatchers.Default)
+    private var snapshotJob: Job? = null
 
     fun append(line: String) {
         synchronized(_lines) {
@@ -24,7 +31,17 @@ class ConsoleStreamer {
                 _lines.removeAt(0)
             }
         }
-        _linesState.value = _lines.toList()
+        scheduleSnapshot()
+    }
+
+    private fun scheduleSnapshot() {
+        if (snapshotJob?.isActive == true) return
+        snapshotJob = scope.launch {
+            delay(100)
+            synchronized(_lines) {
+                _linesState.value = _lines.toList()
+            }
+        }
     }
 
     fun search(query: String) {
@@ -40,6 +57,7 @@ class ConsoleStreamer {
     }
 
     fun clear() {
+        snapshotJob?.cancel()
         synchronized(_lines) {
             _lines.clear()
         }
