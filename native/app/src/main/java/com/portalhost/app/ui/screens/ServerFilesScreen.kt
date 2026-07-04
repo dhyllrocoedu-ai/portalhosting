@@ -3,6 +3,7 @@ package com.portalhost.app.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -94,12 +95,14 @@ fun ServerFilesScreen(
         }
     }
 
-    // Import launcher
+    // Import launcher (multi-select)
     val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        for (uri in uris) {
             importFile(context, uri, currentDir)
+        }
+        if (uris.isNotEmpty()) {
             refreshDir(currentDir, sortBy, sortAsc) { entries = it }
         }
     }
@@ -495,11 +498,39 @@ private fun formatFileSize(bytes: Long): String = when {
     else -> "${"%.2f".format(bytes.toDouble() / (1024 * 1024 * 1024))} GB"
 }
 
+private fun resolveFileName(context: Context, uri: Uri): String {
+    return try {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) {
+                val name = cursor.getString(nameIndex)
+                if (!name.isNullOrBlank()) name else "imported_file"
+            } else "imported_file"
+        } ?: "imported_file"
+    } catch (_: Exception) {
+        uri.lastPathSegment?.substringAfterLast('/') ?: "imported_file"
+    }
+}
+
+private fun resolveDestFile(destDir: File, name: String): File {
+    val dest = File(destDir, name)
+    if (!dest.exists()) return dest
+    val base = name.substringBeforeLast('.')
+    val ext = name.substringAfterLast('.', "")
+    var count = 1
+    while (true) {
+        val candidate = if (ext.isEmpty()) "${base}_$count" else "${base}_$count.$ext"
+        val file = File(destDir, candidate)
+        if (!file.exists()) return file
+        count++
+    }
+}
+
 private fun importFile(context: Context, uri: Uri, destDir: File) {
     try {
         context.contentResolver.openInputStream(uri)?.use { input ->
-            val name = uri.lastPathSegment?.substringAfterLast('/') ?: "imported_file"
-            val dest = File(destDir, name)
+            val name = resolveFileName(context, uri)
+            val dest = resolveDestFile(destDir, name)
             dest.outputStream().use { output -> input.copyTo(output) }
         }
     } catch (e: Exception) {
