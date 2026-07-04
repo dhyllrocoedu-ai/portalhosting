@@ -294,11 +294,9 @@ private fun PluginsTab(serverDir: File) {
     val pluginsDir = remember { File(serverDir, "plugins") }
     var plugins by remember { mutableStateOf(listOf<File>()) }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            importJar(context, uri, pluginsDir)
-            plugins = listJars(pluginsDir)
-        }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        for (uri in uris) importJar(context, uri, pluginsDir)
+        if (uris.isNotEmpty()) plugins = listJars(pluginsDir)
     }
 
     LaunchedEffect(Unit) { plugins = listJars(pluginsDir) }
@@ -346,11 +344,9 @@ private fun ModsTab(serverDir: File) {
     val modsDir = remember { File(serverDir, "mods") }
     var mods by remember { mutableStateOf(listOf<File>()) }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            importJar(context, uri, modsDir)
-            mods = listJars(modsDir)
-        }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        for (uri in uris) importJar(context, uri, modsDir)
+        if (uris.isNotEmpty()) mods = listJars(modsDir)
     }
 
     LaunchedEffect(Unit) { mods = listJars(modsDir) }
@@ -398,11 +394,9 @@ private fun DatapacksTab(serverDir: File) {
     val datapacksDir = remember { File(serverDir, "world/datapacks") }
     var datapacks by remember { mutableStateOf(listOf<File>()) }
 
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            importDatapack(context, uri, datapacksDir)
-            datapacks = listDatapacks(datapacksDir)
-        }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        for (uri in uris) importDatapack(context, uri, datapacksDir)
+        if (uris.isNotEmpty()) datapacks = listDatapacks(datapacksDir)
     }
 
     LaunchedEffect(Unit) { datapacks = listDatapacks(datapacksDir) }
@@ -584,13 +578,27 @@ private fun getFileName(context: android.content.Context, uri: android.net.Uri):
     } catch (_: Exception) { null }
 }
 
+private fun resolveDestFile(parent: File, name: String): File {
+    val dest = File(parent, name)
+    if (!dest.exists()) return dest
+    val base = name.substringBeforeLast('.')
+    val ext = name.substringAfterLast('.', "")
+    var count = 1
+    while (true) {
+        val candidate = if (ext.isEmpty()) "${base}_$count" else "${base}_$count.$ext"
+        val file = File(parent, candidate)
+        if (!file.exists()) return file
+        count++
+    }
+}
+
 private fun importJar(context: android.content.Context, uri: android.net.Uri, destDir: File) {
     try {
         destDir.mkdirs()
         context.contentResolver.openInputStream(uri)?.use { input ->
             val name = getFileName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "plugin.jar"
             val cleanName = if (name.endsWith(".jar")) name else "$name.jar"
-            val dest = File(destDir, cleanName)
+            val dest = resolveDestFile(destDir, cleanName)
             dest.outputStream().use { output -> input.copyTo(output) }
         }
     } catch (e: Exception) {
@@ -604,7 +612,7 @@ private fun importDatapack(context: android.content.Context, uri: android.net.Ur
         context.contentResolver.openInputStream(uri)?.use { input ->
             val name = getFileName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "datapack.zip"
             val cleanName = if (name.endsWith(".zip")) name else "$name.zip"
-            val dest = File(destDir, cleanName)
+            val dest = resolveDestFile(destDir, cleanName)
             dest.outputStream().use { output -> input.copyTo(output) }
         }
     } catch (e: Exception) {
