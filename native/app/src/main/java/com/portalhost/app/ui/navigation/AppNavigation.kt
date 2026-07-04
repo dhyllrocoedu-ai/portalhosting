@@ -41,6 +41,7 @@ import com.portalhost.app.ui.screens.create.CreateServerScreen
 import com.portalhost.app.ui.screens.server.ServerDetailScreen
 import com.portalhost.app.ui.screens.PlayersScreen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -256,7 +257,9 @@ fun AppNavigation(
         ) {
 
             composable(AppTab.HOME.route) {
-                val consoleLines by consoleStreamer.linesState.collectAsState()
+                val consoleLines by consoleStreamer.linesState
+                    .sample(100)
+                    .collectAsState(initial = consoleStreamer.lines)
                 HomeScreen(
                     serverConfigs = servers,
                     activeServerId = activeServerId,
@@ -316,7 +319,9 @@ fun AppNavigation(
             // Full-screen console (no bottom nav, has back button)
             composable(Routes.FULL_CONSOLE) {
                 val serverDir = activeServer?.let { repository.getServerDir(it.id) }
-                val consoleLines by consoleStreamer.linesState.collectAsState()
+                val consoleLines by consoleStreamer.linesState
+                    .sample(100)
+                    .collectAsState(initial = consoleStreamer.lines)
                 ConsoleScreen(
                     consoleLines = consoleLines,
                     onCommand = { serverManager.writeCommand(it) },
