@@ -123,18 +123,20 @@ fun ConsoleScreen(
     }
 
     // Auto-scroll when new lines arrive AND user is near bottom
-    LaunchedEffect(consoleLines.size) {
-        if (showSearch || searchQuery.isNotBlank()) return@LaunchedEffect
-        if (consoleLines.isEmpty()) return@LaunchedEffect
-        if (!isNearBottom) return@LaunchedEffect
-        try {
-            listState.scrollToItem(displayLines.size - 1)
-        } catch (_: Exception) {}
+    LaunchedEffect(listState) {
+        snapshotFlow { consoleLines.size }
+            .collect {
+                if (showSearch || searchQuery.isNotBlank()) return@collect
+                if (consoleLines.isEmpty() || !isNearBottom) return@collect
+                try {
+                    listState.scrollToItem(displayLines.size - 1)
+                } catch (_: Exception) {}
+            }
     }
 
     // Timestamp-based log rotation: auto-save every 500 new lines
     var lastSavedCount by remember { mutableIntStateOf(0) }
-    LaunchedEffect(consoleLines.size) {
+    LaunchedEffect(consoleLines.size / 500) {
         val serverDirVal = serverDir ?: return@LaunchedEffect
         val count = consoleLines.size
         if (count - lastSavedCount >= 500) {

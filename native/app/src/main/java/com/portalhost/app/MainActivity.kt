@@ -23,6 +23,7 @@ import com.portalhost.app.ui.theme.PortalHostTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -94,6 +95,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         serverManager.destroy()
+        serverScope.cancel()
     }
 }
 
