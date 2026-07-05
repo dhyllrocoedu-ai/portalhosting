@@ -112,14 +112,42 @@ class TunnelManager(private val context: Context) {
         val extractResult = extractBinaries()
         if (extractResult.isFailure) return extractResult
 
-        if (isClaimed && secretKey != null) {
+        if (secretKey != null) {
             return startDaemon(serverPort)
         } else {
             return startClaimFlow()
         }
     }
 
-    private suspend fun startDaemon(serverPort: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    private suspend fun startClaimFlow(): Result<Unit> = withContext(Dispatchers.IO) {
+        _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+        try {
+            val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
+            val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
+            val cliPath = cliBinary.absolutePath
+
+            val code = runCliCapture(linker, cliPath, "claim", "generate")
+            val url = runCliCapture(linker, cliPath, "claim", "url", code)
+
+            Log.i(TAG, "Claim URL: $url")
+            _state.value = _state.value.copy(
+                status = TunnelStatus.CLAIM_REQUIRED,
+                claimUrl = url,
+                lastOutput = url.take(200)
+            )
+            
+            // Start daemon in claim-wait mode (no secret key)
+            startDaemonInClaimMode(serverPort)
+            
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Claim flow failed", e)
+            _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun startDaemonInClaimMode(serverPort: Int): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         tunnelAddresses.clear()
         try {
@@ -130,9 +158,8 @@ class TunnelManager(private val context: Context) {
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
-            args.add("--secret")
-            args.add(secretKey!!)
-            Log.i(TAG, "Daemon command: ${args.joinToString(" ")}")
+            // No --secret means daemon waits for claim
+            Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
                 .directory(workDir)
@@ -143,7 +170,7 @@ class TunnelManager(private val context: Context) {
             startReader(proc, serverPort)
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start playitd", e)
+            Log.e(TAG, "Failed to start playitd in claim mode", e)
             _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
             Result.failure(e)
         }
