@@ -217,10 +217,11 @@ fun SettingsScreen(
                                             tint = MaterialTheme.colorScheme.primary
                                         )
                                     }
-                                    Spacer(Modifier.height(4.dp))
-                                    Text("Tap the link icon to open in browser, or copy the URL manually.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    Spacer(Modifier.height(8.dp))
+                                Text("After claiming in browser, paste your secret key below or tap Start Tunnel again.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Spacer(Modifier.height(4.dp))
                                 }
                             }
                             Spacer(Modifier.height(8.dp))
