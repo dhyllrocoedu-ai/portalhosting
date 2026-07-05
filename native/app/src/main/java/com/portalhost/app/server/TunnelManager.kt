@@ -146,7 +146,7 @@ class TunnelManager(private val context: Context) {
                 lastOutput = url.take(200)
             )
             
-            startDaemonWithClaim(currentServerPort, code)
+            startDaemonInSimpleMode(currentServerPort)
             
             Result.success(Unit)
         } catch (e: Exception) {
@@ -192,7 +192,7 @@ mappings = [$mapping]
         }
     }
     
-    private suspend fun startDaemonWithClaim(serverPort: Int, claimCode: String): Result<Unit> = withContext(Dispatchers.IO) {
+    private suspend fun startDaemonInSimpleMode(serverPort: Int): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         tunnelAddresses.clear()
         try {
@@ -209,8 +209,6 @@ mappings = [$mapping]
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
-            args.add("--claim")
-            args.add(claimCode)
             Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
@@ -227,7 +225,7 @@ mappings = [$mapping]
             Result.failure(e)
         }
     }
-
+    
     private fun runCliCapture(linker: String, cliPath: String, vararg args: String): String {
         val fullArgs = mutableListOf(linker, cliPath)
         fullArgs.addAll(args)
