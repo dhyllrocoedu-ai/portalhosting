@@ -126,13 +126,19 @@ class TunnelManager(private val context: Context) {
 
     private suspend fun startClaimFlow(): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+        var claimCode: String? = null
         try {
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
             val cliPath = cliBinary.absolutePath
 
-            val code = runCliCapture(linker, cliPath, "claim", "generate")
-            val url = runCliCapture(linker, cliPath, "claim", "url", code)
+            playitGgDir.mkdirs()
+            if (!defaultConfigFile.exists()) {
+                defaultConfigFile.writeText("secret_key = \"\"\nrefresh_from_api = true\nmappings = []\n")
+            }
+
+            claimCode = runCliCapture(linker, cliPath, "claim", "generate")
+            val url = runCliCapture(linker, cliPath, "claim", "url", claimCode)
 
             Log.i(TAG, "Claim URL: $url")
             _state.value = _state.value.copy(
@@ -141,7 +147,7 @@ class TunnelManager(private val context: Context) {
                 lastOutput = url.take(200)
             )
             
-            startDaemonInClaimMode(currentServerPort)
+            startDaemonInClaimMode(currentServerPort, claimCode)
             
             Result.success(Unit)
         } catch (e: Exception) {
@@ -159,7 +165,11 @@ class TunnelManager(private val context: Context) {
             socketFile.delete()
             playitGgDir.mkdirs()
             if (!defaultConfigFile.exists()) {
-                defaultConfigFile.writeText("secret_key = \"${secretKey!!}\"\nrefresh_from_api = true\nmappings = []\n")
+                val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
+                defaultConfigFile.writeText("""secret_key = "${secretKey!!}"
+refresh_from_api = true
+mappings = [$mapping]
+""".trimIndent())
             }
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
@@ -183,7 +193,7 @@ class TunnelManager(private val context: Context) {
         }
     }
     
-    private suspend fun startDaemonInClaimMode(serverPort: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    private suspend fun startDaemonInClaimMode(serverPort: Int, claimCode: String?): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         tunnelAddresses.clear()
         try {
@@ -191,13 +201,21 @@ class TunnelManager(private val context: Context) {
             socketFile.delete()
             playitGgDir.mkdirs()
             if (!defaultConfigFile.exists()) {
-                defaultConfigFile.writeText("secret_key = \"\"\nrefresh_from_api = true\nmappings = []\n")
+                val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
+                defaultConfigFile.writeText("""secret_key = ""
+refresh_from_api = true
+mappings = [$mapping]
+""".trimIndent())
             }
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
+            if (claimCode != null) {
+                args.add("--claim")
+                args.add(claimCode)
+            }
             Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
