@@ -166,8 +166,6 @@ class TunnelManager(private val context: Context) {
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
-            args.add("--tcp")
-            args.add("0.0.0.0:$serverPort")
             Log.i(TAG, "Daemon command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
@@ -200,8 +198,6 @@ class TunnelManager(private val context: Context) {
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
-            args.add("--tcp")
-            args.add("0.0.0.0:$serverPort")
             Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
