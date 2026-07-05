@@ -32,6 +32,7 @@ class AppState(
     val filesDir: File,
     val jdkInstalled: Boolean,
     val jdkInstalling: Boolean,
+    val jdkProgress: Float,
     val javaPath: String,
     val onReinstallJava: () -> Unit,
     val onUninstallJava: () -> Unit,
@@ -188,6 +189,7 @@ fun rememberAppState(
     filesDir: File,
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
+    jdkProgress: Float,
     javaPath: String,
     onReinstallJava: () -> Unit,
     onUninstallJava: () -> Unit,
@@ -220,7 +222,8 @@ fun rememberAppState(
             darkTheme = darkTheme,
             onToggleTheme = onToggleTheme,
             tunnelUrl = tunnelUrl,
-            onTunnelUrlChange = onTunnelUrlChange
+            onTunnelUrlChange = onTunnelUrlChange,
+            jdkProgress = jdkProgress
         )
     }
 

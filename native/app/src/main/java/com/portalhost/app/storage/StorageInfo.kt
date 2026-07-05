@@ -24,9 +24,12 @@ class StorageInfo {
         val logsSize = calculateDirSize(File(serversDir, "logs"))
         val backupsSize = calculateDirSize(File(serversDir, "backups"))
 
-        val stat = StatFs(serversDir.absolutePath)
-        val availableBytes = stat.availableBlocksLong * stat.blockSizeLong
-        val totalBytes = stat.blockCountLong * stat.blockSizeLong
+        val (availableBytes, totalBytes) = try {
+            val stat = StatFs(serversDir.absolutePath)
+            Pair(stat.availableBlocksLong * stat.blockSizeLong, stat.blockCountLong * stat.blockSizeLong)
+        } catch (_: Exception) {
+            Pair(0L, 0L)
+        }
 
         return StorageStats(worldSize, logsSize, backupsSize, availableBytes, totalBytes)
     }

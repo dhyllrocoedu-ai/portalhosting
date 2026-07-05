@@ -29,7 +29,7 @@ class JavaRuntimeManager(private val context: Context) {
     private val tempDir: File
         get() = File(context.cacheDir, "jdk-extract")
 
-    suspend fun install(): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun install(onProgress: ((Float) -> Unit)? = null): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Log.i(TAG, "Installing OpenJDK 21 to ${runtimeDir.absolutePath}")
             runtimeDir.mkdirs()
@@ -52,8 +52,20 @@ class JavaRuntimeManager(private val context: Context) {
                     Log.e(TAG, msg)
                     return@withContext Result.failure(Exception(msg))
                 }
+                val contentLength = response.body?.contentLength() ?: -1L
                 response.body?.byteStream()?.use { input ->
-                    debFile.outputStream().use { output -> input.copyTo(output) }
+                    debFile.outputStream().use { output ->
+                        val buf = ByteArray(32768)
+                        var totalRead = 0L
+                        var read: Int
+                        while (input.read(buf).also { read = it } != -1) {
+                            output.write(buf, 0, read)
+                            totalRead += read
+                            if (contentLength > 0 && onProgress != null) {
+                                onProgress(totalRead.toFloat() / contentLength.toFloat())
+                            }
+                        }
+                    }
                 }
             }
             Log.i(TAG, "Downloaded ${debFile.length()} bytes")

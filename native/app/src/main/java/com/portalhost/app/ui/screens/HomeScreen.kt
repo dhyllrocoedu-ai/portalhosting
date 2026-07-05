@@ -32,6 +32,8 @@ import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ProcessStats
 import com.portalhost.app.server.ServerState
+import com.portalhost.app.server.TunnelInfo
+import com.portalhost.app.server.TunnelState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.storage.StorageStats
 import com.portalhost.app.ui.components.GrassIcon
@@ -54,6 +56,7 @@ fun HomeScreen(
     storageStats: StorageStats,
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
+    jdkProgress: Float = 0f,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onRestart: () -> Unit,
@@ -66,7 +69,8 @@ fun HomeScreen(
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
     publicIp: String = "",
-    tunnelUrl: String = ""
+    tunnelUrl: String = "",
+    tunnelState: TunnelState? = null
 ) {
     val activeServer = serverConfigs.find { it.id == activeServerId }
     val clipboardManager = LocalClipboardManager.current
@@ -142,6 +146,7 @@ fun HomeScreen(
                     networkInfo = networkInfo,
                     publicIp = publicIp,
                     tunnelUrl = tunnelUrl,
+                    tunnelState = tunnelState,
                     onSelectServer = onSelectServer,
                     onCreateServer = onCreateServer,
                     onDeleteServer = onDeleteServer
@@ -155,10 +160,19 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Installing Java runtime...")
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Installing Java runtime...")
+                            }
+                            if (jdkProgress > 0f) {
+                                Spacer(Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { jdkProgress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
@@ -266,6 +280,7 @@ private fun ServerCard(
     networkInfo: NetworkInfo,
     publicIp: String = "",
     tunnelUrl: String = "",
+    tunnelState: TunnelState? = null,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit
@@ -376,6 +391,27 @@ private fun ServerCard(
                                 color = MaterialTheme.colorScheme.primary,
                                 fontFamily = FontFamily.Monospace
                             )
+                        }
+                    }
+                    // playit.gg tunnel addresses
+                    if (tunnelState?.tunnels?.isNotEmpty() == true) {
+                        for (tunnel in tunnelState.tunnels) {
+                            Spacer(Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Cloud,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "${tunnel.type.uppercase()}: ${tunnel.publicAddress}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
                         }
                     }
                     // Cellular warning

@@ -3,7 +3,10 @@ package com.portalhost.app.ui.screens
 import android.content.Intent
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,6 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.server.TunnelManager
+import com.portalhost.app.server.TunnelState
+import com.portalhost.app.server.TunnelStatus
 import com.portalhost.app.ui.components.CraftingIcon
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.RedstoneIcon
@@ -24,6 +30,7 @@ fun SettingsScreen(
     javaPath: String,
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
+    jdkProgress: Float = 0f,
     onReinstallJava: () -> Unit,
     onUninstallJava: () -> Unit,
     onFixupJava: () -> Unit,
@@ -33,10 +40,16 @@ fun SettingsScreen(
     activeServer: ServerConfig?,
     onUpdateServer: (ServerConfig) -> Unit,
     tunnelUrl: String = "",
-    onTunnelUrlChange: (String) -> Unit = {}
+    onTunnelUrlChange: (String) -> Unit = {},
+    tunnelState: TunnelState? = null,
+    onTestTunnelStart: () -> Unit = {},
+    onTestTunnelStop: () -> Unit = {},
+    onTestTunnelReset: () -> Unit = {},
+    onSaveSecretKey: (String) -> Unit = {}
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
+    var secretKeyInput by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -47,7 +60,7 @@ fun SettingsScreen(
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Appearance
@@ -138,6 +151,143 @@ fun SettingsScreen(
                 }
             }
 
+            // Tunnel Test (playit.gg debug)
+            var tunnelExpanded by remember { mutableStateOf(false) }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { tunnelExpanded = !tunnelExpanded },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Cloud, contentDescription = null)
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Tunnel Test (playit.gg)", style = MaterialTheme.typography.titleSmall)
+                            val tunStatus = tunnelState?.status
+                            val statusText = when (tunStatus) {
+                                TunnelStatus.IDLE -> "Idle"
+                                TunnelStatus.DOWNLOADING -> "Downloading binary..."
+                                TunnelStatus.CLAIM_REQUIRED -> "Claim required"
+                                TunnelStatus.CONNECTING -> "Connecting..."
+                                TunnelStatus.CONNECTED -> "Connected"
+                                TunnelStatus.ERROR -> "Error"
+                                null -> "Not initialized"
+                            }
+                            Text(statusText, style = MaterialTheme.typography.bodySmall,
+                                color = when (tunStatus) {
+                                    TunnelStatus.CONNECTED -> MaterialTheme.colorScheme.primary
+                                    TunnelStatus.ERROR -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                })
+                        }
+                        Icon(
+                            if (tunnelExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = null
+                        )
+                    }
+
+                    if (tunnelExpanded) {
+                        Spacer(Modifier.height(8.dp))
+
+                        // Claim URL display
+                        if (tunnelState?.claimUrl != null) {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text("Claim Required", style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(tunnelState.claimUrl, style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("Open this URL in a browser to claim the agent.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        // Tunnel addresses
+                        if (tunnelState?.tunnels?.isNotEmpty() == true) {
+                            tunnelState.tunnels.forEach { tunnel ->
+                                Text("${tunnel.type.uppercase()}: ${tunnel.publicAddress}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        // Error display
+                        if (tunnelState?.error != null) {
+                            Text(tunnelState.error, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        // Debug output
+                        if (tunnelState?.lastOutput != null && tunnelState.lastOutput.isNotEmpty() && tunnelState?.status != TunnelStatus.CONNECTED) {
+                            Text("Last output: ${tunnelState.lastOutput}", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(8.dp))
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val isRunning = tunnelState?.status == TunnelStatus.CONNECTING
+                                    || tunnelState?.status == TunnelStatus.CONNECTED
+                            Button(
+                                onClick = onTestTunnelStart,
+                                enabled = !isRunning && tunnelState?.status != TunnelStatus.DOWNLOADING
+                            ) {
+                                Text("Start Tunnel")
+                            }
+                            OutlinedButton(
+                                onClick = onTestTunnelStop,
+                                enabled = isRunning
+                            ) {
+                                Text("Stop")
+                            }
+                            OutlinedButton(
+                                onClick = onTestTunnelReset,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text("Reset")
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = secretKeyInput,
+                            onValueChange = { secretKeyInput = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Paste your secret key here") },
+                            singleLine = true,
+                            label = { Text("Secret Key") }
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                onSaveSecretKey(secretKeyInput)
+                                secretKeyInput = ""
+                            },
+                            enabled = secretKeyInput.isNotBlank()
+                        ) {
+                            Text("Save Secret Key")
+                        }
+                    }
+                }
+            }
+
             // Java Runtime
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -159,7 +309,7 @@ fun SettingsScreen(
                     }
                     if (jdkInstalling) {
                         Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(progress = { jdkProgress }, modifier = Modifier.fillMaxWidth())
                     }
                     Spacer(Modifier.height(8.dp))
                     FlowRow(
@@ -169,7 +319,7 @@ fun SettingsScreen(
                         OutlinedButton(onClick = onReinstallJava, enabled = !jdkInstalling) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Reinstall")
+                            Text(if (jdkInstalled) "Reinstall" else "Install")
                         }
                         OutlinedButton(onClick = onFixupJava, enabled = jdkInstalled && !jdkInstalling) {
                             Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp))

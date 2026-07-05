@@ -18,6 +18,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.server.TunnelManager
+import com.portalhost.app.server.TunnelState
 import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.CraftingIcon
@@ -31,7 +33,11 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
-fun AppNavigation(appState: AppState) {
+fun AppNavigation(
+    appState: AppState,
+    tunnelManager: TunnelManager? = null,
+    tunnelState: TunnelState? = null
+) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -123,6 +129,8 @@ fun AppNavigation(appState: AppState) {
                     publicIp = appState.publicIp,
                     tunnelUrl = appState.tunnelUrl,
                     jdkInstalling = appState.jdkInstalling,
+                    jdkProgress = appState.jdkProgress,
+                    tunnelState = tunnelState,
                     onStart = onStart,
                     onStop = onStop,
                     onRestart = onRestart,
@@ -196,6 +204,8 @@ fun AppNavigation(appState: AppState) {
                     javaPath = appState.javaPath,
                     jdkInstalled = appState.jdkInstalled,
                     jdkInstalling = appState.jdkInstalling,
+                    jdkProgress = appState.jdkProgress,
+                    tunnelState = tunnelState,
                     onReinstallJava = appState.onReinstallJava,
                     onUninstallJava = appState.onUninstallJava,
                     onFixupJava = appState.onFixupJava,
@@ -205,7 +215,15 @@ fun AppNavigation(appState: AppState) {
                     activeServer = appState.activeServer,
                     onUpdateServer = { updated -> appState.updateServer(updated) },
                     tunnelUrl = appState.tunnelUrl,
-                    onTunnelUrlChange = { url -> appState.tunnelUrlChanged(url) }
+                    onTunnelUrlChange = { url -> appState.tunnelUrlChanged(url) },
+                    onTestTunnelStart = {
+                        tunnelManager?.let { tm ->
+                            scope.launch { tm.start(25565) }
+                        }
+                    },
+                    onTestTunnelStop = { tunnelManager?.stop() },
+                    onTestTunnelReset = { tunnelManager?.resetClaim() },
+                    onSaveSecretKey = { key -> tunnelManager?.setSecretKey(key) }
                 )
             }
 

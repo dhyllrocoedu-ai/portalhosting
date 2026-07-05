@@ -263,6 +263,12 @@ use-native-transport=true
                             processMonitor.parseTps(text)?.let { tps ->
                                 _processStats.value = _processStats.value.copy(tps = tps)
                             }
+                            // Detect server fully started via "Done" message
+                            if (_state.value.status == ServerStatus.STARTING &&
+                                (text.contains("Done") || text.contains("For help"))
+                            ) {
+                                _state.value = _state.value.copy(status = ServerStatus.ONLINE)
+                            }
                         }
                         Log.i(TAG, "processJob: read loop ended normally (EOF)")
                     }
@@ -335,14 +341,6 @@ use-native-transport=true
                     } ?: 2048
                     _processStats.value = processMonitor.getStats(proc, maxRam)
                     delay(3000)
-                }
-            }
-
-            // Mark online after a brief delay (server fully started)
-            scope.launch {
-                delay(5000)
-                if (isAlive(proc)) {
-                    _state.value = _state.value.copy(status = ServerStatus.ONLINE)
                 }
             }
 

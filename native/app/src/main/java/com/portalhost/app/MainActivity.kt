@@ -9,12 +9,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.JavaRuntimeManager
 import com.portalhost.app.server.ProcessMonitor
 import com.portalhost.app.server.ServerManager
+import com.portalhost.app.server.TunnelManager
 import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.ui.model.ServerRepository
@@ -113,9 +115,15 @@ private fun AppEntry(
     darkTheme: Boolean,
     onToggleTheme: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var jdkInstalled by remember { mutableStateOf(javaRuntimeManager.isInstalled) }
     var jdkInstalling by remember { mutableStateOf(false) }
+    var jdkProgress by remember { mutableStateOf(0f) }
+
+    // TunnelManager for playit.gg testing
+    val tunnelManager = remember { TunnelManager(context) }
+    val tunnelState by tunnelManager.state.collectAsState()
 
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
@@ -124,7 +132,9 @@ private fun AppEntry(
 
         if (!javaRuntimeManager.isInstalled) {
             jdkInstalling = true
-            val result = javaRuntimeManager.install()
+            val result = javaRuntimeManager.install { progress ->
+                jdkProgress = progress
+            }
             jdkInstalling = false
             jdkInstalled = result.isSuccess
             if (result.isSuccess) {
@@ -138,9 +148,12 @@ private fun AppEntry(
     val onReinstallJava: () -> Unit = {
         javaRuntimeManager.uninstall()
         jdkInstalled = false
+        jdkProgress = 0f
         scope.launch {
             jdkInstalling = true
-            val result = javaRuntimeManager.install()
+            val result = javaRuntimeManager.install { progress ->
+                jdkProgress = progress
+            }
             jdkInstalling = false
             jdkInstalled = result.isSuccess
         }
@@ -177,6 +190,7 @@ private fun AppEntry(
         filesDir = filesDir,
         jdkInstalled = jdkInstalled,
         jdkInstalling = jdkInstalling,
+        jdkProgress = jdkProgress,
         javaPath = javaRuntimeManager.resolveJavaPath(),
         onReinstallJava = onReinstallJava,
         onUninstallJava = onUninstallJava,
@@ -191,5 +205,9 @@ private fun AppEntry(
         onTunnelUrlChange = onTunnelUrlChange
     )
 
-    AppNavigation(appState)
+    AppNavigation(
+        appState = appState,
+        tunnelManager = tunnelManager,
+        tunnelState = tunnelState
+    )
 }
