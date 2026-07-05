@@ -1,6 +1,7 @@
 package com.portalhost.app.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -201,10 +202,22 @@ fun SettingsScreen(
                                     Text("Claim Required", style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer)
                                     Spacer(Modifier.height(4.dp))
-                                    Text(tunnelState.claimUrl, style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(tunnelState.claimUrl, style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                        Spacer(Modifier.width(8.dp))
+                                        Icon(
+                                            Icons.Default.OpenInNew,
+                                            contentDescription = "Open in browser",
+                                            modifier = Modifier.size(20.dp).clickable {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(tunnelState.claimUrl))
+                                                LocalContext.current.startActivity(intent)
+                                            },
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
                                     Spacer(Modifier.height(4.dp))
-                                    Text("Open this URL in a browser to claim the agent.",
+                                    Text("Tap the link icon to open in browser, or copy the URL manually.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer)
                                 }
