@@ -209,6 +209,8 @@ mappings = [$mapping]
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
+            args.add("--claim")
+            args.add(claimCode)
             Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
