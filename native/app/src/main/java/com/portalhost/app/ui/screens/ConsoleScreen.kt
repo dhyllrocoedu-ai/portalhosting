@@ -259,7 +259,7 @@ fun ConsoleScreen(
                     .padding(8.dp)
             ) {
                 LazyColumn(state = listState) {
-                    items(displayLines) { line ->
+                    items(displayLines, key = { it }) { line ->
                         Text(
                             text = line,
                             color = consoleLineColor(line),
