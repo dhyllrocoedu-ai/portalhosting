@@ -161,6 +161,8 @@ class TunnelManager(private val context: Context) {
             args.add(socketFile.absolutePath)
             args.add("--secret")
             args.add(secretKey!!)
+            args.add("--secret-path")
+            args.add(configFile.absolutePath)
             Log.i(TAG, "Daemon command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
@@ -184,11 +186,16 @@ class TunnelManager(private val context: Context) {
         try {
             workDir.mkdirs()
             socketFile.delete()
+            if (!configFile.exists()) {
+                configFile.writeText("secret_key = \"\"\nrefresh_from_api = true\nmappings = []\n")
+            }
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
+            args.add("--secret-path")
+            args.add(configFile.absolutePath)
             Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
