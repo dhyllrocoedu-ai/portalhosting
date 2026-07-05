@@ -265,7 +265,7 @@ use-native-transport=true
                             }
                             // Detect server fully started via "Done" message
                             if (_state.value.status == ServerStatus.STARTING &&
-                                (text.contains("Done") || text.contains("For help"))
+                                (Regex("Done \\([\\d.]+s\\)").containsMatchIn(text) || text.contains("For help"))
                             ) {
                                 _state.value = _state.value.copy(status = ServerStatus.ONLINE)
                             }
