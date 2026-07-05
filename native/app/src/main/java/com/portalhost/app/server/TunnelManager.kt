@@ -124,6 +124,7 @@ class TunnelManager(private val context: Context) {
         tunnelAddresses.clear()
         try {
             workDir.mkdirs()
+            socketFile.delete()
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
             val args = mutableListOf(linker, daemonBinary.absolutePath)

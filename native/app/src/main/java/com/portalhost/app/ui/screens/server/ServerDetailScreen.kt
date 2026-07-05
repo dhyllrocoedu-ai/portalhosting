@@ -121,6 +121,10 @@ private fun parseRamToMb(ram: String): Int {
 
 private fun formatRamValue(mb: Int): String = formatRamMb(mb)
 
+private fun String.escapeProperties(): String {
+    return this.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+}
+
 @Composable
 private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
     var name by remember(server) { mutableStateOf(server.name) }
@@ -159,19 +163,33 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
 
         Button(
             onClick = {
-                val newPort = portText.toIntOrNull() ?: server.port
-                val propsFile = File(serverDir, "server.properties")
-                if (propsFile.exists()) {
-                    var content = propsFile.readText()
-                    content = content.replace(Regex("(?m)^server-port=\\d+"), "server-port=$newPort")
-                    content = content.replace(Regex("(?m)^gamemode=\\w+"), "gamemode=$gamemode")
-                    content = content.replace(Regex("(?m)^difficulty=\\w+"), "difficulty=$difficulty")
-                    content = content.replace(Regex("(?m)^motd=.*"), "motd=$motd")
-                    propsFile.writeText(content)
+                try {
+                    val newPort = portText.toIntOrNull() ?: server.port
+                    val propsFile = File(serverDir, "server.properties")
+                    if (!propsFile.exists()) {
+                        val defaultProps = """#Minecraft server properties
+server-port=$newPort
+gamemode=$gamemode
+difficulty=$difficulty
+motd=${motd.escapeProperties()}
+max-players=20
+online-mode=true
+"""
+                        propsFile.writeText(defaultProps)
+                    } else {
+                        var content = propsFile.readText()
+                        content = content.replace(Regex("(?m)^server-port=.*"), "server-port=$newPort")
+                        content = content.replace(Regex("(?m)^gamemode=.*"), "gamemode=$gamemode")
+                        content = content.replace(Regex("(?m)^difficulty=.*"), "difficulty=$difficulty")
+                        content = content.replace(Regex("(?m)^motd=.*"), "motd=${motd.escapeProperties()}")
+                        propsFile.writeText(content)
+                    }
+                    val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = formatRamMb(minRamMb), maxRam = formatRamMb(maxRamMb))
+                    onUpdateServer(updated)
+                    saved = true
+                } catch (e: Exception) {
+                    android.util.Log.e("ServerDetailScreen", "Failed to save properties", e)
                 }
-                val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = formatRamMb(minRamMb), maxRam = formatRamMb(maxRamMb))
-                onUpdateServer(updated)
-                saved = true
             },
             modifier = Modifier.fillMaxWidth()
         ) { Text("Save Properties") }

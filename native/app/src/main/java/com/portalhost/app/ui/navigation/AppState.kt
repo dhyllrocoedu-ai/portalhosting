@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import android.app.Activity
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
@@ -21,6 +23,12 @@ import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -54,6 +62,16 @@ class AppState(
         private set
     var storageStats by mutableStateOf(storageInfo.getServerStorage(File(filesDir, "servers")))
         private set
+
+    // Debounced StateFlows to reduce recomposition frequency
+    private val _processStatsFlow = MutableStateFlow(serverManager.processStats.value)
+    val processStatsDebounced: StateFlow<com.portalhost.app.server.ProcessStats> = _processStatsFlow
+
+    private val _storageStatsFlow = MutableStateFlow(storageStats)
+    val storageStatsDebounced: StateFlow<com.portalhost.app.storage.StorageStats> = _storageStatsFlow.asStateFlow()
+
+    private val _networkInfoFlow = MutableStateFlow(networkInfo)
+    val networkInfoDebounced: StateFlow<com.portalhost.app.network.NetworkInfo> = _networkInfoFlow.asStateFlow()
     var publicIp by mutableStateOf("")
         private set
     var pendingServerForPermission by mutableStateOf<ServerConfig?>(null)
@@ -84,6 +102,27 @@ class AppState(
         if (activeServerId != null) {
             val serverDir = repository.getServerDir(activeServerId!!)
             storageStats = storageInfo.getServerStorage(serverDir)
+        }
+        _storageStatsFlow.value = storageStats
+    }
+
+    fun updateProcessStats(stats: com.portalhost.app.server.ProcessStats) {
+        _processStatsFlow.value = stats
+    }
+
+    fun updateNetworkInfo(info: com.portalhost.app.network.NetworkInfo) {
+        _networkInfoFlow.value = info
+    }
+
+    fun handleMemoryTrim(level: Int) {
+        when (level) {
+            Activity.TRIM_MEMORY_RUNNING_LOW -> {
+                consoleStreamer.clear()
+            }
+            Activity.TRIM_MEMORY_RUNNING_CRITICAL -> {
+                consoleStreamer.clear()
+                serverManager.kill()
+            }
         }
     }
 
