@@ -38,6 +38,8 @@ class TunnelManager(private val context: Context) {
     private val cliBinary: File get() = File(playitDir, "playit-cli")
     private val configFile: File get() = File(playitDir, "playit.toml")
     private val socketFile: File get() = File(playitDir, "playitd.sock")
+    private val playitGgDir: File get() = File(playitDir, "playit_gg")
+    private val defaultConfigFile: File get() = File(playitGgDir, "playit.toml")
 
     private var process: Process? = null
     private var readJob: Job? = null
@@ -59,9 +61,10 @@ class TunnelManager(private val context: Context) {
     }
 
     private fun loadExistingConfig() {
-        if (!configFile.exists()) return
+        val configToRead = if (defaultConfigFile.exists()) defaultConfigFile else configFile
+        if (!configToRead.exists()) return
         try {
-            val content = configFile.readText()
+            val content = configToRead.readText()
             val secretMatch = Regex("""secret_key\s*=\s*['"](.+)['"]""").find(content)
             if (secretMatch != null) {
                 secretKey = secretMatch.groupValues[1]
@@ -154,15 +157,18 @@ class TunnelManager(private val context: Context) {
         try {
             workDir.mkdirs()
             socketFile.delete()
+            playitGgDir.mkdirs()
+            if (!defaultConfigFile.exists()) {
+                defaultConfigFile.writeText("secret_key = \"${secretKey!!}\"\nrefresh_from_api = true\nmappings = []\n")
+            }
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
-            args.add("--secret")
-            args.add(secretKey!!)
-            args.add("--secret-path")
-            args.add(configFile.absolutePath)
+            args.add("--tcp")
+            args.add(serverPort.toString())
+            args.add("0.0.0.0")
             Log.i(TAG, "Daemon command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
@@ -186,16 +192,18 @@ class TunnelManager(private val context: Context) {
         try {
             workDir.mkdirs()
             socketFile.delete()
-            if (!configFile.exists()) {
-                configFile.writeText("secret_key = \"\"\nrefresh_from_api = true\nmappings = []\n")
+            playitGgDir.mkdirs()
+            if (!defaultConfigFile.exists()) {
+                defaultConfigFile.writeText("secret_key = \"\"\nrefresh_from_api = true\nmappings = []\n")
             }
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
-            args.add("--secret-path")
-            args.add(configFile.absolutePath)
+            args.add("--tcp")
+            args.add(serverPort.toString())
+            args.add("0.0.0.0")
             Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
@@ -355,6 +363,7 @@ class TunnelManager(private val context: Context) {
     fun resetClaim() {
         stop()
         configFile.delete()
+        defaultConfigFile.delete()
         socketFile.delete()
         secretKey = null
         isClaimed = false
@@ -365,9 +374,9 @@ class TunnelManager(private val context: Context) {
         secretKey = key
         isClaimed = true
         try {
-            playitDir.mkdirs()
-            configFile.writeText("secret_key = '$key'\nrefresh_from_api = true\nmappings = []\n")
-            Log.i(TAG, "Secret key saved to ${configFile.absolutePath}")
+            playitGgDir.mkdirs()
+            defaultConfigFile.writeText("secret_key = '$key'\nrefresh_from_api = true\nmappings = []\n")
+            Log.i(TAG, "Secret key saved to ${defaultConfigFile.absolutePath}")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save secret key: ${e.message}")
         }
