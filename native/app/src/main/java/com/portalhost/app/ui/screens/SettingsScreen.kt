@@ -51,6 +51,7 @@ fun SettingsScreen(
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
     var secretKeyInput by remember { mutableStateOf("") }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -207,11 +208,11 @@ fun SettingsScreen(
                                             color = MaterialTheme.colorScheme.onTertiaryContainer)
                                         Spacer(Modifier.width(8.dp))
                                         Icon(
-                                            Icons.Default.OpenInNew,
+                                            Icons.Default.Link,
                                             contentDescription = "Open in browser",
                                             modifier = Modifier.size(20.dp).clickable {
                                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(tunnelState.claimUrl))
-                                                LocalContext.current.startActivity(intent)
+                                                context.startActivity(intent)
                                             },
                                             tint = MaterialTheme.colorScheme.primary
                                         )
