@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
     <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true" uri="https://api.playit.gg"/>
-        <domain includeSubdomains="true" uri="https://playit.gg"/>
-        <domain includeSubdomains="true" uri="https://connect.playit.gg"/>
+        <domain includeSubdomains="true">api.playit.gg</domain>
+        <domain includeSubdomains="true">playit.gg</domain>
+        <domain includeSubdomains="true">connect.playit.gg</domain>
     </domain-config>
     <debug-overrides>
         <trust-anchors>
