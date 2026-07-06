@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.io.IOException
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "TunnelManager"
@@ -53,6 +56,7 @@ class TunnelManager(private val context: Context) {
     private var isClaimed: Boolean = false
     private var secretKey: String? = null
     private var currentServerPort: Int = 25565
+    private var pollJob: Job? = null
 
     val isRunning: Boolean get() = process?.isAlive == true
 
@@ -145,12 +149,46 @@ class TunnelManager(private val context: Context) {
                 claimUrl = url,
                 lastOutput = url.take(200)
             )
-            
-            startDaemonInSimpleMode(currentServerPort)
+
+            exchangeClaimAndStartDaemon(linker, cliPath, code)
             
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Claim flow failed", e)
+            _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun exchangeClaimAndStartDaemon(linker: String, cliPath: String, claimCode: String): Result<Unit> = withContext(Dispatchers.IO) {
+        tunnelAddresses.clear()
+        try {
+            val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$currentServerPort", public_address = ""}"""
+            defaultConfigFile.writeText("""secret_key = ""
+refresh_from_api = true
+mappings = [$mapping]
+""".trimIndent())
+
+            runCliCapture(linker, cliPath, "claim", "exchange", claimCode, "--wait", "0")
+
+            val secretMatch = Regex("""secret_key\s*=\s*['"](.+)['"]""").find(defaultConfigFile.readText())
+            val newSecret = secretMatch?.groupValues?.get(1)
+
+            if (newSecret != null && newSecret.isNotEmpty()) {
+                secretKey = newSecret
+                isClaimed = true
+                Log.i(TAG, "Claim confirmed, secret key stored")
+                defaultConfigFile.writeText("""secret_key = "$newSecret"
+refresh_from_api = true
+mappings = [$mapping]
+""".trimIndent())
+            }
+
+            _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+            startDaemon(currentServerPort)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to exchange claim", e)
             _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
             Result.failure(e)
         }
@@ -163,18 +201,23 @@ class TunnelManager(private val context: Context) {
             workDir.mkdirs()
             socketFile.delete()
             playitGgDir.mkdirs()
-            if (!defaultConfigFile.exists()) {
-                val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
-                defaultConfigFile.writeText("""secret_key = "${secretKey!!}"
+            val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
+            defaultConfigFile.writeText("""secret_key = "${secretKey!!}"
 refresh_from_api = true
 mappings = [$mapping]
 """.trimIndent())
-            }
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
+            val logFile = File(workDir, "playitd.log")
             val args = mutableListOf(linker, daemonBinary.absolutePath)
             args.add("--socket-path")
             args.add(socketFile.absolutePath)
+            args.add("--log-path")
+            args.add(logFile.absolutePath)
+            if (secretKey != null) {
+                args.add("--secret")
+                args.add(secretKey!!)
+            }
             Log.i(TAG, "Daemon command: ${args.joinToString(" ")}")
 
             val proc = ProcessBuilder(args)
@@ -184,43 +227,10 @@ mappings = [$mapping]
 
             process = proc
             startReader(proc, serverPort)
+            startTunnelPoller(serverPort)
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start playitd", e)
-            _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
-            Result.failure(e)
-        }
-    }
-    
-    private suspend fun startDaemonInSimpleMode(serverPort: Int): Result<Unit> = withContext(Dispatchers.IO) {
-        _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
-        tunnelAddresses.clear()
-        try {
-            workDir.mkdirs()
-            socketFile.delete()
-            playitGgDir.mkdirs()
-            val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
-            defaultConfigFile.writeText("""secret_key = ""
-refresh_from_api = true
-mappings = [$mapping]
-""".trimIndent())
-            val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
-            val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
-            val args = mutableListOf(linker, daemonBinary.absolutePath)
-            args.add("--socket-path")
-            args.add(socketFile.absolutePath)
-            Log.i(TAG, "Daemon claim-mode command: ${args.joinToString(" ")}")
-
-            val proc = ProcessBuilder(args)
-                .directory(workDir)
-                .redirectErrorStream(true)
-                .start()
-
-            process = proc
-            startReader(proc, serverPort)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to start playitd in claim mode", e)
             _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
             Result.failure(e)
         }
@@ -339,10 +349,67 @@ mappings = [$mapping]
         }
     }
 
+    private fun startTunnelPoller(serverPort: Int) {
+        pollJob?.cancel()
+        pollJob = scope.launch {
+            delay(5000)
+            while (isActive) {
+                val key = secretKey ?: break
+                try {
+                    val conn = URL("https://api.playit.gg/v1/agents/rundata").openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Authorization", "Agent-Key $key")
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.doOutput = true
+                    conn.connectTimeout = 10000
+                    conn.readTimeout = 10000
+                    OutputStreamWriter(conn.outputStream).use { it.write("{}") }
+                    val body = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+
+                    val json = org.json.JSONObject(body)
+                    if (json.optString("status") == "success") {
+                        val data = json.optJSONObject("data")
+                        if (data != null) {
+                            val tunnels = data.optJSONArray("tunnels")
+                            if (tunnels != null) {
+                                for (i in 0 until tunnels.length()) {
+                                    val t = tunnels.optJSONObject(i) ?: continue
+                                    val addr = t.optString("display_address", "")
+                                    if (addr.isNotEmpty() && tunnelAddresses.none { it.publicAddress == addr }) {
+                                        val info = TunnelInfo(
+                                            tunnelId = t.optString("id", tunnelAddresses.size.toString()),
+                                            type = t.optString("port_type", "tcp"),
+                                            localPort = serverPort,
+                                            publicAddress = addr
+                                        )
+                                        tunnelAddresses.add(info)
+                                        Log.i(TAG, "Tunnel from API: $addr")
+                                    }
+                                }
+                            }
+                            if (tunnelAddresses.isNotEmpty()) {
+                                _state.value = _state.value.copy(
+                                    status = TunnelStatus.CONNECTED,
+                                    tunnels = tunnelAddresses.toList()
+                                )
+                                break
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.d(TAG, "API poll: ${e.message}")
+                }
+                delay(5000)
+            }
+        }
+    }
+
     fun stop() {
         val proc = process ?: return
         Log.i(TAG, "Stopping process...")
         readJob?.cancel()
+        pollJob?.cancel()
         process = null
         try {
             proc.destroyForcibly()
@@ -351,6 +418,7 @@ mappings = [$mapping]
             Log.w(TAG, "Error killing process: ${e.message}")
         }
         readJob = null
+        pollJob = null
         tunnelAddresses.clear()
         _state.value = _state.value.copy(
             status = TunnelStatus.IDLE,
