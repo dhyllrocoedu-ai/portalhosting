@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
+import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
@@ -199,7 +200,14 @@ class AppState(
                     }
                 }
             }
-            val javaArgs = listOf("-Xms${server.minRam}", "-Xmx${server.maxRam}")
+            val spec = DeviceDetector.detect(context)
+            val deviceCfg = DeviceDetector.generateConfig(spec)
+            val userMaxMb = DeviceDetector.parseRamMb(server.maxRam)
+            val recommendedMaxMb = DeviceDetector.parseRamMb(deviceCfg.recommendedMaxRam)
+            val safeMaxMb = minOf(userMaxMb, recommendedMaxMb)
+            val safeMinMb = minOf(DeviceDetector.parseRamMb(server.minRam), safeMaxMb)
+            DeviceDetector.enforceServerProfile(serverDir, deviceCfg.serverProps)
+            val javaArgs = listOf("-Xms${safeMinMb}M", "-Xmx${safeMaxMb}M") + deviceCfg.gcFlags
             serverManager.start(
                 jarPath = server.jarPath,
                 javaArgs = javaArgs,
