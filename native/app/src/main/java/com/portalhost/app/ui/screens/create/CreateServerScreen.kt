@@ -25,6 +25,7 @@ import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.roundToInt
 
 enum class CreateSource { PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC }
 
@@ -44,8 +45,8 @@ fun CreateServerScreen(
     var jarTargetPath by remember { mutableStateOf<String?>(null) }
     var serverName by remember { mutableStateOf("") }
     var mcVersion by remember { mutableStateOf("") }
-    var minRam by remember { mutableStateOf("512") }
-    var maxRam by remember { mutableStateOf("2048") }
+    var minRam by remember { mutableStateOf(1.0f) }
+    var maxRam by remember { mutableStateOf(2.0f) }
     var port by remember { mutableStateOf("25565") }
     var gamemode by remember { mutableStateOf("survival") }
     var difficulty by remember { mutableStateOf("easy") }
@@ -60,8 +61,7 @@ fun CreateServerScreen(
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
-    val ramOptions = listOf("512", "1024", "2048", "4096", "6144", "8192")
-    val ramLabels = listOf("512 MB", "1 GB", "2 GB", "4 GB", "6 GB", "8 GB")
+
 
     val context = LocalContext.current
 
@@ -204,12 +204,12 @@ fun CreateServerScreen(
                 )
 
                 1 -> StepServerName(name = serverName, onNameChange = { serverName = it })
-                2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, ramOptions = ramOptions, ramLabels = ramLabels, onMinChange = { minRam = it }, onMaxChange = { maxRam = it })
+                 2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
                 3 -> StepProperties(port = port, gamemode = gamemode, difficulty = difficulty, motd = motd, gamemodes = gamemodes, difficulties = difficulties, onPortChange = { port = it }, onGamemodeChange = { gamemode = it }, onDifficultyChange = { difficulty = it }, onMotdChange = { motd = it })
-                4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
+                 4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
                     val stat = android.os.StatFs(context.filesDir.absolutePath)
                     availableStorage = stat.availableBlocksLong * stat.blockSizeLong
-                    requiredStorage = maxRam.toLongOrNull()?.let { it * 1024 * 1024 + 500_000_000 } ?: 3_000_000_000L
+                    requiredStorage = (maxRam * 1024 * 1024 * 1024).toLong() + 500_000_000L
                 })
                 5 -> StepEula(eulaAccepted = eulaAccepted, onEulaChange = { eulaAccepted = it })
             }
@@ -259,8 +259,8 @@ fun CreateServerScreen(
                                 jarName = jarName.ifBlank { "server.jar" },
                                 serverType = serverTypeLabel,
                                 mcVersion = mcVersion,
-                                minRam = "${minRam}M",
-                                maxRam = "${maxRam}M",
+                                minRam = "${(minRam * 1024).toInt()}M",
+                                maxRam = "${(maxRam * 1024).toInt()}M",
                                 port = port.toIntOrNull() ?: 25565,
                                 gamemode = gamemode,
                                 difficulty = difficulty,
@@ -472,42 +472,40 @@ private fun StepServerName(name: String, onNameChange: (String) -> Unit) {
 
 @Composable
 private fun StepRamConfig(
-    minRam: String, maxRam: String,
-    ramOptions: List<String>, ramLabels: List<String>,
-    onMinChange: (String) -> Unit, onMaxChange: (String) -> Unit
+    minRam: Float, maxRam: Float,
+    onMinChange: (Float) -> Unit, onMaxChange: (Float) -> Unit
 ) {
     Column {
         Text("Memory (RAM)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Text("Allocate memory for your server. More RAM = better performance.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
-        Text("Minimum RAM", style = MaterialTheme.typography.titleSmall)
+        Text("Minimum RAM: ${"%.1f".format(minRam)} GB", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(4.dp))
-        SingleChoiceRamSelector(selected = minRam, options = ramOptions, labels = ramLabels, onSelect = { onMinChange(it); if (ramOptions.indexOf(it) > ramOptions.indexOf(maxRam)) onMaxChange(it) })
-        Spacer(Modifier.height(16.dp))
-        Text("Maximum RAM", style = MaterialTheme.typography.titleSmall)
+        Slider(
+            value = minRam,
+            onValueChange = { v -> onMinChange((v / 0.1f).roundToInt() * 0.1f) },
+            valueRange = 0.5f..4.0f,
+            steps = 34,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Maximum RAM: ${"%.1f".format(maxRam)} GB", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(4.dp))
-        SingleChoiceRamSelector(selected = maxRam, options = ramOptions, labels = ramLabels, onSelect = { onMaxChange(it); if (ramOptions.indexOf(it) < ramOptions.indexOf(minRam)) onMinChange(it) })
+        Slider(
+            value = maxRam,
+            onValueChange = { v -> onMaxChange((v / 0.1f).roundToInt() * 0.1f) },
+            valueRange = 0.5f..4.0f,
+            steps = 34,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(16.dp))
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Allocated: ${ramLabels[ramOptions.indexOf(minRam)]} – ${ramLabels[ramOptions.indexOf(maxRam)]}", style = MaterialTheme.typography.bodyMedium)
+                Text("Allocated: ${"%.1f".format(minRam)} GB – ${"%.1f".format(maxRam)} GB", style = MaterialTheme.typography.bodyMedium)
             }
-        }
-    }
-}
-
-@Composable
-private fun SingleChoiceRamSelector(selected: String, options: List<String>, labels: List<String>, onSelect: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEachIndexed { index, option ->
-            FilterChip(
-                selected = selected == option,
-                onClick = { onSelect(option) },
-                label = { Text(labels[index], style = MaterialTheme.typography.labelSmall) }
-            )
         }
     }
 }
@@ -574,7 +572,7 @@ private fun StepProperties(
 private fun StepStorageCheck(
     availableBytes: Long,
     requiredBytes: Long,
-    maxRam: String,
+    maxRam: Float,
     onCheck: () -> Unit
 ) {
     LaunchedEffect(Unit) { onCheck() }
@@ -644,7 +642,7 @@ private fun StepStorageCheck(
             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("RAM: ${com.portalhost.app.storage.StorageInfo.formatBytes((maxRam.toLongOrNull() ?: 2048) * 1024 * 1024)}", style = MaterialTheme.typography.bodySmall)
+                Text("RAM: ${com.portalhost.app.storage.StorageInfo.formatBytes((maxRam * 1024 * 1024 * 1024).toLong())}", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.width(16.dp))
                 Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))

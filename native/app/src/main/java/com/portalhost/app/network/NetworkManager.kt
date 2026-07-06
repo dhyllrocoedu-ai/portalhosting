@@ -85,6 +85,10 @@ class NetworkManager(private val context: Context) {
             }
         }
         return try {
+            val activeNetwork = connectivityManager.activeNetwork
+            val linkProps = activeNetwork?.let { connectivityManager.getLinkProperties(it) }
+            val preferredIface = linkProps?.interfaceName
+            var fallback: String? = null
             NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
                 while (interfaces.hasMoreElements()) {
                     val iface = interfaces.nextElement()
@@ -93,12 +97,14 @@ class NetworkManager(private val context: Context) {
                     while (addresses.hasMoreElements()) {
                         val addr = addresses.nextElement()
                         if (addr is Inet4Address && !addr.isLoopbackAddress) {
-                            return addr.hostAddress ?: "Unknown"
+                            val ip = addr.hostAddress ?: continue
+                            if (iface.name == preferredIface) return ip
+                            if (fallback == null) fallback = ip
                         }
                     }
                 }
             }
-            "Unknown"
+            fallback ?: "Unknown"
         } catch (_: Exception) {
             "Unknown"
         }

@@ -72,7 +72,12 @@ fun ServerDetailScreen(
 
 // ─── PROPERTIES ───────────────────────────────────────────────────────────────
 
-private val RAM_OPTIONS_MB = listOf(512, 1024, 2048, 3072, 4096, 6144, 8192, 12288, 16384)
+private const val MIN_RAM_GB = 0.5f
+private const val MAX_RAM_GB = 4.0f
+private const val RAM_STEP_GB = 0.1f
+
+private fun gbToMb(gb: Float): Int = (gb * 1024).toInt()
+private fun mbToGb(mb: Int): Float = mb / 1024f
 
 @Composable
 private fun RamSlider(
@@ -81,25 +86,24 @@ private fun RamSlider(
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val idx = RAM_OPTIONS_MB.indexOf(value).coerceAtLeast(0)
-    var sliderPos by remember { mutableFloatStateOf(idx.toFloat()) }
+    val gbValue = remember(value) { mbToGb(value) }
+    var sliderPos by remember(value) { mutableFloatStateOf(gbValue) }
 
     Column(modifier = modifier) {
-        Text("$label: ${formatRamMb(value)}", style = MaterialTheme.typography.labelSmall)
+        Text("$label: ${"%.1f".format(sliderPos)} GB", style = MaterialTheme.typography.labelSmall)
         Slider(
             value = sliderPos,
-            onValueChange = { sliderPos = it },
+            onValueChange = { sliderPos = (it / RAM_STEP_GB).roundToInt() * RAM_STEP_GB },
             onValueChangeFinished = {
-                val newIdx = sliderPos.roundToInt().coerceIn(0, RAM_OPTIONS_MB.size - 1)
-                onValueChange(RAM_OPTIONS_MB[newIdx])
+                onValueChange(gbToMb(sliderPos.coerceIn(MIN_RAM_GB, MAX_RAM_GB)))
             },
-            valueRange = 0f..(RAM_OPTIONS_MB.size - 1).toFloat(),
-            steps = RAM_OPTIONS_MB.size - 2,
+            valueRange = MIN_RAM_GB..MAX_RAM_GB,
+            steps = ((MAX_RAM_GB - MIN_RAM_GB) / RAM_STEP_GB).toInt() - 1,
             modifier = Modifier.fillMaxWidth()
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("512 MB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("16 GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${MIN_RAM_GB.toInt()} GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${MAX_RAM_GB.toInt()} GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
