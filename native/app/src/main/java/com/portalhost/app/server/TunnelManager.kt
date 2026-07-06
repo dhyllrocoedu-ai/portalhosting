@@ -58,6 +58,24 @@ class TunnelManager(private val context: Context) {
     private var currentServerPort: Int = 25565
     private var pollJob: Job? = null
 
+    private fun getPid(proc: Process): Int {
+        return try {
+            val f = proc.javaClass.getDeclaredField("pid")
+            f.isAccessible = true
+            f.getInt(proc)
+        } catch (_: Exception) { -1 }
+    }
+
+    private fun renice(pid: Int, priority: Int) {
+        if (pid <= 0) return
+        try {
+            Runtime.getRuntime().exec(arrayOf("renice", "-n", priority.toString(), "-p", pid.toString()))
+            Log.i(TAG, "reniced pid $pid to $priority")
+        } catch (e: Exception) {
+            Log.w(TAG, "renice failed for pid $pid: ${e.message}")
+        }
+    }
+
     val isRunning: Boolean get() = process?.isAlive == true
 
     init {
@@ -225,6 +243,7 @@ mappings = [$mapping]
                 .redirectErrorStream(true)
                 .start()
 
+            renice(getPid(proc), 15)
             process = proc
             startReader(proc, serverPort)
             startTunnelPoller(serverPort)

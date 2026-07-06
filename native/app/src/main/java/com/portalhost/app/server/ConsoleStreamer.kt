@@ -36,7 +36,7 @@ class ConsoleStreamer {
     }
 
     private fun scheduleSnapshot() {
-        if (snapshotJob?.isActive == true) return
+        snapshotJob?.cancel()
         snapshotJob = scope.launch {
             delay(100)
             synchronized(_lines) {

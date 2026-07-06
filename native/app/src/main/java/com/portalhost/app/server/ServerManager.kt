@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 
 private const val TAG = "ServerManager"
 private const val MAX_RESTART_RETRIES = 2
+private const val RENICE_SERVER = 10
 
 enum class ServerStatus {
     OFFLINE, STARTING, ONLINE, STOPPING, STOPPED, CRASHED
@@ -70,6 +71,27 @@ class ServerManager(
     } catch (_: IllegalThreadStateException) {
         false
     }
+
+    private fun getPid(proc: java.lang.Process): Int {
+        return try {
+            // Android's ProcessImpl exposes PID via reflection
+            val f = proc.javaClass.getDeclaredField("pid")
+            f.isAccessible = true
+            f.getInt(proc)
+        } catch (_: Exception) { -1 }
+    }
+
+    private fun renice(pid: Int, priority: Int) {
+        if (pid <= 0) return
+        try {
+            Runtime.getRuntime().exec(arrayOf("renice", "-n", priority.toString(), "-p", pid.toString()))
+            Log.i(TAG, "reniced pid $pid to $priority")
+        } catch (e: Exception) {
+            Log.w(TAG, "renice failed for pid $pid: ${e.message}")
+        }
+    }
+
+    private var startingLock = false
 
     /** Set STOPPED state and schedule transition to OFFLINE after 3 seconds. */
     private fun scheduleOfflineTransition(exitCode: Int) {
@@ -182,6 +204,8 @@ use-native-transport=true
         config: ServerConfig? = null
     ): Result<Unit> {
         if (isRunning) return Result.failure(Exception("Server already running"))
+        if (startingLock) return Result.failure(Exception("Server already starting"))
+        startingLock = true
         restartCount = 0
         stoppedJob?.cancel()
         processJob?.cancel()
@@ -200,12 +224,14 @@ use-native-transport=true
                 val msg = "Server jar not found: $jarPath"
                 Log.e(TAG, msg)
                 _state.value = _state.value.copy(status = ServerStatus.OFFLINE, error = msg)
+                startingLock = false
                 return Result.failure(Exception(msg))
             }
             if (!File(javaPath).exists()) {
                 val msg = "Java not found at: $javaPath — install JDK first"
                 Log.e(TAG, msg)
                 _state.value = _state.value.copy(status = ServerStatus.OFFLINE, error = msg)
+                startingLock = false
                 return Result.failure(Exception(msg))
             }
 
@@ -241,6 +267,7 @@ use-native-transport=true
             process = proc
             serverStartTime = System.currentTimeMillis()
             activityLog.addServerStart()
+            renice(getPid(proc), RENICE_SERVER)
 
             // Stream console output
             processJob = scope.launch {
@@ -345,12 +372,14 @@ use-native-transport=true
             }
 
             Log.i(TAG, "Server process started successfully")
+            startingLock = false
             Result.success(Unit)
         } catch (e: Exception) {
             val msg = "Server start failed: ${e.message}"
             Log.e(TAG, msg, e)
             _state.value = _state.value.copy(status = ServerStatus.CRASHED, error = msg)
             process = null
+            startingLock = false
             Result.failure(e)
         }
     }
