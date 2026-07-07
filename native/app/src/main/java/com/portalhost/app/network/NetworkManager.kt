@@ -88,6 +88,32 @@ class NetworkManager(private val context: Context) {
             val activeNetwork = connectivityManager.activeNetwork
             val linkProps = activeNetwork?.let { connectivityManager.getLinkProperties(it) }
             val preferredIface = linkProps?.interfaceName
+
+            // 1. Check LinkAddresses directly from ConnectivityManager
+            linkProps?.linkAddresses?.forEach { addr ->
+                val inet = addr.address ?: return@forEach
+                if (inet is Inet4Address && !inet.isLoopbackAddress) {
+                    return inet.hostAddress ?: ""
+                }
+            }
+
+            // 2. Check known interface names explicitly
+            val knownInterfaces = listOf("wlan0", "eth0", "rmnet0", "ccmni0", "r_rmnet_data0", "ccmni1", "ril0")
+            NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
+                while (interfaces.hasMoreElements()) {
+                    val iface = interfaces.nextElement()
+                    if (iface.name !in knownInterfaces) continue
+                    val addresses = iface.inetAddresses ?: continue
+                    while (addresses.hasMoreElements()) {
+                        val addr = addresses.nextElement()
+                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                            return addr.hostAddress ?: ""
+                        }
+                    }
+                }
+            }
+
+            // 3. Full enumeration with isUp filter (prefer the active interface)
             var fallback: String? = null
             NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
                 while (interfaces.hasMoreElements()) {
@@ -104,7 +130,23 @@ class NetworkManager(private val context: Context) {
                     }
                 }
             }
-            fallback ?: "Unknown"
+
+            // 4. Desperate: enumerate without isUp filter (some emulators report isUp=false)
+            NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
+                while (interfaces.hasMoreElements()) {
+                    val iface = interfaces.nextElement()
+                    if (iface.isLoopback) continue
+                    val addresses = iface.inetAddresses ?: continue
+                    while (addresses.hasMoreElements()) {
+                        val addr = addresses.nextElement()
+                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                            return addr.hostAddress ?: ""
+                        }
+                    }
+                }
+            }
+
+            "Unknown"
         } catch (_: Exception) {
             "Unknown"
         }

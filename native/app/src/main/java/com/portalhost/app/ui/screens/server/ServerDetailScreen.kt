@@ -20,10 +20,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.BackupManager
 import com.portalhost.app.server.ServerState
-import kotlin.math.roundToInt
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val ALL_TABS = listOf("Properties", "Worlds", "Plugins", "Mods", "Datapacks", "Backups")
 
@@ -138,40 +139,42 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var motd by remember(server) { mutableStateOf(server.motd) }
     var minRamMb by remember(server) { mutableStateOf(parseRamToMb(server.minRam)) }
     var maxRamMb by remember(server) { mutableStateOf(parseRamToMb(server.maxRam)) }
-    var saved by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Server Properties", style = MaterialTheme.typography.titleSmall)
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Server Properties", style = MaterialTheme.typography.titleSmall)
 
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = portText, onValueChange = { portText = it.filter { c -> c.isDigit() }.take(5) }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Text("Gamemode", style = MaterialTheme.typography.labelSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            gamemodes.forEach { gm ->
-                FilterChip(selected = gamemode == gm, onClick = { gamemode = gm }, label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
+            OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = portText, onValueChange = { portText = it.filter { c -> c.isDigit() }.take(5) }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text("Gamemode", style = MaterialTheme.typography.labelSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                gamemodes.forEach { gm ->
+                    FilterChip(selected = gamemode == gm, onClick = { gamemode = gm }, label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
+                }
             }
-        }
-        Text("Difficulty", style = MaterialTheme.typography.labelSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            difficulties.forEach { diff ->
-                FilterChip(selected = difficulty == diff, onClick = { difficulty = diff }, label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
+            Text("Difficulty", style = MaterialTheme.typography.labelSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                difficulties.forEach { diff ->
+                    FilterChip(selected = difficulty == diff, onClick = { difficulty = diff }, label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
+                }
             }
-        }
-        OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
-        RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) })
-        RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) })
+            RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) })
+            RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) })
 
-        Button(
-            onClick = {
-                try {
-                    val newPort = portText.toIntOrNull() ?: server.port
-                    val propsFile = File(serverDir, "server.properties")
-                    if (!propsFile.exists()) {
-                        val defaultProps = """#Minecraft server properties
+            Button(
+                onClick = {
+                    try {
+                        val newPort = portText.toIntOrNull() ?: server.port
+                        val propsFile = File(serverDir, "server.properties")
+                        if (!propsFile.exists()) {
+                            val defaultProps = """#Minecraft server properties
 server-port=$newPort
 gamemode=$gamemode
 difficulty=$difficulty
@@ -179,37 +182,41 @@ motd=${motd.escapeProperties()}
 max-players=20
 online-mode=true
 """
-                        propsFile.writeText(defaultProps)
-                    } else {
-                        var content = propsFile.readText()
-                        content = content.replace(Regex("(?m)^server-port=.*"), "server-port=$newPort")
-                        content = content.replace(Regex("(?m)^gamemode=.*"), "gamemode=$gamemode")
-                        content = content.replace(Regex("(?m)^difficulty=.*"), "difficulty=$difficulty")
-                        content = content.replace(Regex("(?m)^motd=.*"), "motd=${motd.escapeProperties()}")
-                        propsFile.writeText(content)
+                            propsFile.writeText(defaultProps)
+                        } else {
+                            var content = propsFile.readText()
+                            content = content.replace(Regex("(?m)^server-port=.*"), "server-port=$newPort")
+                            content = content.replace(Regex("(?m)^gamemode=.*"), "gamemode=$gamemode")
+                            content = content.replace(Regex("(?m)^difficulty=.*"), "difficulty=$difficulty")
+                            content = content.replace(Regex("(?m)^motd=.*"), "motd=${motd.escapeProperties()}")
+                            propsFile.writeText(content)
+                        }
+                        val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = formatRamMb(minRamMb), maxRam = formatRamMb(maxRamMb))
+                        onUpdateServer(updated)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Configuration saved. Restart server to apply changes.", duration = SnackbarDuration.Short)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ServerDetailScreen", "Failed to save properties", e)
                     }
-                    val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = formatRamMb(minRamMb), maxRam = formatRamMb(maxRamMb))
-                    onUpdateServer(updated)
-                    saved = true
-                } catch (e: Exception) {
-                    android.util.Log.e("ServerDetailScreen", "Failed to save properties", e)
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Save Properties") }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Save Properties") }
 
-        Text("Read-only info", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                PropertyRowReadOnly("JAR", server.jarName)
-                PropertyRowReadOnly("Server Type", server.serverType.replaceFirstChar { it.uppercase() })
-                PropertyRowReadOnly("MC Version", server.mcVersion.ifBlank { "—" })
+            Text("Read-only info", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PropertyRowReadOnly("JAR", server.jarName)
+                    PropertyRowReadOnly("Server Type", server.serverType.replaceFirstChar { it.uppercase() })
+                    PropertyRowReadOnly("MC Version", server.mcVersion.ifBlank { "—" })
+                }
             }
         }
 
-        if (saved) {
-            Text("Properties updated. Restart server to apply changes.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp)
+        )
     }
 }
 

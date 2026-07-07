@@ -45,6 +45,7 @@ class ServerManager(
 
     private var lastJarPath: String? = null
     private var lastJavaArgs: List<String>? = null
+    var effectiveJavaArgs: List<String>? = null
     private var lastServerDir: String? = null
     private var restartCount = 0
     private var sawHashFailure = false
@@ -210,7 +211,6 @@ use-native-transport=true
         stoppedJob?.cancel()
         processJob?.cancel()
         processJob = null
-        consoleStreamer.clear()
 
         return try {
             _state.value = _state.value.copy(status = ServerStatus.STARTING, error = null)
@@ -238,6 +238,7 @@ use-native-transport=true
             // Save args for restart
             lastJarPath = jarPath
             lastJavaArgs = javaArgs
+            effectiveJavaArgs = javaArgs
             lastServerDir = serverDir
             autoRestartEnabled = config?.autoRestart ?: false
 

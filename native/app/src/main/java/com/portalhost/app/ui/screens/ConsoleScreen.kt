@@ -111,27 +111,36 @@ fun ConsoleScreen(
         }
     }
 
-    // Track scroll position
+    // Auto-scroll: always scroll to latest line unless user scrolls up manually
+    val isUserScrolling = remember { mutableStateOf(false) }
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
             val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            lastVisible >= info.totalItemsCount - 3
-        }
-            .distinctUntilChanged()
-            .collect { near -> isNearBottom = near }
-    }
-
-    // Auto-scroll when new lines arrive AND user is near bottom
-    LaunchedEffect(listState) {
-        snapshotFlow { consoleLines.size }
-            .collect {
-                if (showSearch || searchQuery.isNotBlank()) return@collect
-                if (consoleLines.isEmpty() || !isNearBottom) return@collect
-                try {
-                    listState.scrollToItem(displayLines.size - 1)
-                } catch (_: Exception) {}
+            lastVisible >= info.totalItemsCount - 2
+        }.distinctUntilChanged().collect { near ->
+            if (!near && !isUserScrolling.value) {
+                isUserScrolling.value = true
             }
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.distinctUntilChanged().collect { scrolling ->
+            if (!scrolling && isUserScrolling.value) {
+                val info = listState.layoutInfo
+                val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+                if (lastVisible >= info.totalItemsCount - 2) {
+                    isUserScrolling.value = false
+                }
+            }
+        }
+    }
+    LaunchedEffect(displayLines.size) {
+        if (!isUserScrolling.value && displayLines.isNotEmpty()) {
+            try {
+                listState.scrollToItem(displayLines.size - 1)
+            } catch (_: Exception) {}
+        }
     }
 
     // Timestamp-based log rotation: auto-save every 500 new lines
@@ -271,36 +280,9 @@ fun ConsoleScreen(
                     }
                 }
 
-                // Scroll-to-bottom button when scrolled up
-                if (!isNearBottom && !showSearch) {
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(8.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .clickable {
-                                scope.launch {
-                                    listState.animateScrollToItem(displayLines.size - 1)
-                                }
-                            },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                        tonalElevation = 4.dp
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Scroll to bottom",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
                 }
-            }
 
-            // Command input
+                // Command input
             Surface(shadowElevation = 8.dp) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),

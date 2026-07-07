@@ -116,6 +116,7 @@ fun AppNavigation(
                 val consoleLines by appState.consoleStreamer.linesState
                     .sample(100)
                     .collectAsState(initial = appState.consoleStreamer.lines)
+                val activeServer = appState.activeServer
                 HomeScreen(
                     serverConfigs = appState.servers,
                     activeServerId = appState.activeServerId,
@@ -153,7 +154,17 @@ fun AppNavigation(
                             scope.launch { appState.serverManager.stop() }
                         }
                         appState.deleteServer(server)
-                    }
+                    },
+                    onTunnelStart = {
+                        tunnelManager?.let { tm ->
+                            scope.launch { tm.start(25565) }
+                        }
+                    },
+                    onTunnelStop = { tunnelManager?.stop() },
+                    onTunnelReset = { tunnelManager?.resetClaim() },
+                    onSaveSecretKey = { key -> tunnelManager?.setSecretKey(key) },
+                    serverDir = activeServer?.let { appState.repository.getServerDir(it.id) },
+                    activeServer = activeServer
                 )
             }
 
@@ -205,7 +216,6 @@ fun AppNavigation(
                     jdkInstalled = appState.jdkInstalled,
                     jdkInstalling = appState.jdkInstalling,
                     jdkProgress = appState.jdkProgress,
-                    tunnelState = tunnelState,
                     onReinstallJava = appState.onReinstallJava,
                     onUninstallJava = appState.onUninstallJava,
                     onFixupJava = appState.onFixupJava,
@@ -215,15 +225,7 @@ fun AppNavigation(
                     activeServer = appState.activeServer,
                     onUpdateServer = { updated -> appState.updateServer(updated) },
                     tunnelUrl = appState.tunnelUrl,
-                    onTunnelUrlChange = { url -> appState.tunnelUrlChanged(url) },
-                    onTestTunnelStart = {
-                        tunnelManager?.let { tm ->
-                            scope.launch { tm.start(25565) }
-                        }
-                    },
-                    onTestTunnelStop = { tunnelManager?.stop() },
-                    onTestTunnelReset = { tunnelManager?.resetClaim() },
-                    onSaveSecretKey = { key -> tunnelManager?.setSecretKey(key) }
+                    onTunnelUrlChange = { url -> appState.tunnelUrlChanged(url) }
                 )
             }
 

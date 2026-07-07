@@ -16,9 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.portalhost.app.server.TunnelManager
-import com.portalhost.app.server.TunnelState
-import com.portalhost.app.server.TunnelStatus
 import com.portalhost.app.ui.components.CraftingIcon
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.RedstoneIcon
@@ -41,17 +38,10 @@ fun SettingsScreen(
     activeServer: ServerConfig?,
     onUpdateServer: (ServerConfig) -> Unit,
     tunnelUrl: String = "",
-    onTunnelUrlChange: (String) -> Unit = {},
-    tunnelState: TunnelState? = null,
-    onTestTunnelStart: () -> Unit = {},
-    onTestTunnelStop: () -> Unit = {},
-    onTestTunnelReset: () -> Unit = {},
-    onSaveSecretKey: (String) -> Unit = {}
+    onTunnelUrlChange: (String) -> Unit = {}
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
-    var secretKeyInput by remember { mutableStateOf("") }
-    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -150,156 +140,6 @@ fun SettingsScreen(
                         singleLine = true,
                         label = { Text("Tunnel URL") }
                     )
-                }
-            }
-
-            // Tunnel Test (playit.gg debug)
-            var tunnelExpanded by remember { mutableStateOf(false) }
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { tunnelExpanded = !tunnelExpanded },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Cloud, contentDescription = null)
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Tunnel Test (playit.gg)", style = MaterialTheme.typography.titleSmall)
-                            val tunStatus = tunnelState?.status
-                            val statusText = when (tunStatus) {
-                                TunnelStatus.IDLE -> "Idle"
-                                TunnelStatus.DOWNLOADING -> "Downloading binary..."
-                                TunnelStatus.CLAIM_REQUIRED -> "Claim required"
-                                TunnelStatus.CONNECTING -> "Connecting..."
-                                TunnelStatus.CONNECTED -> "Connected"
-                                TunnelStatus.ERROR -> "Error"
-                                null -> "Not initialized"
-                            }
-                            Text(statusText, style = MaterialTheme.typography.bodySmall,
-                                color = when (tunStatus) {
-                                    TunnelStatus.CONNECTED -> MaterialTheme.colorScheme.primary
-                                    TunnelStatus.ERROR -> MaterialTheme.colorScheme.error
-                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                })
-                        }
-                        Icon(
-                            if (tunnelExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = null
-                        )
-                    }
-
-                    if (tunnelExpanded) {
-                        Spacer(Modifier.height(8.dp))
-
-                        // Claim URL display
-                        if (tunnelState?.claimUrl != null) {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text("Claim Required", style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                    Spacer(Modifier.height(4.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(tunnelState.claimUrl, style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                        Spacer(Modifier.width(8.dp))
-                                        Icon(
-                                            Icons.Default.Link,
-                                            contentDescription = "Open in browser",
-                                            modifier = Modifier.size(20.dp).clickable {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(tunnelState.claimUrl))
-                                                context.startActivity(intent)
-                                            },
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    Spacer(Modifier.height(8.dp))
-                                Text("After claiming in browser, paste your secret key below or tap Start Tunnel again.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer)
-                                Spacer(Modifier.height(4.dp))
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                        }
-
-                        // Tunnel addresses
-                        if (tunnelState?.tunnels?.isNotEmpty() == true) {
-                            tunnelState.tunnels.forEach { tunnel ->
-                                Text("${tunnel.type.uppercase()}: ${tunnel.publicAddress}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary)
-                            }
-                            Spacer(Modifier.height(8.dp))
-                        }
-
-                        // Error display
-                        if (tunnelState?.error != null) {
-                            Text(tunnelState.error, style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.height(4.dp))
-                        }
-                        // Debug output
-                        if (tunnelState?.lastOutput != null && tunnelState.lastOutput.isNotEmpty() && tunnelState?.status != TunnelStatus.CONNECTED) {
-                            Text("Last output: ${tunnelState.lastOutput}", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(8.dp))
-                        }
-
-                        Spacer(Modifier.height(8.dp))
-
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val isRunning = tunnelState?.status == TunnelStatus.CONNECTING
-                                    || tunnelState?.status == TunnelStatus.CONNECTED
-                            Button(
-                                onClick = onTestTunnelStart,
-                                enabled = !isRunning && tunnelState?.status != TunnelStatus.DOWNLOADING
-                            ) {
-                                Text("Start Tunnel")
-                            }
-                            OutlinedButton(
-                                onClick = onTestTunnelStop,
-                                enabled = isRunning
-                            ) {
-                                Text("Stop")
-                            }
-                            OutlinedButton(
-                                onClick = onTestTunnelReset,
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.error
-                                )
-                            ) {
-                                Text("Reset")
-                            }
-                        }
-
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = secretKeyInput,
-                            onValueChange = { secretKeyInput = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Paste your secret key here") },
-                            singleLine = true,
-                            label = { Text("Secret Key") }
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                onSaveSecretKey(secretKeyInput)
-                                secretKeyInput = ""
-                            },
-                            enabled = secretKeyInput.isNotBlank()
-                        ) {
-                            Text("Save Secret Key")
-                        }
-                    }
                 }
             }
 

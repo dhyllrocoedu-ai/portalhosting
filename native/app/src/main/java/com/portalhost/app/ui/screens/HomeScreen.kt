@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +35,9 @@ import com.portalhost.app.server.ProcessStats
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.TunnelInfo
 import com.portalhost.app.server.TunnelState
+import com.portalhost.app.server.TunnelStatus
 import com.portalhost.app.server.ServerStatus
+import java.io.File
 import com.portalhost.app.storage.StorageStats
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.MinecraftHeadIcon
@@ -70,10 +73,17 @@ fun HomeScreen(
     onDeleteServer: (ServerConfig) -> Unit,
     publicIp: String = "",
     tunnelUrl: String = "",
-    tunnelState: TunnelState? = null
+    tunnelState: TunnelState? = null,
+    onTunnelStart: () -> Unit = {},
+    onTunnelStop: () -> Unit = {},
+    onTunnelReset: () -> Unit = {},
+    onSaveSecretKey: (String) -> Unit = {},
+    serverDir: File? = null,
+    activeServer: ServerConfig? = null
 ) {
-    val activeServer = serverConfigs.find { it.id == activeServerId }
+    val activeServer = activeServer ?: serverConfigs.find { it.id == activeServerId }
     val clipboardManager = LocalClipboardManager.current
+    val maxPlayers = remember(serverDir) { readMaxPlayers(serverDir) }
 
     val statusColor by animateColorAsState(
         targetValue = when (serverState.status) {
@@ -218,11 +228,23 @@ fun HomeScreen(
                 )
             }
 
+            // Section 2b — Tunnel (playit.gg)
+            item {
+                TunnelCard(
+                    tunnelState = tunnelState,
+                    onStart = onTunnelStart,
+                    onStop = onTunnelStop,
+                    onReset = onTunnelReset,
+                    onSaveSecretKey = onSaveSecretKey
+                )
+            }
+
             // Section 3 — Live Stats
             item {
                 LiveStatsGrid(
                     processStats = processStats,
-                    serverState = serverState
+                    serverState = serverState,
+                    maxPlayers = maxPlayers
                 )
             }
 
@@ -243,7 +265,8 @@ fun HomeScreen(
                     players = serverState.players,
                     isOnline = serverState.status == ServerStatus.ONLINE,
                     onCommand = onCommand,
-                    onOpenPlayers = onOpenPlayers
+                    onOpenPlayers = onOpenPlayers,
+                    maxPlayers = maxPlayers
                 )
             }
 
@@ -581,7 +604,8 @@ private fun ActionButton(
 @Composable
 private fun LiveStatsGrid(
     processStats: ProcessStats,
-    serverState: ServerState
+    serverState: ServerState,
+    maxPlayers: Int = 20
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -599,7 +623,7 @@ private fun LiveStatsGrid(
                 SmallStatCard("CPU", "${processStats.cpuPercent.roundToInt()}%")
                 SmallStatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}")
                 SmallStatCard("TPS", String.format("%.1f", processStats.tps))
-                SmallStatCard("Players", "${serverState.players.size} / 20")
+                SmallStatCard("Players", "${serverState.players.size}/$maxPlayers")
                 SmallStatCard("↓ Down", processStats.rxFormatted)
                 SmallStatCard("↑ Up", processStats.txFormatted)
             }
@@ -777,7 +801,8 @@ private fun PlayerListCard(
     players: List<String>,
     isOnline: Boolean,
     onCommand: (String) -> Unit,
-    onOpenPlayers: () -> Unit
+    onOpenPlayers: () -> Unit,
+    maxPlayers: Int = 20
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -790,7 +815,7 @@ private fun PlayerListCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Online Players (${players.size})", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Online Players (${players.size}/$maxPlayers)", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(onClick = onOpenPlayers) {
                     Text("Player Management →")
                 }
@@ -979,6 +1004,104 @@ private fun StorageMiniCard(label: String, value: String, icon: ImageVector, mod
     }
 }
 
+// ── Section 2b — Tunnel (playit.gg) ──
+
+@Composable
+private fun TunnelCard(
+    tunnelState: TunnelState? = null,
+    onStart: () -> Unit = {},
+    onStop: () -> Unit = {},
+    onReset: () -> Unit = {},
+    onSaveSecretKey: (String) -> Unit = {}
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var secretKeyInput by remember { mutableStateOf("") }
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Cloud, contentDescription = null)
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Connect to Tunnel", style = MaterialTheme.typography.titleSmall)
+                    val tunStatus = tunnelState?.status
+                    val statusText = when (tunStatus) {
+                        TunnelStatus.IDLE -> "Not connected"
+                        TunnelStatus.DOWNLOADING -> "Downloading binary..."
+                        TunnelStatus.CLAIM_REQUIRED -> "Claim required"
+                        TunnelStatus.CONNECTING -> "Connecting..."
+                        TunnelStatus.CONNECTED -> "Connected"
+                        TunnelStatus.ERROR -> "Error"
+                        null -> "Not initialized"
+                    }
+                    Text(statusText, style = MaterialTheme.typography.bodySmall,
+                        color = when (tunStatus) {
+                            TunnelStatus.CONNECTED -> MaterialTheme.colorScheme.primary
+                            TunnelStatus.ERROR -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        })
+                }
+                Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = null)
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(8.dp))
+
+                if (tunnelState?.claimUrl != null) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Claim Required", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(tunnelState.claimUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Spacer(Modifier.width(8.dp))
+                                Icon(Icons.Default.Link, contentDescription = "Open", modifier = Modifier.size(20.dp).clickable {
+                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(tunnelState.claimUrl)))
+                                }, tint = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text("After claiming, paste your secret key below or tap Start again.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                if (tunnelState?.tunnels?.isNotEmpty() == true) {
+                    tunnelState.tunnels.forEach { tunnel ->
+                        Text("${tunnel.type.uppercase()}: ${tunnel.publicAddress}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                if (tunnelState?.error != null) {
+                    Text(tunnelState.error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val isRunning = tunnelState?.status == TunnelStatus.CONNECTING || tunnelState?.status == TunnelStatus.CONNECTED
+                    Button(onClick = onStart, enabled = !isRunning && tunnelState?.status != TunnelStatus.DOWNLOADING) { Text("Start") }
+                    OutlinedButton(onClick = onStop, enabled = isRunning) { Text("Stop") }
+                    OutlinedButton(onClick = onReset, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Reset") }
+                }
+
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = secretKeyInput, onValueChange = { secretKeyInput = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Paste your secret key here") }, singleLine = true, label = { Text("Secret Key") })
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { onSaveSecretKey(secretKeyInput); secretKeyInput = "" }, enabled = secretKeyInput.isNotBlank()) { Text("Save Secret Key") }
+            }
+        }
+    }
+}
+
 // ── Section 9 — Shortcuts ──
 
 @Composable
@@ -1040,3 +1163,14 @@ private fun formatRelativeTime(seconds: Long): String {
 }
 
 private fun Float.roundToInt(): Int = (this + 0.5f).toInt()
+
+private fun readMaxPlayers(serverDir: File?): Int {
+    if (serverDir == null) return 20
+    return try {
+        val props = java.util.Properties()
+        val file = File(serverDir, "server.properties")
+        if (!file.exists()) return 20
+        file.inputStream().use { props.load(it) }
+        props.getProperty("max-players")?.toIntOrNull() ?: 20
+    } catch (_: Exception) { 20 }
+}
