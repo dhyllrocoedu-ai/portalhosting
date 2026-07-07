@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,14 +15,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.BackupManager
 import com.portalhost.app.server.DeviceDetector
+import com.portalhost.app.server.RamStatus
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
+
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
 import kotlin.math.roundToInt
@@ -86,13 +91,19 @@ private fun RamSlider(
     value: Int,
     onValueChange: (Int) -> Unit,
     maxRamGb: Float,
+    ramStatus: RamStatus,
     modifier: Modifier = Modifier
 ) {
     val gbValue = remember(value) { mbToGb(value) }
     var sliderPos by remember(value) { mutableFloatStateOf(gbValue) }
 
     Column(modifier = modifier) {
-        Text("$label: ${"%.1f".format(sliderPos)} GB", style = MaterialTheme.typography.labelSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("$label: ${"%.1f".format(sliderPos)} GB", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+            if (label.contains("Maximum")) {
+                RamStatusBadge(ramStatus = ramStatus)
+            }
+        }
         Slider(
             value = sliderPos,
             onValueChange = { sliderPos = (it / RAM_STEP_GB).roundToInt() * RAM_STEP_GB },
@@ -127,6 +138,21 @@ private fun parseRamToMb(ram: String): Int {
 
 private fun formatRamValue(mb: Int): String = formatRamMb(mb)
 
+@Composable
+private fun RamStatusBadge(ramStatus: RamStatus) {
+    val (label, bgColor, fgColor) = when (ramStatus) {
+        RamStatus.RECOMMENDED -> Triple("Recommended", Color(0x1B4CAF50), Color(0xFF4CAF50))
+        RamStatus.HIGH -> Triple("High", Color(0x1BFF9800), Color(0xFFFF9800))
+        RamStatus.NOT_RECOMMENDED -> Triple("Not Recommended", Color(0x1BF44336), Color(0xFFF44336))
+    }
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = bgColor
+    ) {
+        Text(label, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = fgColor, fontWeight = FontWeight.SemiBold)
+    }
+}
+
 private fun String.escapeProperties(): String {
     return this.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 }
@@ -134,9 +160,9 @@ private fun String.escapeProperties(): String {
 @Composable
 private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
     val context = LocalContext.current
+    val deviceSpec = remember { DeviceDetector.detect(context) }
     val maxRamGb = remember {
-        val spec = DeviceDetector.detect(context)
-        val cfg = DeviceDetector.generateConfig(spec)
+        val cfg = DeviceDetector.generateConfig(deviceSpec)
         DeviceDetector.parseRamMb(cfg.recommendedMaxRam) / 1024f
     }
     var name by remember(server) { mutableStateOf(server.name) }
@@ -146,6 +172,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var motd by remember(server) { mutableStateOf(server.motd) }
     var minRamMb by remember(server) { mutableStateOf(parseRamToMb(server.minRam)) }
     var maxRamMb by remember(server) { mutableStateOf(parseRamToMb(server.maxRam)) }
+    fun computeRamStatus(): RamStatus = DeviceDetector.getRamStatus(maxRamMb, deviceSpec)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -172,8 +199,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
             }
             OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
-            RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) }, maxRamGb = maxRamGb)
-            RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) }, maxRamGb = maxRamGb)
+            RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) }, maxRamGb = maxRamGb, ramStatus = computeRamStatus())
+            RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) }, maxRamGb = maxRamGb, ramStatus = computeRamStatus())
 
             Button(
                 onClick = {

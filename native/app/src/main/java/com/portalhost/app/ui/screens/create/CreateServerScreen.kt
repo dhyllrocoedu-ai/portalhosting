@@ -15,7 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.JarAnalyzer
+import com.portalhost.app.server.RamStatus
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
@@ -58,11 +60,14 @@ fun CreateServerScreen(
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
 
     val context = LocalContext.current
-    val maxRamLimit = remember {
-        val spec = com.portalhost.app.server.DeviceDetector.detect(context)
-        val cfg = com.portalhost.app.server.DeviceDetector.generateConfig(spec)
-        com.portalhost.app.server.DeviceDetector.parseRamMb(cfg.recommendedMaxRam) / 1024f
+    val deviceSpec = remember {
+        DeviceDetector.detect(context)
     }
+    val maxRamLimit = remember {
+        val cfg = DeviceDetector.generateConfig(deviceSpec)
+        DeviceDetector.parseRamMb(cfg.recommendedMaxRam) / 1024f
+    }
+    fun computeRamStatus(): RamStatus = DeviceDetector.getRamStatus((maxRam * 1024).toInt(), deviceSpec)
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -198,7 +203,7 @@ fun CreateServerScreen(
                 )
 
                 1 -> StepServerName(name = serverName, onNameChange = { serverName = it })
-                2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, maxRamLimit = maxRamLimit, onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
+                2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, maxRamLimit = maxRamLimit, ramStatus = computeRamStatus(), onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
                 3 -> StepProperties(port = port, gamemode = gamemode, difficulty = difficulty, motd = motd, gamemodes = gamemodes, difficulties = difficulties, onPortChange = { port = it }, onGamemodeChange = { gamemode = it }, onDifficultyChange = { difficulty = it }, onMotdChange = { motd = it })
                 4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
                     val stat = android.os.StatFs(context.filesDir.absolutePath)

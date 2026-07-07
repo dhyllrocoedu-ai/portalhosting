@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.BuildConfig
 import com.portalhost.app.ui.components.CraftingIcon
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.RedstoneIcon
@@ -272,7 +273,7 @@ fun SettingsScreen(
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("App Info", style = MaterialTheme.typography.titleSmall)
-                            Text("PortalHost v2.1.0", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("PortalHost v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Spacer(Modifier.height(8.dp))

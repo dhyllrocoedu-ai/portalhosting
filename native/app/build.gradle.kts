@@ -20,6 +20,8 @@ android {
         targetSdk = 36
         versionCode = 19
         versionName = "3.8.3"
+        buildConfigField("String", "VERSION_NAME", "\"$versionName\"")
+        buildConfigField("int", "VERSION_CODE", "$versionCode")
     }
 
     buildTypes {
@@ -47,6 +49,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

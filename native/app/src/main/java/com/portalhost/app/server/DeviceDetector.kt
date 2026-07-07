@@ -21,6 +21,8 @@ data class DeviceConfig(
     val serverProps: Map<String, String>
 )
 
+enum class RamStatus { RECOMMENDED, HIGH, NOT_RECOMMENDED }
+
 object DeviceDetector {
     private val TAG = "DeviceDetector"
     private val aggressiveBrands = listOf("samsung", "xiaomi", "oppo", "vivo", "realme", "huawei", "tecno")
@@ -79,6 +81,19 @@ object DeviceDetector {
             gcFlags = gcFlags,
             serverProps = serverProps
         )
+    }
+
+    /** Return the safety status for a given user RAM choice against device specs. */
+    fun getRamStatus(userMaxMb: Int, spec: DeviceSpec): RamStatus {
+        val totalMb = spec.totalRamMb
+        val config = generateConfig(spec)
+        val recommendedMaxMb = parseRamMb(config.recommendedMaxRam)
+        return when {
+            userMaxMb <= recommendedMaxMb -> RamStatus.RECOMMENDED
+            userMaxMb.toLong() >= totalMb -> RamStatus.NOT_RECOMMENDED
+            userMaxMb > (totalMb * 0.6).toInt() -> RamStatus.NOT_RECOMMENDED
+            else -> RamStatus.HIGH
+        }
     }
 
     /** Parse a RAM value like "512M" or "2G" into MB. */

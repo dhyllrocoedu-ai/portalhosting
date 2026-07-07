@@ -2,11 +2,18 @@ package com.portalhost.app.network
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.ConnectivityManager.NetworkCallback
+import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.net.DatagramSocket
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 
 data class NetworkInfo(
@@ -25,6 +32,23 @@ class NetworkManager(private val context: Context) {
         context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
     private val tunnelFile: File get() = File(context.filesDir, "tunnel_url.txt")
+
+    private val _networkInfo = MutableStateFlow(getNetworkInfo())
+    val networkInfo: StateFlow<NetworkInfo> = _networkInfo.asStateFlow()
+
+    private val networkCallback = object : NetworkCallback() {
+        override fun onAvailable(network: Network) { _networkInfo.value = getNetworkInfo() }
+        override fun onLost(network: Network) { _networkInfo.value = getNetworkInfo() }
+        override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) { _networkInfo.value = getNetworkInfo() }
+    }
+
+    init {
+        try {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register network callback: ${e.message}")
+        }
+    }
 
     fun getNetworkInfo(): NetworkInfo {
         return try {
@@ -125,6 +149,19 @@ class NetworkManager(private val context: Context) {
             }
 
             if (bestIp != null) return bestIp!!
+
+            // 3. DatagramSocket — establish a temporary UDP connection to determine
+            //    which local interface the kernel routes through. No actual packets sent.
+            try {
+                val socket = DatagramSocket()
+                socket.connect(InetAddress.getByName("8.8.8.8"), 10002)
+                val localAddr = socket.localAddress
+                socket.close()
+                if (localAddr is Inet4Address && !localAddr.isLoopbackAddress) {
+                    val ip = localAddr.hostAddress ?: ""
+                    if (ip.isNotBlank()) return ip
+                }
+            } catch (_: Exception) {}
 
             "Unknown"
         } catch (_: Exception) {

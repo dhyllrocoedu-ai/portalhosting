@@ -60,7 +60,6 @@ class AppState(
     var activeServerId by mutableStateOf<String?>(null)
         private set
     var networkInfo by mutableStateOf(networkManager.getNetworkInfo())
-        private set
     var storageStats by mutableStateOf(storageInfo.getServerStorage(File(filesDir, "servers")))
         private set
 
@@ -93,10 +92,6 @@ class AppState(
         activeServerId = id
     }
 
-    fun refreshNetworkInfo() {
-        networkInfo = networkManager.getNetworkInfo().copy(tunnelUrl = tunnelUrl)
-    }
-
     fun refreshStorageStats() {
         if (activeServerId != null) {
             val serverDir = repository.getServerDir(activeServerId!!)
@@ -127,7 +122,11 @@ class AppState(
 
     fun tunnelUrlChanged(url: String) {
         onTunnelUrlChange(url)
-        networkInfo = networkInfo.copy(tunnelUrl = url)
+        refreshNetworkInfo()
+    }
+
+    private fun refreshNetworkInfo() {
+        networkInfo = networkManager.getNetworkInfo()
     }
 
     fun deleteServer(server: ServerConfig) {
@@ -197,11 +196,10 @@ class AppState(
             val spec = DeviceDetector.detect(context)
             val deviceCfg = DeviceDetector.generateConfig(spec)
             val userMaxMb = DeviceDetector.parseRamMb(server.maxRam)
-            val recommendedMaxMb = DeviceDetector.parseRamMb(deviceCfg.recommendedMaxRam)
-            val safeMaxMb = minOf(userMaxMb, recommendedMaxMb)
-            val safeMinMb = minOf(DeviceDetector.parseRamMb(server.minRam), safeMaxMb)
+            val userMinMb = DeviceDetector.parseRamMb(server.minRam)
+            val safeMinMb = minOf(userMinMb, userMaxMb)
             DeviceDetector.enforceServerProfile(serverDir, deviceCfg.serverProps)
-            val javaArgs = listOf("-Xms${safeMinMb}M", "-Xmx${safeMaxMb}M") + deviceCfg.gcFlags
+            val javaArgs = listOf("-Xms${safeMinMb}M", "-Xmx${userMaxMb}M") + deviceCfg.gcFlags
             serverManager.start(
                 jarPath = server.jarPath,
                 javaArgs = javaArgs,
@@ -270,8 +268,13 @@ fun rememberAppState(
 
     LaunchedEffect(appState.activeServerId) {
         withContext(Dispatchers.IO) {
-            appState.refreshNetworkInfo()
             appState.refreshStorageStats()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        networkManager.networkInfo.collect { info ->
+            appState.networkInfo = info.copy(tunnelUrl = appState.tunnelUrl)
         }
     }
 
