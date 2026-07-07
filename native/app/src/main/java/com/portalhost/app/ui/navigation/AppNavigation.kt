@@ -127,7 +127,6 @@ fun AppNavigation(
                     networkInfo = appState.networkInfo,
                     storageStats = appState.storageStats,
                     jdkInstalled = appState.jdkInstalled,
-                    publicIp = appState.publicIp,
                     tunnelUrl = appState.tunnelUrl,
                     jdkInstalling = appState.jdkInstalling,
                     jdkProgress = appState.jdkProgress,

@@ -73,8 +73,6 @@ class AppState(
 
     private val _networkInfoFlow = MutableStateFlow(networkInfo)
     val networkInfoDebounced: StateFlow<com.portalhost.app.network.NetworkInfo> = _networkInfoFlow.asStateFlow()
-    var publicIp by mutableStateOf("")
-        private set
     var pendingServerForPermission by mutableStateOf<ServerConfig?>(null)
         private set
     var showPermissionRationale by mutableStateOf(false)
@@ -125,10 +123,6 @@ class AppState(
                 serverManager.kill()
             }
         }
-    }
-
-    fun refreshPublicIp(ip: String) {
-        if (ip.isNotBlank()) publicIp = ip
     }
 
     fun tunnelUrlChanged(url: String) {
@@ -277,10 +271,6 @@ fun rememberAppState(
     LaunchedEffect(appState.activeServerId) {
         withContext(Dispatchers.IO) {
             appState.refreshNetworkInfo()
-            if (appState.publicIp.isEmpty()) {
-                val ip = appState.networkManager.fetchPublicIp()
-                if (ip.isNotBlank()) appState.refreshPublicIp(ip)
-            }
             appState.refreshStorageStats()
         }
     }

@@ -6,14 +6,11 @@ import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.util.Log
 import java.io.File
-import java.net.HttpURLConnection
 import java.net.Inet4Address
 import java.net.NetworkInterface
-import java.net.URL
 
 data class NetworkInfo(
     val localIp: String = "Unknown",
-    val publicIp: String = "",
     val tunnelUrl: String = "",
     val isWifi: Boolean = false,
     val isCellular: Boolean = false,
@@ -47,21 +44,6 @@ class NetworkManager(private val context: Context) {
         }
     }
 
-    fun fetchPublicIp(): String {
-        return try {
-            val url = URL("https://api.ipify.org")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 5000
-            val ip = conn.inputStream.bufferedReader().use { it.readText().trim() }
-            conn.disconnect()
-            ip
-        } catch (e: Exception) {
-            Log.w(TAG, "Public IP lookup failed: ${e.message}")
-            ""
-        }
-    }
-
     fun saveTunnelUrl(url: String) {
         try {
             tunnelFile.writeText(url)
@@ -77,6 +59,7 @@ class NetworkManager(private val context: Context) {
     }
 
     private fun getLocalIpAddress(): String {
+        // 0. Direct WiFi info (fastest, most reliable)
         val wifiInfo = wifiManager?.connectionInfo
         if (wifiInfo != null) {
             val ipInt = wifiInfo.ipAddress
@@ -97,54 +80,51 @@ class NetworkManager(private val context: Context) {
                 }
             }
 
-            // 2. Check known interface names explicitly
-            val knownInterfaces = listOf("wlan0", "eth0", "rmnet0", "ccmni0", "r_rmnet_data0", "ccmni1", "ril0")
-            NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
-                while (interfaces.hasMoreElements()) {
-                    val iface = interfaces.nextElement()
-                    if (iface.name !in knownInterfaces) continue
-                    val addresses = iface.inetAddresses ?: continue
-                    while (addresses.hasMoreElements()) {
-                        val addr = addresses.nextElement()
-                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
-                            return addr.hostAddress ?: ""
-                        }
-                    }
-                }
-            }
+            // 2. Enumerate all interfaces — try known names first, then fall through to any IPv4
+            val knownInterfaces = listOf(
+                "wlan0", "eth0", "rmnet0", "ccmni0", "ccmni1", "ccmni2", "ccmni3",
+                "r_rmnet_data0", "r_rmnet_data1", "rmnet_data0", "rmnet_data1",
+                "rmnet_data2", "rmnet_data3", "rmnet_data4", "rmnet_data5",
+                "rmnet_data6", "rmnet_data7", "rmnet_data8", "ril0", "usb0",
+                "ap0", "p2p0", "bond0", "dummy0", "ifb0", "teql0", "sit0",
+                "tun0", "tap0", "softap0", "wlan1"
+            )
 
-            // 3. Full enumeration with isUp filter (prefer the active interface)
-            var fallback: String? = null
-            NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
-                while (interfaces.hasMoreElements()) {
-                    val iface = interfaces.nextElement()
-                    if (iface.isLoopback || !iface.isUp) continue
-                    val addresses = iface.inetAddresses ?: continue
-                    while (addresses.hasMoreElements()) {
-                        val addr = addresses.nextElement()
-                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
-                            val ip = addr.hostAddress ?: continue
-                            if (iface.name == preferredIface) return ip
-                            if (fallback == null) fallback = ip
-                        }
-                    }
-                }
-            }
+            // Track best non-known candidate
+            var bestIp: String? = null
 
-            // 4. Desperate: enumerate without isUp filter (some emulators report isUp=false)
             NetworkInterface.getNetworkInterfaces()?.let { interfaces ->
                 while (interfaces.hasMoreElements()) {
                     val iface = interfaces.nextElement()
                     if (iface.isLoopback) continue
                     val addresses = iface.inetAddresses ?: continue
+                    var ipv4: String? = null
                     while (addresses.hasMoreElements()) {
                         val addr = addresses.nextElement()
                         if (addr is Inet4Address && !addr.isLoopbackAddress) {
-                            return addr.hostAddress ?: ""
+                            ipv4 = addr.hostAddress ?: continue
+                            break
                         }
+                    }
+                    if (ipv4 == null) continue
+
+                    // Perfect match: known name + preferred interface
+                    if (iface.name == preferredIface && iface.name in knownInterfaces) {
+                        return ipv4
+                    }
+                    // Good match: known name
+                    if (iface.name in knownInterfaces) {
+                        bestIp = ipv4
+                        continue
+                    }
+                    // Fallback: any isUp interface not in known list
+                    if (iface.isUp && bestIp == null) {
+                        bestIp = ipv4
                     }
                 }
             }
+
+            if (bestIp != null) return bestIp!!
 
             "Unknown"
         } catch (_: Exception) {

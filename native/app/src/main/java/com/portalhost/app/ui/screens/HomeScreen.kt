@@ -71,7 +71,6 @@ fun HomeScreen(
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
-    publicIp: String = "",
     tunnelUrl: String = "",
     tunnelState: TunnelState? = null,
     onTunnelStart: () -> Unit = {},
@@ -154,7 +153,6 @@ fun HomeScreen(
                     serverState = serverState,
                     statusColor = statusColor,
                     networkInfo = networkInfo,
-                    publicIp = publicIp,
                     tunnelUrl = tunnelUrl,
                     tunnelState = tunnelState,
                     onSelectServer = onSelectServer,
@@ -301,7 +299,6 @@ private fun ServerCard(
     serverState: ServerState,
     statusColor: Color,
     networkInfo: NetworkInfo,
-    publicIp: String = "",
     tunnelUrl: String = "",
     tunnelState: TunnelState? = null,
     onSelectServer: (String) -> Unit,
@@ -372,14 +369,6 @@ private fun ServerCard(
                     // Connection info inline
                     Spacer(Modifier.height(4.dp))
                     if (serverState.status == ServerStatus.ONLINE) {
-                        if (publicIp.isNotBlank()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Public, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(4.dp))
-                                Text(text = "$publicIp:${activeServer.port}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace)
-                            }
-                            Spacer(Modifier.height(2.dp))
-                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(4.dp))
