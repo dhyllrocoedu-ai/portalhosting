@@ -42,6 +42,7 @@ class ServerManager(
     private var uptimeJob: Job? = null
     private var stoppedJob: Job? = null
     private var serverStartTime: Long = 0
+    private val pendingCommands = java.util.concurrent.ConcurrentLinkedQueue<String>()
 
     private var lastJarPath: String? = null
     private var lastJavaArgs: List<String>? = null
@@ -270,6 +271,15 @@ use-native-transport=true
             activityLog.addServerStart()
             renice(getPid(proc), RENICE_SERVER)
 
+            // Drain pending commands
+            while (true) {
+                val cmd = pendingCommands.poll() ?: break
+                try {
+                    proc.outputStream.write("$cmd\n".toByteArray())
+                    proc.outputStream.flush()
+                } catch (_: IOException) { break }
+            }
+
             // Stream console output
             processJob = scope.launch {
                 try {
@@ -447,7 +457,11 @@ use-native-transport=true
 
     /** Write a command to the server console (stdin). */
     fun writeCommand(command: String) {
-        val proc = process ?: return
+        val proc = process
+        if (proc == null) {
+            pendingCommands.add(command)
+            return
+        }
         try {
             proc.outputStream.write("$command\n".toByteArray())
             proc.outputStream.flush()

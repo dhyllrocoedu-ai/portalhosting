@@ -223,6 +223,21 @@ fun ConsoleScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
+        },
+        floatingActionButton = {
+            if (isUserScrolling.value && displayLines.size > 50) {
+                SmallFloatingActionButton(
+                    onClick = {
+                        scope.launch {
+                            isUserScrolling.value = false
+                            listState.animateScrollToItem(displayLines.size - 1)
+                        }
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                ) {
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Scroll to bottom")
+                }
+            }
         }
     ) { padding ->
         Column(

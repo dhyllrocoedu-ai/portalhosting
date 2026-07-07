@@ -162,6 +162,7 @@ fun AppNavigation(
                     onTunnelStop = { tunnelManager?.stop() },
                     onTunnelReset = { tunnelManager?.resetClaim() },
                     onSaveSecretKey = { key -> tunnelManager?.setSecretKey(key) },
+                    tunnelAvailable = tunnelManager != null,
                     serverDir = activeServer?.let { appState.repository.getServerDir(it.id) },
                     activeServer = activeServer
                 )

@@ -1,13 +1,11 @@
 package com.portalhost.app.ui.screens.create
 
-import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,8 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.portalhost.app.server.JarAnalyzer
 import com.portalhost.app.server.ServerDownloader
@@ -25,7 +21,6 @@ import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import kotlinx.coroutines.launch
 import java.io.File
-import kotlin.math.roundToInt
 
 enum class CreateSource { PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC }
 
@@ -62,20 +57,22 @@ fun CreateServerScreen(
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
 
-
     val context = LocalContext.current
+    val maxRamLimit = remember {
+        val spec = com.portalhost.app.server.DeviceDetector.detect(context)
+        val cfg = com.portalhost.app.server.DeviceDetector.generateConfig(spec)
+        com.portalhost.app.server.DeviceDetector.parseRamMb(cfg.recommendedMaxRam) / 1024f
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
             jarUri = uri
-            // Query ContentResolver for the actual display name
             jarName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 if (nameIdx >= 0 && cursor.moveToFirst()) cursor.getString(nameIdx) else null
             } ?: try {
-                // Fallback: decode URI path and extract filename
                 val decoded = java.net.URLDecoder.decode(uri.toString(), "UTF-8")
                 val name = decoded.substringAfterLast('/').substringAfterLast(':')
                 name.ifBlank { null }
@@ -84,7 +81,6 @@ fun CreateServerScreen(
         }
     }
 
-    // Auto-detect MC version from picked JAR
     LaunchedEffect(jarUri) {
         if (jarUri != null && createSource == CreateSource.PICK_FILE) {
             val detected = JarAnalyzer.detectVersion(context, jarUri!!)
@@ -96,7 +92,6 @@ fun CreateServerScreen(
     val downloader = remember { ServerDownloader() }
     val scrollState = rememberScrollState()
 
-    // Track whether step 0 selection changes are valid
     val step0Complete = createSource != null && downloadError == null && (createSource == CreateSource.PICK_FILE || jarName.isNotBlank())
 
     Scaffold(
@@ -117,7 +112,6 @@ fun CreateServerScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(scrollState)
         ) {
-            // Step indicator
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -204,9 +198,9 @@ fun CreateServerScreen(
                 )
 
                 1 -> StepServerName(name = serverName, onNameChange = { serverName = it })
-                 2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
+                2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, maxRamLimit = maxRamLimit, onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
                 3 -> StepProperties(port = port, gamemode = gamemode, difficulty = difficulty, motd = motd, gamemodes = gamemodes, difficulties = difficulties, onPortChange = { port = it }, onGamemodeChange = { gamemode = it }, onDifficultyChange = { difficulty = it }, onMotdChange = { motd = it })
-                 4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
+                4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
                     val stat = android.os.StatFs(context.filesDir.absolutePath)
                     availableStorage = stat.availableBlocksLong * stat.blockSizeLong
                     requiredStorage = (maxRam * 1024 * 1024 * 1024).toLong() + 500_000_000L
@@ -301,393 +295,6 @@ fun CreateServerScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun StepChooseSource(
-    createSource: CreateSource?,
-    jarName: String,
-    downloading: Boolean,
-    downloadProgress: Float,
-    downloadError: String?,
-    mcVersion: String,
-    onSelectPickFile: () -> Unit,
-    onSelectDownload: (CreateSource) -> Unit
-) {
-    Column {
-        Text("Server Software", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Choose a server jar source — download the latest or pick your own file", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(16.dp))
-
-        // Download options
-        DownloadOptionCard(
-            icon = Icons.Default.Description,
-            title = "Paper",
-            subtitle = "High-performance server software, recommended",
-            selected = createSource == CreateSource.DOWNLOAD_PAPER,
-            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_PAPER) }
-        )
-        Spacer(Modifier.height(8.dp))
-        DownloadOptionCard(
-            icon = Icons.Default.Description,
-            title = "Vanilla",
-            subtitle = "Official Mojang server jar",
-            selected = createSource == CreateSource.DOWNLOAD_VANILLA,
-            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_VANILLA) }
-        )
-        Spacer(Modifier.height(8.dp))
-        DownloadOptionCard(
-            icon = Icons.Default.Extension,
-            title = "Fabric",
-            subtitle = "Lightweight mod loader",
-            selected = createSource == CreateSource.DOWNLOAD_FABRIC,
-            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_FABRIC) }
-        )
-
-        Spacer(Modifier.height(12.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(12.dp))
-
-        // Pick local file
-        Card(
-            onClick = { if (!downloading) onSelectPickFile() },
-            modifier = Modifier.fillMaxWidth(),
-            colors = if (createSource == CreateSource.PICK_FILE)
-                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            else CardDefaults.cardColors()
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Archive, contentDescription = null, tint = if (createSource == CreateSource.PICK_FILE) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Pick a JAR file", style = MaterialTheme.typography.titleMedium)
-                    Text(if (jarName.isNotBlank() && createSource == CreateSource.PICK_FILE) jarName else "Browse device storage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Icon(Icons.Default.FolderOpen, contentDescription = null)
-            }
-        }
-
-        // Download progress
-        if (downloading) {
-            Spacer(Modifier.height(16.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Text("Downloading...", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    if (downloadProgress > 0f) {
-                        Spacer(Modifier.height(8.dp))
-                        LinearProgressIndicator(progress = { downloadProgress }, modifier = Modifier.fillMaxWidth())
-                    }
-                }
-            }
-        }
-
-        // Download error
-        downloadError?.let { error ->
-            Spacer(Modifier.height(8.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.width(8.dp))
-                    Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-
-        // Show selection
-        if (createSource != null && !downloading && downloadError == null) {
-            Spacer(Modifier.height(8.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Selected: ${createSource.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }} — $jarName", color = MaterialTheme.colorScheme.onPrimaryContainer)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DownloadOptionCard(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = if (selected)
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        else CardDefaults.cardColors()
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            if (selected) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-            } else {
-                Icon(Icons.Default.CloudDownload, contentDescription = null)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StepServerName(name: String, onNameChange: (String) -> Unit) {
-    Column {
-        Text("Server Name", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Give your server a memorable name", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = name,
-            onValueChange = onNameChange,
-            label = { Text("Server Name") },
-            placeholder = { Text("My Survival Server") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-        )
-    }
-}
-
-@Composable
-private fun StepRamConfig(
-    minRam: Float, maxRam: Float,
-    onMinChange: (Float) -> Unit, onMaxChange: (Float) -> Unit
-) {
-    Column {
-        Text("Memory (RAM)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Allocate memory for your server. More RAM = better performance.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
-        Text("Minimum RAM: ${"%.1f".format(minRam)} GB", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        Slider(
-            value = minRam,
-            onValueChange = { v -> onMinChange((v / 0.1f).roundToInt() * 0.1f) },
-            valueRange = 0.5f..4.0f,
-            steps = 34,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        Text("Maximum RAM: ${"%.1f".format(maxRam)} GB", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        Slider(
-            value = maxRam,
-            onValueChange = { v -> onMaxChange((v / 0.1f).roundToInt() * 0.1f) },
-            valueRange = 0.5f..4.0f,
-            steps = 34,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(16.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Allocated: ${"%.1f".format(minRam)} GB – ${"%.1f".format(maxRam)} GB", style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StepProperties(
-    port: String, gamemode: String, difficulty: String, motd: String,
-    gamemodes: List<String>, difficulties: List<String>,
-    onPortChange: (String) -> Unit, onGamemodeChange: (String) -> Unit,
-    onDifficultyChange: (String) -> Unit, onMotdChange: (String) -> Unit
-) {
-    Column {
-        Text("Server Properties", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Configure basic server settings", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = port,
-            onValueChange = { onPortChange(it.filter { c -> c.isDigit() }.take(5)) },
-            label = { Text("Port") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.Default.Lan, contentDescription = null) }
-        )
-        Spacer(Modifier.height(12.dp))
-        Text("Gamemode", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            gamemodes.forEach { gm ->
-                FilterChip(
-                    selected = gamemode == gm,
-                    onClick = { onGamemodeChange(gm) },
-                    label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("Difficulty", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            difficulties.forEach { diff ->
-                FilterChip(
-                    selected = difficulty == diff,
-                    onClick = { onDifficultyChange(diff) },
-                    label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = motd,
-            onValueChange = onMotdChange,
-            label = { Text("MOTD") },
-            placeholder = { Text("A Minecraft Server") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null) }
-        )
-    }
-}
-
-@Composable
-private fun StepStorageCheck(
-    availableBytes: Long,
-    requiredBytes: Long,
-    maxRam: Float,
-    onCheck: () -> Unit
-) {
-    LaunchedEffect(Unit) { onCheck() }
-    Column {
-        Text("Storage Check", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Ensure enough space is available before creating the server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
-
-        if (availableBytes == 0L) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Checking storage...", style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        } else {
-            val sufficient = availableBytes >= requiredBytes
-            val availableFormatted = com.portalhost.app.storage.StorageInfo.formatBytes(availableBytes)
-            val requiredFormatted = com.portalhost.app.storage.StorageInfo.formatBytes(requiredBytes)
-
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = if (sufficient) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (sufficient) Icons.Default.CheckCircle else Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = if (sufficient) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.error
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (sufficient) "Sufficient storage" else "Insufficient storage",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = if (sufficient) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    StorageRow("Available", availableFormatted)
-                    StorageRow("Required (JAR + world + swap)", requiredFormatted)
-                }
-            }
-
-            if (!sufficient) {
-                Spacer(Modifier.height(12.dp))
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Free up space or reduce the RAM allocation. The server needs at least 500 MB plus the allocated RAM size.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("RAM: ${com.portalhost.app.storage.StorageInfo.formatBytes((maxRam * 1024 * 1024 * 1024).toLong())}", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.width(16.dp))
-                Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("JAR + overhead: 500 MB", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
-}
-
-@Composable
-private fun StorageRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun StepEula(eulaAccepted: Boolean, onEulaChange: (Boolean) -> Unit) {
-    Column {
-        Text("EULA Agreement", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Minecraft Server Software End User License Agreement", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "By checking the box below, you agree to the Minecraft End User License Agreement (EULA). " +
-                    "This means:\n\n" +
-                    "• You may run the server for personal or private use\n" +
-                    "• You may not distribute or sell the server software\n" +
-                    "• You must comply with Mojang's EULA at https://aka.ms/MinecraftEULA\n\n" +
-                    "The eula.txt file will be created with eula=true.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(checked = eulaAccepted, onCheckedChange = onEulaChange)
-            Spacer(Modifier.width(8.dp))
-            Text("I agree to the Minecraft EULA", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

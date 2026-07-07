@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.BackupManager
+import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
@@ -74,7 +75,6 @@ fun ServerDetailScreen(
 // ─── PROPERTIES ───────────────────────────────────────────────────────────────
 
 private const val MIN_RAM_GB = 0.5f
-private const val MAX_RAM_GB = 4.0f
 private const val RAM_STEP_GB = 0.1f
 
 private fun gbToMb(gb: Float): Int = (gb * 1024).toInt()
@@ -85,6 +85,7 @@ private fun RamSlider(
     label: String,
     value: Int,
     onValueChange: (Int) -> Unit,
+    maxRamGb: Float,
     modifier: Modifier = Modifier
 ) {
     val gbValue = remember(value) { mbToGb(value) }
@@ -96,15 +97,15 @@ private fun RamSlider(
             value = sliderPos,
             onValueChange = { sliderPos = (it / RAM_STEP_GB).roundToInt() * RAM_STEP_GB },
             onValueChangeFinished = {
-                onValueChange(gbToMb(sliderPos.coerceIn(MIN_RAM_GB, MAX_RAM_GB)))
+                onValueChange(gbToMb(sliderPos.coerceIn(MIN_RAM_GB, maxRamGb)))
             },
-            valueRange = MIN_RAM_GB..MAX_RAM_GB,
-            steps = ((MAX_RAM_GB - MIN_RAM_GB) / RAM_STEP_GB).toInt() - 1,
+            valueRange = MIN_RAM_GB..maxRamGb,
+            steps = ((maxRamGb - MIN_RAM_GB) / RAM_STEP_GB).toInt() - 1,
             modifier = Modifier.fillMaxWidth()
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${MIN_RAM_GB.toInt()} GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${MAX_RAM_GB.toInt()} GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${"%.1f".format(maxRamGb)} GB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -132,6 +133,12 @@ private fun String.escapeProperties(): String {
 
 @Composable
 private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
+    val context = LocalContext.current
+    val maxRamGb = remember {
+        val spec = DeviceDetector.detect(context)
+        val cfg = DeviceDetector.generateConfig(spec)
+        DeviceDetector.parseRamMb(cfg.recommendedMaxRam) / 1024f
+    }
     var name by remember(server) { mutableStateOf(server.name) }
     var portText by remember(server) { mutableStateOf(server.port.toString()) }
     var gamemode by remember(server) { mutableStateOf(server.gamemode) }
@@ -165,8 +172,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
             }
             OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
-            RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) })
-            RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) })
+            RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) }, maxRamGb = maxRamGb)
+            RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) }, maxRamGb = maxRamGb)
 
             Button(
                 onClick = {
@@ -232,16 +239,48 @@ private fun PropertyRowReadOnly(label: String, value: String) {
 
 @Composable
 private fun WorldsTab(serverDir: File) {
+    val context = LocalContext.current
     var worlds by remember { mutableStateOf(listOf<File>()) }
     var renameTarget by remember { mutableStateOf<File?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var worldToExport by remember { mutableStateOf<File?>(null) }
 
     LaunchedEffect(Unit) { worlds = listWorlds(serverDir) }
 
     val refresh: () -> Unit = { worlds = listWorlds(serverDir) }
 
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        for (uri in uris) importWorld(context, uri, serverDir)
+        if (uris.isNotEmpty()) refresh()
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null && worldToExport != null) {
+            try {
+                val zipFile = java.io.File.createTempFile("world_", ".zip", context.cacheDir)
+                zipDirectory(worldToExport!!, zipFile)
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    zipFile.inputStream().use { it.copyTo(out) }
+                }
+                zipFile.delete()
+            } catch (e: Exception) {
+                android.util.Log.e("ServerDetail", "Export world failed: ${e.message}")
+            }
+            worldToExport = null
+        }
+    }
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Text("Worlds", style = MaterialTheme.typography.titleSmall) }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Worlds", style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = { importLauncher.launch(arrayOf("application/zip", "*/*")) }) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Import World")
+                }
+            }
+        }
 
         if (worlds.isEmpty()) {
             item {
@@ -260,6 +299,9 @@ private fun WorldsTab(serverDir: File) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(world.name, style = MaterialTheme.typography.bodyMedium)
                             Text(formatWorldSize(world), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { worldToExport = world; exportLauncher.launch("${world.name}.zip") }) {
+                            Icon(Icons.Default.FileDownload, contentDescription = "Download", modifier = Modifier.size(20.dp))
                         }
                         IconButton(onClick = { renameTarget = world; renameText = world.name }) {
                             Icon(Icons.Default.DriveFileRenameOutline, contentDescription = "Rename", modifier = Modifier.size(20.dp))
@@ -659,4 +701,52 @@ private fun formatSize(bytes: Long): String = when {
 private fun formatTimestamp(millis: Long): String {
     val sdf = java.text.SimpleDateFormat("MMM d, h:mm a", java.util.Locale.US)
     return sdf.format(java.util.Date(millis))
+}
+
+private fun importWorld(context: android.content.Context, uri: android.net.Uri, serverDir: File) {
+    try {
+        val worldsDir = File(serverDir, "worlds")
+        worldsDir.mkdirs()
+        val zipName = getFileName(context, uri) ?: uri.lastPathSegment?.substringAfterLast('/') ?: "world.zip"
+        val worldName = zipName.removeSuffix(".zip").removeSuffix(".ZIP")
+        val destDir = resolveDestFile(worldsDir, worldName)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val tmpZip = File(context.cacheDir, "world_import_${System.nanoTime()}.zip")
+            tmpZip.outputStream().use { input.copyTo(it) }
+            java.util.zip.ZipInputStream(tmpZip.inputStream()).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    val target = File(destDir, entry.name)
+                    if (entry.isDirectory) {
+                        target.mkdirs()
+                    } else {
+                        target.parentFile?.mkdirs()
+                        target.outputStream().use { zis.copyTo(it) }
+                    }
+                    zis.closeEntry()
+                    entry = zis.nextEntry
+                }
+            }
+            tmpZip.delete()
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("ServerDetail", "Import world failed: ${e.message}")
+    }
+}
+
+private fun zipDirectory(dir: File, zipFile: File) {
+    java.util.zip.ZipOutputStream(zipFile.outputStream()).use { zos ->
+        dir.walkTopDown().forEach { file ->
+            if (file == dir) return@forEach
+            val entryName = file.relativeTo(dir).path.replace('\\', '/')
+            if (file.isDirectory) {
+                zos.putNextEntry(java.util.zip.ZipEntry("$entryName/"))
+                zos.closeEntry()
+            } else {
+                zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                file.inputStream().use { it.copyTo(zos) }
+                zos.closeEntry()
+            }
+        }
+    }
 }

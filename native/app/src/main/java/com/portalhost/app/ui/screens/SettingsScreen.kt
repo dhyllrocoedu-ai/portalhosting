@@ -42,6 +42,7 @@ fun SettingsScreen(
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -276,7 +277,10 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
-                        onClick = { /* TODO: open GitHub releases */ },
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/dhyllrocoedu-ai/portalhosting/releases"))
+                            context.startActivity(intent)
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -285,7 +289,10 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(4.dp))
                     OutlinedButton(
-                        onClick = { /* TODO: open GitHub issues */ },
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/dhyllrocoedu-ai/portalhosting/issues"))
+                            context.startActivity(intent)
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -294,7 +301,13 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(4.dp))
                     OutlinedButton(
-                        onClick = { /* TODO: share intent */ },
+                        onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, "Check out PortalHost — run Minecraft servers on Android!\nhttps://github.com/dhyllrocoedu-ai/portalhosting")
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share PortalHost"))
+                        },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))

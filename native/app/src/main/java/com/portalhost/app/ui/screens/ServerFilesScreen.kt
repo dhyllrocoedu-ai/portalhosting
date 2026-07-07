@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -64,9 +65,14 @@ fun ServerFilesScreen(
     var compressTarget by remember { mutableStateOf<File?>(null) }
     var compressResult by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<File?>(null) }
+    var undoFile by remember { mutableStateOf<File?>(null) }
     var editingFile by remember { mutableStateOf<File?>(null) }
     var editorValue by remember { mutableStateOf(TextFieldValue("")) }
     var showSnackbar by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFiles by remember { mutableStateOf(setOf<String>()) }
+    var batchDeleteTargets by remember { mutableStateOf<List<File>?>(null) }
+    val selectionMode = selectedFiles.isNotEmpty()
 
     // Export launcher (for a single file)
     val exportLauncher = rememberLauncherForActivityResult(
@@ -116,18 +122,65 @@ fun ServerFilesScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(showSnackbar) {
         if (showSnackbar.isNotBlank()) {
-            snackbarHostState.showSnackbar(showSnackbar)
+            val result = snackbarHostState.showSnackbar(
+                message = showSnackbar,
+                actionLabel = if (undoFile != null) "Undo" else null
+            )
+            if (result == SnackbarResult.ActionPerformed && undoFile != null) {
+                val uf = undoFile!!
+                val original = File(uf.parentFile?.parentFile, uf.name)
+                uf.renameTo(original)
+                undoFile = null
+                refreshDir(currentDir, sortBy, sortAsc) { entries = it }
+            } else if (undoFile != null) {
+                // Dismissed without Undo — permanently delete trash
+                val uf = undoFile!!
+                uf.deleteRecursively()
+                undoFile = null
+            }
             showSnackbar = ""
         }
     }
 
+    val filteredEntries = remember(entries, searchQuery) {
+        if (searchQuery.isBlank()) entries
+        else entries.filter { it.file.name.contains(searchQuery, ignoreCase = true) }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(serverName) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-            )
+            if (selectionMode) {
+                TopAppBar(
+                    title = { Text("${selectedFiles.size} selected") },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedFiles = emptySet() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear selection")
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = {
+                            selectedFiles = if (selectedFiles.size == filteredEntries.size) emptySet()
+                            else filteredEntries.map { it.file.absolutePath }.toSet()
+                        }) {
+                            Text(if (selectedFiles.size == filteredEntries.size) "Deselect all" else "Select all")
+                        }
+                        if (selectedFiles.isNotEmpty()) {
+                            IconButton(onClick = {
+                                batchDeleteTargets = selectedFiles.map { File(it) }
+                            }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete selected")
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(serverName) },
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                )
+            }
         },
         floatingActionButton = {
             SmallFloatingActionButton(onClick = {
@@ -196,10 +249,25 @@ fun ServerFilesScreen(
                 )
             }
 
+            // Search
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                placeholder = { Text("Search files...") },
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = if (searchQuery.isNotEmpty()) {{
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear")
+                    }
+                }} else null
+            )
+
             // File list
-            if (entries.isEmpty()) {
+            if (filteredEntries.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Empty directory", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if (searchQuery.isNotBlank()) "No matching files" else "Empty directory", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 LazyColumn(
@@ -213,17 +281,29 @@ fun ServerFilesScreen(
                                 headlineContent = { Text("..") },
                                 leadingContent = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
                                 modifier = Modifier.clickable {
+                                    if (selectionMode) selectedFiles = emptySet()
                                     currentDir = currentDir.parentFile ?: serverDir
                                 }
                             )
                         }
                     }
 
-                    items(entries, key = { it.file.absolutePath }) { entry ->
+                    items(filteredEntries, key = { it.file.absolutePath }) { entry ->
                         FileRow(
                             entry = entry,
+                            isSelected = entry.file.absolutePath in selectedFiles,
+                            selectionMode = selectionMode,
+                            onToggleSelect = {
+                                val path = entry.file.absolutePath
+                                selectedFiles = if (path in selectedFiles) selectedFiles - path
+                                else selectedFiles + path
+                            },
                             onClick = {
-                                if (entry.isDirectory) {
+                                if (selectionMode) {
+                                    val path = entry.file.absolutePath
+                                    selectedFiles = if (path in selectedFiles) selectedFiles - path
+                                    else selectedFiles + path
+                                } else if (entry.isDirectory) {
                                     currentDir = entry.file
                                 } else if (isEditableFile(entry.file)) {
                                     editingFile = entry.file
@@ -353,8 +433,18 @@ fun ServerFilesScreen(
             text = { Text("Delete \"${file.name}\"?") },
             confirmButton = {
                 TextButton(onClick = {
-                    file.deleteRecursively()
+                    val trashDir = File(serverDir, ".trash")
+                    trashDir.mkdirs()
+                    val trashed = File(trashDir, file.name)
+                    var dest = trashed
+                    var counter = 1
+                    while (dest.exists()) {
+                        dest = File(trashDir, "${file.name}_$counter")
+                        counter++
+                    }
+                    file.renameTo(dest)
                     deleteTarget = null
+                    undoFile = dest
                     showSnackbar = "Deleted ${file.name}"
                     refreshDir(currentDir, sortBy, sortAsc) { entries = it }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
@@ -364,11 +454,46 @@ fun ServerFilesScreen(
             }
         )
     }
+
+    // Batch delete dialog
+    batchDeleteTargets?.let { files ->
+        AlertDialog(
+            onDismissRequest = { batchDeleteTargets = null },
+            title = { Text("Delete ${files.size} file${if (files.size != 1) "s" else ""}") },
+            text = { Text("Delete ${files.size} selected file${if (files.size != 1) "s" else ""}?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trashDir = File(serverDir, ".trash")
+                    trashDir.mkdirs()
+                    files.forEach { file ->
+                        val trashed = File(trashDir, file.name)
+                        var dest = trashed
+                        var counter = 1
+                        while (dest.exists()) {
+                            dest = File(trashDir, "${file.name}_$counter")
+                            counter++
+                        }
+                        file.renameTo(dest)
+                    }
+                    batchDeleteTargets = null
+                    selectedFiles = emptySet()
+                    showSnackbar = "Deleted ${files.size} file${if (files.size != 1) "s" else ""}"
+                    refreshDir(currentDir, sortBy, sortAsc) { entries = it }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { batchDeleteTargets = null }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable
 private fun FileRow(
     entry: FileEntry,
+    isSelected: Boolean = false,
+    selectionMode: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onClick: () -> Unit,
     onRename: (File) -> Unit,
     onShare: (File) -> Unit,
@@ -387,66 +512,74 @@ private fun FileRow(
             }
         },
         leadingContent = {
-            val icon = if (entry.isDirectory) Icons.Default.Folder else fileIcon(entry.file.name)
-            Icon(icon, contentDescription = null, tint = if (entry.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectionMode) {
+                    Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() })
+                    Spacer(Modifier.width(8.dp))
+                }
+                val icon = if (entry.isDirectory) Icons.Default.Folder else fileIcon(entry.file.name)
+                Icon(icon, contentDescription = null, tint = if (entry.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         },
         trailingContent = {
             Row {
-                if (entry.isDirectory) {
+                if (!selectionMode && entry.isDirectory) {
                     IconButton(onClick = onClick) {
                         Icon(Icons.Default.ChevronRight, contentDescription = "Open", modifier = Modifier.size(20.dp))
                     }
                 }
-                Box {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More", modifier = Modifier.size(20.dp))
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                        offset = DpOffset(0.dp, 0.dp)
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit") },
-                            onClick = { menuExpanded = false; onEdit(entry.file) },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Rename") },
-                            onClick = { menuExpanded = false; onRename(entry.file) },
-                            leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) }
-                        )
-                        if (!entry.isDirectory) {
+                if (!selectionMode) {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More", modifier = Modifier.size(20.dp))
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                            offset = DpOffset(0.dp, 0.dp)
+                        ) {
                             DropdownMenuItem(
-                                text = { Text("Share") },
-                                onClick = { menuExpanded = false; onShare(entry.file) },
-                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
+                                text = { Text("Edit") },
+                                onClick = { menuExpanded = false; onEdit(entry.file) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Rename") },
+                                onClick = { menuExpanded = false; onRename(entry.file) },
+                                leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) }
+                            )
+                            if (!entry.isDirectory) {
+                                DropdownMenuItem(
+                                    text = { Text("Share") },
+                                    onClick = { menuExpanded = false; onShare(entry.file) },
+                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Compress") },
+                                onClick = { menuExpanded = false; onCompress(entry.file) },
+                                leadingIcon = { Icon(Icons.Default.Compress, contentDescription = null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export") },
+                                onClick = { menuExpanded = false; onExport(entry.file) },
+                                leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                                onClick = { menuExpanded = false; onDelete(entry.file) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
                             )
                         }
-                        DropdownMenuItem(
-                            text = { Text("Compress") },
-                            onClick = { menuExpanded = false; onCompress(entry.file) },
-                            leadingIcon = { Icon(Icons.Default.Compress, contentDescription = null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Export") },
-                            onClick = { menuExpanded = false; onExport(entry.file) },
-                            leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null) }
-                        )
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                            onClick = { menuExpanded = false; onDelete(entry.file) },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) }
-                        )
                     }
                 }
             }
         },
-        modifier = Modifier.clickable {
-            if (entry.isDirectory) onClick()
-            else if (isEditableFile(entry.file)) onEdit(entry.file)
-        }
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = { if (!selectionMode) onToggleSelect() }
+        )
     )
 }
 
