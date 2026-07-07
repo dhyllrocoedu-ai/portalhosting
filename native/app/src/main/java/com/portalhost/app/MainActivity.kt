@@ -10,12 +10,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.JavaRuntimeManager
 import com.portalhost.app.server.ProcessMonitor
 import com.portalhost.app.server.ServerManager
+import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.server.TunnelManager
 import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
@@ -125,6 +127,11 @@ private fun AppEntry(
     val tunnelManager = remember { TunnelManager(context) }
     val tunnelState by tunnelManager.state.collectAsState()
 
+    KeepScreenOnWhileProcessing(
+        serverManager = serverManager,
+        jdkInstalling = jdkInstalling
+    )
+
     LaunchedEffect(Unit) {
         scope.launch(Dispatchers.IO) {
             javaRuntimeManager.fixupLibraries()
@@ -210,4 +217,24 @@ private fun AppEntry(
         tunnelManager = tunnelManager,
         tunnelState = tunnelState
     )
+}
+
+@Composable
+private fun KeepScreenOnWhileProcessing(
+    serverManager: ServerManager,
+    jdkInstalling: Boolean
+) {
+    val view = LocalView.current
+    val serverState by serverManager.state.collectAsState()
+    val isProcessing = jdkInstalling ||
+        serverState.status == ServerStatus.STARTING ||
+        serverState.status == ServerStatus.ONLINE ||
+        serverState.status == ServerStatus.STOPPING
+
+    DisposableEffect(isProcessing) {
+        view.keepScreenOn = isProcessing
+        onDispose {
+            view.keepScreenOn = false
+        }
+    }
 }
