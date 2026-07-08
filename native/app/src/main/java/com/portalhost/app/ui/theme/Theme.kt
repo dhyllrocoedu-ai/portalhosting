@@ -17,11 +17,12 @@ private val DarkColorScheme = darkColorScheme(
     primary = LightGreen,
     onPrimary = Color.White,
     secondary = Color(0xFF03DAC6),
+    tertiary = LightGreen,
     background = DarkBg,
     surface = SurfaceDark,
     onBackground = Color.White,
     onSurface = Color.White,
-    error = Color(0xFFCF6679),
+    error = Color(0xFFF44336),
 )
 
 private val LightColorScheme = lightColorScheme(

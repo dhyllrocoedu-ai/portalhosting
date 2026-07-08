@@ -256,6 +256,14 @@ fun AppNavigation(
                         serverState = state,
                         onBack = { navController.popBackStack() },
                         onUpdateServer = { updated -> appState.updateServer(updated) },
+                        onDeleteServer = {
+                            val s = state.status
+                            if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == appState.activeServerId) {
+                                scope.launch { appState.serverManager.stop() }
+                            }
+                            appState.deleteServer(server)
+                            navController.popBackStack()
+                        },
                         serverDir = appState.repository.getServerDir(server.id)
                     )
                 }

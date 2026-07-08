@@ -254,7 +254,8 @@ fun HomeScreen(
                 ShortcutGrid(
                     onFiles = onOpenFiles,
                     onLogs = onOpenLogs,
-                    onPerformance = onOpenPerformance
+                    onPerformance = onOpenPerformance,
+                    onPlayers = onOpenPlayers
                 )
             }
         }

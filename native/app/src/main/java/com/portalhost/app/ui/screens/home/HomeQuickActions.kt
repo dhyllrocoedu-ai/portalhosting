@@ -90,8 +90,8 @@ fun ActionButton(
         )
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.height(2.dp))
+            Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.height(4.dp))
             Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
         }
     }

@@ -23,22 +23,22 @@ fun LiveStatsGrid(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text("Performance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                SmallStatCard("CPU", "${processStats.cpuPercent.roundToInt()}%")
-                SmallStatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}")
-                SmallStatCard("TPS", String.format("%.1f", processStats.tps))
-                SmallStatCard("Players", "${serverState.players.size}/$maxPlayers")
-                SmallStatCard("↓ Down", processStats.rxFormatted)
-                SmallStatCard("↑ Up", processStats.txFormatted)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    SmallStatCard("CPU", "${processStats.cpuPercent.roundToInt()}%", Modifier.weight(1f))
+                    SmallStatCard("RAM", "${processStats.ramFormatted} / ${processStats.maxRamFormatted}", Modifier.weight(1f))
+                    SmallStatCard("TPS", String.format("%.1f", processStats.tps), Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    SmallStatCard("Players", "${serverState.players.size}/$maxPlayers", Modifier.weight(1f))
+                    SmallStatCard("↓ Down", processStats.rxFormatted, Modifier.weight(1f))
+                    SmallStatCard("↑ Up", processStats.txFormatted, Modifier.weight(1f))
+                }
             }
         }
     }

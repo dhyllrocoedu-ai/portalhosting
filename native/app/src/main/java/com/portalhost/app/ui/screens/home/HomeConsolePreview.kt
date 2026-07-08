@@ -59,17 +59,27 @@ fun ConsolePreview(
                     .height(100.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFF0D0D0D))
-                    .padding(8.dp)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
             ) {
-                LazyColumn {
-                    items(consoleLines.takeLast(5)) { line ->
-                        Text(
-                            text = line,
-                            color = consoleLineColor(line),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            lineHeight = 13.sp
-                        )
+                if (consoleLines.isEmpty()) {
+                    Text(
+                        text = "Console output will appear here...",
+                        color = Color(0xFF555555),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                } else {
+                    LazyColumn {
+                        items(consoleLines.takeLast(5)) { line ->
+                            Text(
+                                text = line,
+                                color = consoleLineColor(line),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp
+                            )
+                        }
                     }
                 }
             }

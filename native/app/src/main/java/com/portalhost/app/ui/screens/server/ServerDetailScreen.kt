@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -42,6 +43,7 @@ fun ServerDetailScreen(
     serverState: ServerState,
     onBack: () -> Unit,
     onUpdateServer: (ServerConfig) -> Unit = {},
+    onDeleteServer: () -> Unit = {},
     serverDir: File
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -58,14 +60,14 @@ fun ServerDetailScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
+            ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp, modifier = Modifier.padding(vertical = 0.dp)) {
                 ALL_TABS.forEachIndexed { index, label ->
                     Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })
                 }
             }
 
             when (selectedTab) {
-                0 -> PropertiesTab(server, serverDir, onUpdateServer)
+                0 -> PropertiesTab(server, serverDir, onUpdateServer, onDeleteServer)
                 1 -> WorldsTab(serverDir)
                 2 -> PluginsTab(serverDir)
                  3 -> ModsTab(serverDir)
@@ -99,9 +101,12 @@ private fun RamSlider(
     var sliderPos by remember(value) { mutableFloatStateOf(gbValue) }
 
     Column(modifier = modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("$label: ${"%.1f".format(sliderPos)} GB", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.weight(1f))
+            Text("${"%.1f".format(sliderPos)} GB", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             if (label.contains("Maximum")) {
+                Spacer(Modifier.width(8.dp))
                 RamStatusBadge(ramStatus = ramStatus)
             }
         }
@@ -159,7 +164,7 @@ private fun String.escapeProperties(): String {
 }
 
 @Composable
-private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}) {
+private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer: (ServerConfig) -> Unit = {}, onDeleteServer: () -> Unit = {}) {
     val context = LocalContext.current
     val deviceSpec = remember { DeviceDetector.detect(context) }
     val maxRamGb = remember {
@@ -179,6 +184,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var spawnProtectionText by remember(server) { mutableStateOf(readProp(serverDir, "spawn-protection", "16")) }
     var whiteListEnabled by remember(server) { mutableStateOf(readProp(serverDir, "white-list", "false") == "true") }
     var showRcon by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     fun computeRamStatus(): RamStatus = DeviceDetector.getRamStatus(maxRamMb, deviceSpec)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -296,12 +302,40 @@ white-list=$whiteListEnabled
                 Spacer(Modifier.width(8.dp))
                 Text("RCON Console")
             }
+
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = { showDeleteConfirm = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Delete Server")
+            }
         }
 
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp)
         )
+
+        if (showDeleteConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirm = false },
+                title = { Text("Delete Server") },
+                text = { Text("Delete \"${server.name}\"? This will remove the server and all its files. This cannot be undone.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showDeleteConfirm = false
+                        onDeleteServer()
+                    }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+                }
+            )
+        }
 
         if (showRcon) {
             val rconHost = readProp(serverDir, "rcon.host", "localhost")

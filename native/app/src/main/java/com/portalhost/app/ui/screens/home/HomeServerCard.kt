@@ -32,28 +32,9 @@ fun ServerCard(
     tunnelState: TunnelState? = null,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
-    onDeleteServer: (ServerConfig) -> Unit
+    onDeleteServer: (ServerConfig) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var serverToDelete by remember { mutableStateOf<ServerConfig?>(null) }
-
-    serverToDelete?.let { target ->
-        AlertDialog(
-            onDismissRequest = { serverToDelete = null },
-            title = { Text("Delete Server") },
-            text = { Text("Delete \"${target.name}\"? This will remove the server and all its files.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDeleteServer(target)
-                    serverToDelete = null
-                    expanded = false
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { serverToDelete = null }) { Text("Cancel") }
-            }
-        )
-    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -199,12 +180,7 @@ fun ServerCard(
                         Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
                         Text(config.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        IconButton(
-                            onClick = { serverToDelete = config },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete server", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

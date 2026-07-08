@@ -126,7 +126,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Cloud, contentDescription = null)
+                        Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("Tunnel Address", style = MaterialTheme.typography.titleSmall)
@@ -204,7 +204,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.BatteryFull, contentDescription = null)
+                        Icon(Icons.Default.BatteryFull, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("Background Keep-Alive", style = MaterialTheme.typography.titleSmall)
@@ -246,7 +246,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Storage, contentDescription = null)
+                        Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("Storage", style = MaterialTheme.typography.titleSmall)
