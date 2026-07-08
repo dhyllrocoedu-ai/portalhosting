@@ -44,6 +44,7 @@ fun CreateServerScreen(
     var mcVersion by remember { mutableStateOf("") }
     var availableVersions by remember { mutableStateOf<List<String>>(emptyList()) }
     var versionsLoading by remember { mutableStateOf(false) }
+    var versionsError by remember { mutableStateOf<String?>(null) }
     var minRam by remember { mutableStateOf(1.0f) }
     var maxRam by remember { mutableStateOf(2.0f) }
     var port by remember { mutableStateOf("25565") }
@@ -202,26 +203,33 @@ fun CreateServerScreen(
                     mcVersion = mcVersion,
                     availableVersions = availableVersions,
                     versionsLoading = versionsLoading,
+                    versionsError = versionsError,
                     onVersionChange = { mcVersion = it },
                     onSelectPickFile = { filePickerLauncher.launch(arrayOf("application/java-archive", "application/octet-stream", "*/*")) },
                     onSelectDownload = { type ->
                         createSource = type
                         mcVersion = ""
+                        jarName = ""
                         jarTargetPath = null
                         downloadError = null
                         versionsLoading = true
+                        versionsError = null
                         availableVersions = emptyList()
                         scope.launch {
-                            val vers = try {
-                                when (type) {
+                            val (vers, err) = try {
+                                val result = when (type) {
                                     CreateSource.DOWNLOAD_PAPER -> downloader.getPaperVersions()
                                     CreateSource.DOWNLOAD_VANILLA -> downloader.getVanillaVersions()
                                     CreateSource.DOWNLOAD_FABRIC -> downloader.getVanillaVersions()
                                     CreateSource.DOWNLOAD_FORGE -> downloader.getForgeVersions().keys.toList()
                                     else -> emptyList()
                                 }
-                            } catch (_: Exception) { emptyList() }
+                                Pair(result, null)
+                            } catch (e: Exception) {
+                                Pair(emptyList(), e.message ?: "Failed to fetch versions")
+                            }
                             availableVersions = vers
+                            versionsError = err
                             versionsLoading = false
                         }
                     }

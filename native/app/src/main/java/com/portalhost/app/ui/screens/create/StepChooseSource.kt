@@ -22,6 +22,7 @@ fun StepChooseSource(
     mcVersion: String,
     availableVersions: List<String>,
     versionsLoading: Boolean,
+    versionsError: String?,
     onVersionChange: (String) -> Unit,
     onSelectPickFile: () -> Unit,
     onSelectDownload: (CreateSource) -> Unit
@@ -74,9 +75,17 @@ fun StepChooseSource(
                     Spacer(Modifier.width(8.dp))
                     Text("Loading versions...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            } else if (availableVersions.isEmpty() && !versionsLoading) {
+            } else if (versionsError != null) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text(versionsError, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            } else if (availableVersions.isEmpty()) {
                 Text("No versions available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            } else if (availableVersions.isNotEmpty() && !downloading && jarName.isBlank()) {
+            } else if (!downloading && jarName.isBlank()) {
                 var expanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                     OutlinedTextField(
@@ -85,7 +94,7 @@ fun StepChooseSource(
                         readOnly = true,
                         label = { Text("Minecraft Version") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
                         singleLine = true
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
