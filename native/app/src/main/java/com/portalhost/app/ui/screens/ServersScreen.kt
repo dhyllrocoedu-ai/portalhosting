@@ -1,7 +1,9 @@
 package com.portalhost.app.ui.screens
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,11 +15,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
+import java.io.File
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,6 +92,7 @@ fun ServersScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(servers, key = { it.id }) { server ->
+                    val serverIcon = remember(server.id) { loadServerIcon(repository.getServerDir(server.id)) }
                     val dismissState = rememberSwipeToDismissBoxState(
                         confirmValueChange = {
                             if (it == SwipeToDismissBoxValue.EndToStart) {
@@ -112,7 +120,7 @@ fun ServersScreen(
                         },
                         enableDismissFromStartToEnd = false
                     ) {
-                        ServerCard(server = server, onClick = { onServerClick(server) })
+                        ServerCard(server = server, serverIcon = serverIcon, onClick = { onServerClick(server) })
                     }
                 }
             }
@@ -121,7 +129,7 @@ fun ServersScreen(
 }
 
 @Composable
-private fun ServerCard(server: ServerConfig, onClick: () -> Unit) {
+private fun ServerCard(server: ServerConfig, serverIcon: ImageBitmap?, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
@@ -129,7 +137,24 @@ private fun ServerCard(server: ServerConfig, onClick: () -> Unit) {
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            if (serverIcon != null) {
+                Image(
+                    bitmap = serverIcon,
+                    contentDescription = "${server.name} icon",
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Surface(
+                    modifier = Modifier.size(48.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -149,4 +174,12 @@ private fun ServerCard(server: ServerConfig, onClick: () -> Unit) {
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+private fun loadServerIcon(serverDir: File): ImageBitmap? {
+    val iconFile = File(serverDir, "server-icon.png")
+    if (!iconFile.exists()) return null
+    return try {
+        BitmapFactory.decodeFile(iconFile.absolutePath)?.asImageBitmap()
+    } catch (e: Exception) { null }
 }

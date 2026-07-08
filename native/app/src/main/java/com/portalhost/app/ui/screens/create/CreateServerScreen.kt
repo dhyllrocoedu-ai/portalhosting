@@ -70,6 +70,7 @@ fun CreateServerScreen(
     var difficulty by remember { mutableStateOf("easy") }
     var motd by remember { mutableStateOf("A Minecraft Server") }
     var eulaAccepted by remember { mutableStateOf(false) }
+    var iconUri by remember { mutableStateOf<Uri?>(null) }
     var creating by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf(0f) }
@@ -280,7 +281,7 @@ fun CreateServerScreen(
 
                 1 -> StepServerName(name = serverName, onNameChange = { serverName = it })
                 2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, maxRamLimit = maxRamLimit, ramStatus = computeRamStatus(), onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
-                3 -> StepProperties(port = port, gamemode = gamemode, difficulty = difficulty, motd = motd, gamemodes = gamemodes, difficulties = difficulties, onPortChange = { port = it }, onGamemodeChange = { gamemode = it }, onDifficultyChange = { difficulty = it }, onMotdChange = { motd = it })
+                3 -> StepProperties(port = port, gamemode = gamemode, difficulty = difficulty, motd = motd, gamemodes = gamemodes, difficulties = difficulties, onPortChange = { port = it }, onGamemodeChange = { gamemode = it }, onDifficultyChange = { difficulty = it }, onMotdChange = { motd = it }, iconUri = iconUri, onIconChange = { iconUri = it })
                 4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
                     val stat = android.os.StatFs(context.filesDir.absolutePath)
                     availableStorage = stat.availableBlocksLong * stat.blockSizeLong
@@ -374,6 +375,12 @@ fun CreateServerScreen(
                                 } else if (jarUri != null) {
                                     context.contentResolver.openInputStream(jarUri!!)?.use { input ->
                                         targetFile.outputStream().use { output -> input.copyTo(output) }
+                                    }
+                                }
+                                if (iconUri != null) {
+                                    val iconFile = File(serverDir, "server-icon.png")
+                                    context.contentResolver.openInputStream(iconUri!!)?.use { input ->
+                                        iconFile.outputStream().use { output -> input.copyTo(output) }
                                     }
                                 }
                                 val updated = created.copy(jarPath = targetFile.absolutePath)

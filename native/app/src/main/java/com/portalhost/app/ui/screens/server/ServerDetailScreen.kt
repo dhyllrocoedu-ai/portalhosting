@@ -1,8 +1,10 @@
 package com.portalhost.app.ui.screens.server
 
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,7 +18,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -185,15 +191,65 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var whiteListEnabled by remember(server) { mutableStateOf(readProp(serverDir, "white-list", "false") == "true") }
     var showRcon by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var iconPreview by remember(serverDir) { mutableStateOf(loadServerIconFile(serverDir)) }
     fun computeRamStatus(): RamStatus = DeviceDetector.getRamStatus(maxRamMb, deviceSpec)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    val iconPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val iconFile = File(serverDir, "server-icon.png")
+            try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    iconFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                iconPreview = loadServerIconFile(serverDir)
+            } catch (e: Exception) { android.util.Log.e("ServerDetail", "Failed to save icon", e) }
+        }
+    }
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Server Icon picker
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (iconPreview != null) {
+                        Image(
+                            bitmap = iconPreview!!,
+                            contentDescription = "Server Icon",
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Surface(
+                            modifier = Modifier.size(48.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Server Icon", style = MaterialTheme.typography.titleSmall)
+                        Text(if (iconPreview != null) "Tap to change" else "Select a picture", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedButton(onClick = { iconPickerLauncher.launch("image/*") }) {
+                        Text(if (iconPreview != null) "Change" else "Select")
+                    }
+                }
+            }
+
             Text("Server Properties", style = MaterialTheme.typography.titleSmall)
 
             OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -847,6 +903,14 @@ private fun formatSize(bytes: Long): String = when {
     bytes < 1024 * 1024 -> "${bytes / 1024} KB"
     bytes < 1024 * 1024 * 1024 -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024))} MB"
     else -> "${"%.2f".format(bytes.toDouble() / (1024 * 1024 * 1024))} GB"
+}
+
+private fun loadServerIconFile(serverDir: File): ImageBitmap? {
+    val iconFile = File(serverDir, "server-icon.png")
+    if (!iconFile.exists()) return null
+    return try {
+        BitmapFactory.decodeFile(iconFile.absolutePath)?.asImageBitmap()
+    } catch (e: Exception) { null }
 }
 
 private fun formatTimestamp(millis: Long): String {
