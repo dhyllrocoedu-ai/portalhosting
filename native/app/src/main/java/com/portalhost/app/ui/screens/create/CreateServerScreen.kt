@@ -148,9 +148,8 @@ fun CreateServerScreen(
         }
     }
 
-    val hasValidBuildSelection = !provider?.supportsBuilds!! || selectedBuildId.isNotBlank()
     val step0Complete = createSource != null && downloadError == null && (
-        createSource == CreateSource.PICK_FILE || (mcVersion.isNotBlank() && !downloading && hasValidBuildSelection)
+        createSource == CreateSource.PICK_FILE || (mcVersion.isNotBlank() && !downloading)
     )
 
     fun startDownload(version: String, buildId: String) {
