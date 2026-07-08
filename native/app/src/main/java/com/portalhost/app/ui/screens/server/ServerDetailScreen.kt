@@ -30,6 +30,7 @@ import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 private val ALL_TABS = listOf("Properties", "Worlds", "Plugins", "Mods", "Datapacks", "Backups")
@@ -271,6 +272,7 @@ private fun WorldsTab(serverDir: File) {
     var renameTarget by remember { mutableStateOf<File?>(null) }
     var renameText by remember { mutableStateOf("") }
     var worldToExport by remember { mutableStateOf<File?>(null) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { worlds = listWorlds(serverDir) }
 
@@ -283,17 +285,30 @@ private fun WorldsTab(serverDir: File) {
 
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null && worldToExport != null) {
-            try {
-                val zipFile = java.io.File.createTempFile("world_", ".zip", context.cacheDir)
-                zipDirectory(worldToExport!!, zipFile)
-                context.contentResolver.openOutputStream(uri)?.use { out ->
-                    zipFile.inputStream().use { it.copyTo(out) }
-                }
-                zipFile.delete()
-            } catch (e: Exception) {
-                android.util.Log.e("ServerDetail", "Export world failed: ${e.message}")
-            }
+            val world = worldToExport!!
             worldToExport = null
+            scope.launch(Dispatchers.IO) {
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { out ->
+                        java.util.zip.ZipOutputStream(out).use { zos ->
+                            world.walkTopDown().forEach { file ->
+                                if (file == world) return@forEach
+                                val entryName = file.relativeTo(world).path.replace('\\', '/')
+                                if (file.isDirectory) {
+                                    zos.putNextEntry(java.util.zip.ZipEntry("$entryName/"))
+                                    zos.closeEntry()
+                                } else {
+                                    zos.putNextEntry(java.util.zip.ZipEntry(entryName))
+                                    file.inputStream().use { it.copyTo(zos) }
+                                    zos.closeEntry()
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ServerDetail", "Export world failed: ${e.message}")
+                }
+            }
         }
     }
 
@@ -761,19 +776,4 @@ private fun importWorld(context: android.content.Context, uri: android.net.Uri, 
     }
 }
 
-private fun zipDirectory(dir: File, zipFile: File) {
-    java.util.zip.ZipOutputStream(zipFile.outputStream()).use { zos ->
-        dir.walkTopDown().forEach { file ->
-            if (file == dir) return@forEach
-            val entryName = file.relativeTo(dir).path.replace('\\', '/')
-            if (file.isDirectory) {
-                zos.putNextEntry(java.util.zip.ZipEntry("$entryName/"))
-                zos.closeEntry()
-            } else {
-                zos.putNextEntry(java.util.zip.ZipEntry(entryName))
-                file.inputStream().use { it.copyTo(zos) }
-                zos.closeEntry()
-            }
-        }
-    }
-}
+

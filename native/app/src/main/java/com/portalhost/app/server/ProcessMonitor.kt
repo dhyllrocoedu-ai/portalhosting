@@ -26,6 +26,12 @@ class ProcessMonitor {
     private var lastNetTx = 0L
     private var lastNetTime = 0L
 
+    fun resetNetworkStats() {
+        lastNetRx = 0L
+        lastNetTx = 0L
+        lastNetTime = 0L
+    }
+
     fun getStats(process: Process?, maxRamMegabytes: Int = 2048): ProcessStats {
         if (process == null || !process.isAlive) {
             return ProcessStats(tps = 0f)
@@ -34,7 +40,7 @@ class ProcessMonitor {
         val pid = getPid(process)
         val cpuPercent = if (pid != null) measureCpu(pid) else 0f
         val ramBytes = if (pid != null) readRss(pid) else 0L
-        val (rxRate, txRate) = if (pid != null) measureNetworkRate(pid) else 0L to 0L
+        val (rxRate, txRate) = measureNetworkRate()
 
         return ProcessStats(
             cpuPercent = cpuPercent,
@@ -107,9 +113,9 @@ class ProcessMonitor {
         }
     }
 
-    private fun measureNetworkRate(pid: Int): Pair<Long, Long> {
+    private fun measureNetworkRate(): Pair<Long, Long> {
         return try {
-            val netFile = File("/proc/$pid/net/dev")
+            val netFile = File("/proc/net/dev")
             if (!netFile.exists()) return 0L to 0L
             var rx: Long = 0
             var tx: Long = 0
@@ -118,6 +124,9 @@ class ProcessMonitor {
                 if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
                     val parts = line.trim().split("\\s+".toRegex())
                     if (parts.size >= 10) {
+                        val iface = parts[0].removeSuffix(":")
+                        // Skip loopback — we want real network traffic
+                        if (iface == "lo") return@forEach
                         rx += parts[1].toLongOrNull() ?: 0
                         tx += parts[9].toLongOrNull() ?: 0
                     }

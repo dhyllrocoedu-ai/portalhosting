@@ -48,6 +48,7 @@ class NetworkManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to register network callback: ${e.message}")
         }
+        _networkInfo.value = getNetworkInfo()
     }
 
     fun getNetworkInfo(): NetworkInfo {
@@ -83,7 +84,21 @@ class NetworkManager(private val context: Context) {
     }
 
     private fun getLocalIpAddress(): String {
-        // 0. Direct WiFi info (fastest, most reliable)
+        // 0. DatagramSocket — no permissions needed, works on modern Android.
+        //    Establishes a temporary UDP connection to determine which local
+        //    interface the kernel routes through. No actual packets are sent.
+        try {
+            val socket = DatagramSocket()
+            socket.connect(InetAddress.getByName("8.8.8.8"), 10002)
+            val localAddr = socket.localAddress
+            socket.close()
+            if (localAddr is Inet4Address && !localAddr.isLoopbackAddress) {
+                val ip = localAddr.hostAddress ?: ""
+                if (ip.isNotBlank()) return ip
+            }
+        } catch (_: Exception) {}
+
+        // 1. Direct WiFi info (fast on older Android, deprecated on API 31+)
         val wifiInfo = wifiManager?.connectionInfo
         if (wifiInfo != null) {
             val ipInt = wifiInfo.ipAddress
@@ -91,12 +106,13 @@ class NetworkManager(private val context: Context) {
                 return "${ipInt and 0xff}.${ipInt shr 8 and 0xff}.${ipInt shr 16 and 0xff}.${ipInt shr 24 and 0xff}"
             }
         }
+
         return try {
             val activeNetwork = connectivityManager.activeNetwork
             val linkProps = activeNetwork?.let { connectivityManager.getLinkProperties(it) }
             val preferredIface = linkProps?.interfaceName
 
-            // 1. Check LinkAddresses directly from ConnectivityManager
+            // 2. Check LinkAddresses directly from ConnectivityManager
             linkProps?.linkAddresses?.forEach { addr ->
                 val inet = addr.address ?: return@forEach
                 if (inet is Inet4Address && !inet.isLoopbackAddress) {
@@ -104,7 +120,7 @@ class NetworkManager(private val context: Context) {
                 }
             }
 
-            // 2. Enumerate all interfaces — try known names first, then fall through to any IPv4
+            // 3. Enumerate all interfaces — try known names first, then fall through to any IPv4
             val knownInterfaces = listOf(
                 "wlan0", "eth0", "rmnet0", "ccmni0", "ccmni1", "ccmni2", "ccmni3",
                 "r_rmnet_data0", "r_rmnet_data1", "rmnet_data0", "rmnet_data1",
@@ -132,16 +148,13 @@ class NetworkManager(private val context: Context) {
                     }
                     if (ipv4 == null) continue
 
-                    // Perfect match: known name + preferred interface
                     if (iface.name == preferredIface && iface.name in knownInterfaces) {
                         return ipv4
                     }
-                    // Good match: known name
                     if (iface.name in knownInterfaces) {
                         bestIp = ipv4
                         continue
                     }
-                    // Fallback: any isUp interface not in known list
                     if (iface.isUp && bestIp == null) {
                         bestIp = ipv4
                     }
@@ -149,19 +162,6 @@ class NetworkManager(private val context: Context) {
             }
 
             if (bestIp != null) return bestIp!!
-
-            // 3. DatagramSocket — establish a temporary UDP connection to determine
-            //    which local interface the kernel routes through. No actual packets sent.
-            try {
-                val socket = DatagramSocket()
-                socket.connect(InetAddress.getByName("8.8.8.8"), 10002)
-                val localAddr = socket.localAddress
-                socket.close()
-                if (localAddr is Inet4Address && !localAddr.isLoopbackAddress) {
-                    val ip = localAddr.hostAddress ?: ""
-                    if (ip.isNotBlank()) return ip
-                }
-            } catch (_: Exception) {}
 
             "Unknown"
         } catch (_: Exception) {

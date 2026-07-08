@@ -267,6 +267,7 @@ use-native-transport=true
                 .start()
 
             process = proc
+            processMonitor.resetNetworkStats()
             serverStartTime = System.currentTimeMillis()
             activityLog.addServerStart()
             renice(getPid(proc), RENICE_SERVER)
