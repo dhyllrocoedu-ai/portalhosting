@@ -101,7 +101,7 @@ fun CreateServerScreen(
     val scrollState = rememberScrollState()
 
     val step0Complete = createSource != null && downloadError == null && (
-        createSource == CreateSource.PICK_FILE || (mcVersion.isNotBlank() && jarTargetPath != null)
+        createSource == CreateSource.PICK_FILE || (mcVersion.isNotBlank() && !downloading)
     )
 
     fun startDownload(version: String) {

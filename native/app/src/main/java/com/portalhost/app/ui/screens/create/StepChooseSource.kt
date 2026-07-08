@@ -94,12 +94,14 @@ fun StepChooseSource(
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Minecraft Version") },
-                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+                        trailingIcon = {
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Select version")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    // Invisible spacer to capture clicks on the whole field
-                    Box(modifier = Modifier.matchParentSize().clickable { expanded = true })
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         availableVersions.forEach { v ->
                             DropdownMenuItem(

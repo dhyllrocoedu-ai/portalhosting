@@ -65,16 +65,13 @@ class ServerDownloader {
         }
     }
 
-    /** Get the latest stable Paper build for a version using Fill v3 API. */
+    /** Get the latest Paper build for a version. */
     suspend fun getLatestPaperBuild(version: String): PaperBuild? = withContext(Dispatchers.IO) {
         try {
             val url = "https://fill.papermc.io/v3/projects/paper/versions/$version/builds/latest"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext null
             val response = json.decodeFromString<PaperBuildLatestResponse>(body)
-
-            val channel = response.channel
-            if (channel != "STABLE" && channel != "RECOMMENDED") return@withContext null
 
             val serverDownload = response.downloads?.get("server:default") ?: return@withContext null
             val sha256 = serverDownload.checksums?.get("sha256")
