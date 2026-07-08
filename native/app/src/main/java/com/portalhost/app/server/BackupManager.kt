@@ -1,6 +1,7 @@
 package com.portalhost.app.server
 
 import android.util.Log
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -13,6 +14,8 @@ import java.util.zip.ZipOutputStream
 class BackupManager(private val serverDir: File) {
     private val TAG = "BackupManager"
     private val backupsDir: File get() = File(serverDir, "backups")
+    private var autoBackupJob: Job? = null
+    var maxBackups: Int = 10
 
     data class BackupEntry(
         val name: String,
@@ -20,6 +23,28 @@ class BackupManager(private val serverDir: File) {
         val size: Long,
         val timestamp: Long
     )
+
+    fun startAutoBackup(scope: CoroutineScope, intervalHours: Int = 6) {
+        autoBackupJob?.cancel()
+        autoBackupJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                delay(intervalHours * 60 * 60 * 1000L)
+                createBackup("auto", worlds = true, config = false)
+            }
+        }
+    }
+
+    fun stopAutoBackup() {
+        autoBackupJob?.cancel()
+        autoBackupJob = null
+    }
+
+    private fun enforceMaxBackups() {
+        val backups = listBackups()
+        if (backups.size > maxBackups) {
+            backups.drop(maxBackups).forEach { it.file.delete() }
+        }
+    }
 
     fun listBackups(): List<BackupEntry> {
         if (!backupsDir.exists()) return emptyList()
@@ -56,6 +81,7 @@ class BackupManager(private val serverDir: File) {
             }
 
             Log.i(TAG, "Backup created: ${zipFile.absolutePath} (${zipFile.length()} bytes)")
+            enforceMaxBackups()
             Result.success(backupName)
         } catch (e: Exception) {
             Log.e(TAG, "Backup failed: ${e.message}", e)

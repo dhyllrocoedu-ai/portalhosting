@@ -46,6 +46,8 @@ fun HomeScreen(
     onOpenConsole: () -> Unit,
     onOpenFiles: () -> Unit,
     onOpenPlayers: () -> Unit,
+    onOpenLogs: () -> Unit = {},
+    onOpenPerformance: () -> Unit = {},
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
@@ -250,7 +252,9 @@ fun HomeScreen(
 
             item {
                 ShortcutGrid(
-                    onFiles = onOpenFiles
+                    onFiles = onOpenFiles,
+                    onLogs = onOpenLogs,
+                    onPerformance = onOpenPerformance
                 )
             }
         }

@@ -173,6 +173,12 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var motd by remember(server) { mutableStateOf(server.motd) }
     var minRamMb by remember(server) { mutableStateOf(parseRamToMb(server.minRam)) }
     var maxRamMb by remember(server) { mutableStateOf(parseRamToMb(server.maxRam)) }
+    var maxPlayersText by remember(server) { mutableStateOf(readProp(serverDir, "max-players", "20")) }
+    var onlineMode by remember(server) { mutableStateOf(readProp(serverDir, "online-mode", "true") == "true") }
+    var pvpEnabled by remember(server) { mutableStateOf(readProp(serverDir, "pvp", "true") == "true") }
+    var spawnProtectionText by remember(server) { mutableStateOf(readProp(serverDir, "spawn-protection", "16")) }
+    var whiteListEnabled by remember(server) { mutableStateOf(readProp(serverDir, "white-list", "false") == "true") }
+    var showRcon by remember { mutableStateOf(false) }
     fun computeRamStatus(): RamStatus = DeviceDetector.getRamStatus(maxRamMb, deviceSpec)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -186,6 +192,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
 
             OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = portText, onValueChange = { portText = it.filter { c -> c.isDigit() }.take(5) }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = maxPlayersText, onValueChange = { maxPlayersText = it.filter { c -> c.isDigit() }.take(4) }, label = { Text("Max Players") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text("Gamemode", style = MaterialTheme.typography.labelSmall)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 gamemodes.forEach { gm ->
@@ -199,6 +206,20 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                 }
             }
             OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = spawnProtectionText, onValueChange = { spawnProtectionText = it.filter { c -> c.isDigit() }.take(4) }, label = { Text("Spawn Protection (radius)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("PvP", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                Switch(checked = pvpEnabled, onCheckedChange = { pvpEnabled = it })
+            }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Online Mode", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                Switch(checked = onlineMode, onCheckedChange = { onlineMode = it })
+            }
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Whitelist", style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                Switch(checked = whiteListEnabled, onCheckedChange = { whiteListEnabled = it })
+            }
 
             RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) }, maxRamGb = maxRamGb, ramStatus = computeRamStatus())
             RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) }, maxRamGb = maxRamGb, ramStatus = computeRamStatus())
@@ -207,6 +228,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                 onClick = {
                     try {
                         val newPort = portText.toIntOrNull() ?: server.port
+                        val newMaxPlayers = maxPlayersText.toIntOrNull() ?: 20
+                        val newSpawnProtection = spawnProtectionText.toIntOrNull() ?: 16
                         val propsFile = File(serverDir, "server.properties")
                         if (!propsFile.exists()) {
                             val defaultProps = """#Minecraft server properties
@@ -214,16 +237,34 @@ server-port=$newPort
 gamemode=$gamemode
 difficulty=$difficulty
 motd=${motd.escapeProperties()}
-max-players=20
-online-mode=true
+max-players=$newMaxPlayers
+online-mode=$onlineMode
+pvp=$pvpEnabled
+spawn-protection=$newSpawnProtection
+white-list=$whiteListEnabled
 """
                             propsFile.writeText(defaultProps)
                         } else {
                             var content = propsFile.readText()
-                            content = content.replace(Regex("(?m)^server-port=.*"), "server-port=$newPort")
-                            content = content.replace(Regex("(?m)^gamemode=.*"), "gamemode=$gamemode")
-                            content = content.replace(Regex("(?m)^difficulty=.*"), "difficulty=$difficulty")
-                            content = content.replace(Regex("(?m)^motd=.*"), "motd=${motd.escapeProperties()}")
+                            val replacements = mapOf(
+                                "server-port" to newPort.toString(),
+                                "gamemode" to gamemode,
+                                "difficulty" to difficulty,
+                                "motd" to motd.escapeProperties(),
+                                "max-players" to newMaxPlayers.toString(),
+                                "online-mode" to onlineMode.toString(),
+                                "pvp" to pvpEnabled.toString(),
+                                "spawn-protection" to newSpawnProtection.toString(),
+                                "white-list" to whiteListEnabled.toString()
+                            )
+                            for ((key, value) in replacements) {
+                                val regex = Regex("(?m)^$key=.*")
+                                content = if (regex.containsMatchIn(content)) {
+                                    content.replace(regex, "$key=$value")
+                                } else {
+                                    content + "\n$key=$value"
+                                }
+                            }
                             propsFile.writeText(content)
                         }
                         val updated = server.copy(name = name, port = newPort, gamemode = gamemode, difficulty = difficulty, motd = motd, minRam = formatRamMb(minRamMb), maxRam = formatRamMb(maxRamMb))
@@ -233,6 +274,9 @@ online-mode=true
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("ServerDetailScreen", "Failed to save properties", e)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Failed to save: ${e.message}", duration = SnackbarDuration.Long)
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -246,13 +290,44 @@ online-mode=true
                     PropertyRowReadOnly("MC Version", server.mcVersion.ifBlank { "—" })
                 }
             }
+
+            OutlinedButton(onClick = { showRcon = true }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("RCON Console")
+            }
         }
 
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp)
         )
+
+        if (showRcon) {
+            val rconHost = readProp(serverDir, "rcon.host", "localhost")
+            val rconPort = readProp(serverDir, "rcon.port", "25575").toIntOrNull() ?: 25575
+            val rconPassword = readProp(serverDir, "rcon.password", "")
+            if (rconPassword.isBlank()) {
+                AlertDialog(
+                    onDismissRequest = { showRcon = false },
+                    title = { Text("RCON Not Configured") },
+                    text = { Text("Set rcon.password, rcon.port, and enable-rcon=true in server.properties, then restart the server.") },
+                    confirmButton = { TextButton(onClick = { showRcon = false }) { Text("OK") } }
+                )
+            } else {
+                RconDialog(host = rconHost, port = rconPort, password = rconPassword, onDismiss = { showRcon = false })
+            }
+        }
     }
+}
+
+private fun readProp(serverDir: File, key: String, default: String): String {
+    val propsFile = File(serverDir, "server.properties")
+    if (!propsFile.exists()) return default
+    return try {
+        propsFile.readLines().firstOrNull { it.matches(Regex("^$key=.*")) }
+            ?.substringAfter("=")?.trim() ?: default
+    } catch (_: Exception) { default }
 }
 
 @Composable

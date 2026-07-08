@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StepChooseSource(
     createSource: CreateSource?,
@@ -19,6 +20,9 @@ fun StepChooseSource(
     downloadProgress: Float,
     downloadError: String?,
     mcVersion: String,
+    availableVersions: List<String>,
+    versionsLoading: Boolean,
+    onVersionChange: (String) -> Unit,
     onSelectPickFile: () -> Unit,
     onSelectDownload: (CreateSource) -> Unit
 ) {
@@ -52,6 +56,49 @@ fun StepChooseSource(
             selected = createSource == CreateSource.DOWNLOAD_FABRIC,
             onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_FABRIC) }
         )
+        Spacer(Modifier.height(8.dp))
+        DownloadOptionCard(
+            icon = Icons.Default.Build,
+            title = "Forge",
+            subtitle = "Popular mod loader with extensive mod support",
+            selected = createSource == CreateSource.DOWNLOAD_FORGE,
+            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_FORGE) }
+        )
+
+        // Version picker for download types
+        if (createSource != null && createSource != CreateSource.PICK_FILE) {
+            Spacer(Modifier.height(12.dp))
+            if (versionsLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Loading versions...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else if (availableVersions.isEmpty() && !versionsLoading) {
+                Text("No versions available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            } else if (availableVersions.isNotEmpty() && !downloading && jarName.isBlank()) {
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                    OutlinedTextField(
+                        value = mcVersion.ifBlank { "Select version" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Minecraft Version") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        availableVersions.forEach { v ->
+                            DropdownMenuItem(
+                                text = { Text(v) },
+                                onClick = { onVersionChange(v); expanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         Spacer(Modifier.height(12.dp))
         HorizontalDivider()

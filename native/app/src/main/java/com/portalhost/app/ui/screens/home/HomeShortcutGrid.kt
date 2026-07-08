@@ -13,7 +13,9 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ShortcutGrid(
-    onFiles: () -> Unit
+    onFiles: () -> Unit,
+    onLogs: () -> Unit = {},
+    onPerformance: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -25,6 +27,11 @@ fun ShortcutGrid(
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 ShortcutCard(Icons.Default.Folder, "File Manager", onFiles, Modifier.weight(1f))
+                ShortcutCard(Icons.Default.Article, "Logs", onLogs, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                ShortcutCard(Icons.Default.TrendingUp, "Performance", onPerformance, Modifier.weight(1f))
             }
         }
     }

@@ -62,6 +62,8 @@ class AppState(
     var networkInfo by mutableStateOf(networkManager.getNetworkInfo())
     var storageStats by mutableStateOf(storageInfo.getServerStorage(File(filesDir, "servers")))
         private set
+    var performanceHistory by mutableStateOf(listOf<com.portalhost.app.ui.screens.StatsSnapshot>())
+        private set
 
     // Debounced StateFlows to reduce recomposition frequency
     private val _processStatsFlow = MutableStateFlow(serverManager.processStats.value)
@@ -102,6 +104,13 @@ class AppState(
 
     fun updateProcessStats(stats: com.portalhost.app.server.ProcessStats) {
         _processStatsFlow.value = stats
+    }
+
+    fun appendPerformanceSnapshot(snapshot: com.portalhost.app.ui.screens.StatsSnapshot) {
+        val history = performanceHistory.toMutableList()
+        history.add(snapshot)
+        if (history.size > 60) history.removeAt(0)
+        performanceHistory = history
     }
 
     fun updateNetworkInfo(info: com.portalhost.app.network.NetworkInfo) {
@@ -275,6 +284,20 @@ fun rememberAppState(
     LaunchedEffect(Unit) {
         networkManager.networkInfo.collect { info ->
             appState.networkInfo = info.copy(tunnelUrl = appState.tunnelUrl)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        serverManager.processStats.collect { stats ->
+            val snapshot = com.portalhost.app.ui.screens.StatsSnapshot(
+                timestamp = System.currentTimeMillis(),
+                cpuPercent = stats.cpuPercent,
+                ramMb = stats.ramBytes / (1024f * 1024f),
+                tps = stats.tps,
+                rxBytesPerSec = stats.rxBytesPerSec,
+                txBytesPerSec = stats.txBytesPerSec
+            )
+            appState.appendPerformanceSnapshot(snapshot)
         }
     }
 

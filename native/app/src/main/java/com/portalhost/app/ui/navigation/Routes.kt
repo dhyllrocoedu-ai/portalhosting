@@ -22,4 +22,6 @@ object Routes {
     fun serverFiles(id: String) = "server_files/$id"
     const val FULL_CONSOLE = "console_full"
     const val PLAYER_MANAGEMENT = "player_management"
+    const val LOGS_VIEWER = "logs_viewer"
+    const val PERFORMANCE_CHARTS = "performance_charts"
 }

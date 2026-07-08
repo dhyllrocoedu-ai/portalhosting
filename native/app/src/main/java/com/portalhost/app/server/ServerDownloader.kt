@@ -16,7 +16,8 @@ enum class ServerType(
 ) {
     PAPER("Paper", "High-performance, feature-rich server software"),
     VANILLA("Vanilla", "Official Mojang server jar"),
-    FABRIC("Fabric", "Lightweight mod loader for Minecraft")
+    FABRIC("Fabric", "Lightweight mod loader for Minecraft"),
+    FORGE("Forge", "Popular mod loader with extensive mod support")
 }
 
 data class PaperBuild(
@@ -32,31 +33,52 @@ class ServerDownloader {
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(300, TimeUnit.SECONDS)
         .followRedirects(true)
+        .addInterceptor { chain ->
+            val original = chain.request()
+            val request = original.newBuilder()
+                .header("User-Agent", "PortalHost/1.0 (https://github.com/user/PortalHost)")
+                .build()
+            chain.proceed(request)
+        }
         .build()
 
     private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
-    /** Fetch available Paper versions. */
+    /** Fetch available Paper versions using Fill v3 API. */
     suspend fun getPaperVersions(): List<String> = withContext(Dispatchers.IO) {
-        val req = Request.Builder().url("https://api.papermc.io/v2/projects/paper").build()
-        val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-        val response = json.decodeFromString<Map<String, List<String>>>(body)
-        response["versions"]?.reversed() ?: emptyList()
+        try {
+            val req = Request.Builder().url("https://fill.papermc.io/v3/projects/paper/versions").build()
+            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val response = json.decodeFromString<PaperVersionsResponse>(body)
+            response.versions
+                .flatMap { entry ->
+                    // Each entry has e.g. version.id = "1.21" and sub-versions in builds array
+                    val mainVersion = entry.version.id
+                    // Some versions are like "26.2-rc-2" - filter non-release
+                    if (mainVersion.matches(Regex("^\\d+(\\.\\d+)*$"))) listOf(mainVersion) else emptyList()
+                }
+                .distinct()
+                .sortedByDescending { it }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get Paper versions: ${e.message}")
+            emptyList()
+        }
     }
 
-    /** Get the latest stable Paper build for a version. */
+    /** Get the latest stable Paper build for a version using Fill v3 API. */
     suspend fun getLatestPaperBuild(version: String): PaperBuild? = withContext(Dispatchers.IO) {
         try {
-            val url = "https://api.papermc.io/v2/projects/paper/versions/$version/builds"
+            val url = "https://fill.papermc.io/v3/projects/paper/versions/$version/builds/latest"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext null
-            val response = json.decodeFromString<PaperBuildsResponse>(body)
-            val builds = response.builds.filter { it.channel == "default" || it.channel == "stable" }
-            val latest = builds.lastOrNull() ?: return@withContext null
+            val response = json.decodeFromString<PaperBuildLatestResponse>(body)
 
-            val downloadUrl = "https://api.papermc.io/v2/projects/paper/versions/$version/builds/${latest.build}/downloads/paper-$version-${latest.build}.jar"
-            val sha256 = latest.downloads?.application?.sha256
-            PaperBuild(version, latest.build, downloadUrl, sha256)
+            val channel = response.channel
+            if (channel != "STABLE" && channel != "RECOMMENDED") return@withContext null
+
+            val serverDownload = response.downloads?.get("server:default") ?: return@withContext null
+            val sha256 = serverDownload.checksums?.get("sha256")
+            PaperBuild(version, response.id, serverDownload.url, sha256)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get Paper build: ${e.message}")
             null
@@ -194,6 +216,41 @@ class ServerDownloader {
         return download(url, destFile, null, onProgress)
     }
 
+    /** Fetch available Forge versions grouped by Minecraft version. */
+    suspend fun getForgeVersions(): Map<String, String> = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder().url("https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json").build()
+            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyMap()
+
+            // New format: {"26.2": ["26.2-65.0.0", "26.2-65.0.1", ...], ...}
+            // Fallback to old promos format if needed
+            val raw = json.decodeFromString<Map<String, List<String>>>(body)
+            val result = mutableMapOf<String, String>()
+            for ((mcVer, versions) in raw) {
+                val latest = versions.lastOrNull() ?: continue
+                // latest is like "26.2-65.0.3" — extract forge version after mcVer prefix
+                val forgeVer = latest.removePrefix("$mcVer-").ifBlank { latest }
+                result[mcVer] = forgeVer
+            }
+            result.toSortedMap(compareByDescending { it })
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get Forge versions: ${e.message}")
+            emptyMap()
+        }
+    }
+
+    /** Download Forge server jar for a given Minecraft and Forge version. */
+    suspend fun downloadForge(
+        mcVersion: String,
+        forgeVersion: String,
+        destFile: File,
+        onProgress: ((Long, Long) -> Unit)? = null
+    ): Result<File> {
+        val fullVer = "$mcVersion-$forgeVersion"
+        val url = "https://maven.minecraftforge.net/net/minecraftforge/forge/$fullVer/forge-$fullVer-universal.jar"
+        return download(url, destFile, null, onProgress)
+    }
+
     private suspend fun getLatestFabricLoader(mcVersion: String): String? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url("https://meta.fabricmc.net/v2/versions/loader/$mcVersion").build()
@@ -219,28 +276,33 @@ class ServerDownloader {
     }
 }
 
-// API response data classes
+// v3 API response data classes
 @kotlinx.serialization.Serializable
-private data class PaperBuildsResponse(
-    val builds: List<PaperBuildEntry>
+private data class PaperVersionsResponse(
+    val versions: List<PaperVersionEntry>
 )
 
 @kotlinx.serialization.Serializable
-private data class PaperBuildEntry(
-    val build: Int,
+private data class PaperVersionEntry(
+    val version: PaperVersionId
+)
+
+@kotlinx.serialization.Serializable
+private data class PaperVersionId(
+    val id: String
+)
+
+@kotlinx.serialization.Serializable
+private data class PaperBuildLatestResponse(
+    val id: Int,
     val channel: String,
-    val downloads: PaperDownloads?
+    val downloads: Map<String, PaperDownloadEntry>? = null
 )
 
 @kotlinx.serialization.Serializable
-private data class PaperDownloads(
-    val application: PaperApplication?
-)
-
-@kotlinx.serialization.Serializable
-private data class PaperApplication(
-    val name: String,
-    val sha256: String
+private data class PaperDownloadEntry(
+    val url: String,
+    val checksums: Map<String, String>? = null
 )
 
 @kotlinx.serialization.Serializable
@@ -268,6 +330,11 @@ private data class VanillaDownloads(
 @kotlinx.serialization.Serializable
 private data class VanillaServerDownload(
     val url: String
+)
+
+@kotlinx.serialization.Serializable
+private data class ForgeMetadata(
+    val promos: Map<String, String>? = null
 )
 
 @kotlinx.serialization.Serializable

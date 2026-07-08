@@ -19,10 +19,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-private val PLAYER_TABS = listOf("Online", "Whitelist", "Banned")
+private val PLAYER_TABS = listOf("Online", "Whitelist", "Operators", "Banned Players", "Banned IPs")
 
 data class WhitelistEntry(val name: String, val uuid: String)
 data class BannedPlayerEntry(val name: String, val uuid: String, val reason: String, val created: String)
+data class BannedIpEntry(val ip: String, val reason: String, val created: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +56,9 @@ fun PlayersScreen(
             when (selectedTab) {
                 0 -> OnlinePlayersTab(currentPlayers, isOnline, onCommand)
                 1 -> WhitelistTab(serverDir)
-                2 -> BannedPlayersTab(serverDir, onCommand)
+                2 -> OperatorsTab(serverDir, onCommand)
+                3 -> BannedPlayersTab(serverDir, onCommand)
+                4 -> BannedIpsTab(serverDir, onCommand)
             }
         }
     }
@@ -189,6 +192,77 @@ private fun WhitelistTab(serverDir: File?) {
 }
 
 @Composable
+private fun OperatorsTab(serverDir: File?, onCommand: (String) -> Unit) {
+    val opsFile = if (serverDir != null) File(serverDir, "ops.json") else null
+    var entries by remember(opsFile) { mutableStateOf(readOpsList(opsFile)) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newOpName by remember { mutableStateOf("") }
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Operators (${entries.size})", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                SmallFloatingActionButton(onClick = { showAddDialog = true; newOpName = "" }) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = "Add", modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        if (entries.isEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Text("No operators. Add players to grant operator privileges.", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        items(entries, key = { it.uuid }) { entry ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(entry.uuid, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = {
+                        onCommand("/deop ${entry.name}")
+                        removeFromOps(opsFile, entry.name)
+                        entries = readOpsList(opsFile)
+                    }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.RemoveCircleOutline, contentDescription = "De-op", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text("Add Operator") },
+            text = {
+                OutlinedTextField(value = newOpName, onValueChange = { newOpName = it }, label = { Text("Player name") }, singleLine = true)
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (newOpName.isNotBlank()) {
+                        onCommand("/op $newOpName")
+                        val uuid = generateOfflineUuid(newOpName)
+                        addToOps(opsFile, newOpName, uuid)
+                        entries = readOpsList(opsFile)
+                    }
+                    showAddDialog = false
+                    newOpName = ""
+                }) { Text("Add") }
+            },
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+@Composable
 private fun BannedPlayersTab(serverDir: File?, onCommand: (String) -> Unit) {
     val bannedFile = if (serverDir != null) File(serverDir, "banned-players.json") else null
     var entries by remember(bannedFile) { mutableStateOf(readBannedPlayers(bannedFile)) }
@@ -222,6 +296,47 @@ private fun BannedPlayersTab(serverDir: File?, onCommand: (String) -> Unit) {
                         onCommand("/pardon ${entry.name}")
                         removeFromBanned(bannedFile, entry.name)
                         entries = readBannedPlayers(bannedFile)
+                    }) { Text("Pardon", fontSize = 12.sp) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BannedIpsTab(serverDir: File?, onCommand: (String) -> Unit) {
+    val bannedIpsFile = if (serverDir != null) File(serverDir, "banned-ips.json") else null
+    var entries by remember(bannedIpsFile) { mutableStateOf(readBannedIps(bannedIpsFile)) }
+
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item {
+            Text("Banned IPs (${entries.size})", style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+        }
+
+        if (entries.isEmpty()) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Text("No banned IP addresses.", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        items(entries, key = { it.ip }) { entry ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(28.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(entry.ip, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (entry.reason.isNotBlank()) {
+                            Text("Reason: ${entry.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    TextButton(onClick = {
+                        onCommand("/pardon-ip ${entry.ip}")
+                        removeFromBannedIps(bannedIpsFile, entry.ip)
+                        entries = readBannedIps(bannedIpsFile)
                     }) { Text("Pardon", fontSize = 12.sp) }
                 }
             }
@@ -286,6 +401,64 @@ private fun removeFromBanned(file: File?, name: String) {
     val entries = readBannedPlayers(file).filter { !it.name.equals(name, ignoreCase = true) }
     val arr = JSONArray()
     entries.forEach { arr.put(JSONObject().apply { put("name", it.name); put("uuid", it.uuid); put("reason", it.reason); put("created", it.created) }) }
+    file.parentFile?.mkdirs()
+    file.writeText(arr.toString(2))
+}
+
+private fun readOpsList(file: File?): List<WhitelistEntry> {
+    if (file == null || !file.exists()) return emptyList()
+    return try {
+        val text = file.readText().trim()
+        if (text.isEmpty() || text == "[]") return emptyList()
+        val arr = JSONArray(text)
+        (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            WhitelistEntry(obj.optString("name", ""), obj.optString("uuid", ""))
+        }
+    } catch (e: Exception) { emptyList() }
+}
+
+private fun addToOps(file: File?, name: String, uuid: String) {
+    if (file == null) return
+    val entries = readOpsList(file).toMutableList()
+    entries.add(WhitelistEntry(name, uuid))
+    val arr = JSONArray()
+    entries.forEach { arr.put(JSONObject().apply { put("name", it.name); put("uuid", it.uuid) }) }
+    file.parentFile?.mkdirs()
+    file.writeText(arr.toString(2))
+}
+
+private fun removeFromOps(file: File?, name: String) {
+    if (file == null) return
+    val entries = readOpsList(file).filter { !it.name.equals(name, ignoreCase = true) }
+    val arr = JSONArray()
+    entries.forEach { arr.put(JSONObject().apply { put("name", it.name); put("uuid", it.uuid) }) }
+    file.parentFile?.mkdirs()
+    file.writeText(arr.toString(2))
+}
+
+private fun readBannedIps(file: File?): List<BannedIpEntry> {
+    if (file == null || !file.exists()) return emptyList()
+    return try {
+        val text = file.readText().trim()
+        if (text.isEmpty() || text == "[]") return emptyList()
+        val arr = JSONArray(text)
+        (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            BannedIpEntry(
+                obj.optString("ip", ""),
+                obj.optString("reason", ""),
+                obj.optString("created", "")
+            )
+        }
+    } catch (e: Exception) { emptyList() }
+}
+
+private fun removeFromBannedIps(file: File?, ip: String) {
+    if (file == null) return
+    val entries = readBannedIps(file).filter { !it.ip.equals(ip, ignoreCase = true) }
+    val arr = JSONArray()
+    entries.forEach { arr.put(JSONObject().apply { put("ip", it.ip); put("reason", it.reason); put("created", it.created) }) }
     file.parentFile?.mkdirs()
     file.writeText(arr.toString(2))
 }

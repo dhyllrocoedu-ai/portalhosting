@@ -145,6 +145,13 @@ fun AppNavigation(
                     onOpenPlayers = {
                         navController.navigate(Routes.PLAYER_MANAGEMENT)
                     },
+                    onOpenLogs = {
+                        navController.navigate(Routes.LOGS_VIEWER)
+                    },
+                    onOpenPerformance = {
+                        navController.navigate(Routes.PERFORMANCE_CHARTS)
+                    },
+
                     onSelectServer = { id -> appState.selectServer(id) },
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onDeleteServer = { server ->
@@ -262,6 +269,22 @@ fun AppNavigation(
                     isOnline = state.status == ServerStatus.ONLINE,
                     currentPlayers = state.players,
                     status = state.status,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.LOGS_VIEWER) {
+                val serverDir = appState.activeServer?.let { appState.repository.getServerDir(it.id) }
+                LogsViewerScreen(
+                    serverDir = serverDir,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.PERFORMANCE_CHARTS) {
+                PerformanceChartsScreen(
+                    currentStats = processStats,
+                    history = appState.performanceHistory,
                     onBack = { navController.popBackStack() }
                 )
             }
