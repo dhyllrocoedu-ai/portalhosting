@@ -16,6 +16,7 @@ import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.ServerDownloader
+import com.portalhost.app.server.providers.ServerType
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.service.MinecraftService
@@ -194,9 +195,10 @@ class AppState(
                 val mojangFile = File(serverDir, "mojang_${server.mcVersion}.jar")
                 if (!mojangFile.exists()) {
                     val downloader = ServerDownloader()
-                    val url = downloader.getVanillaDownloadUrl(server.mcVersion)
-                    if (url != null) {
-                        downloader.download(url, mojangFile, null).onFailure { e ->
+                    val vanProv = downloader.getProvider(ServerType.VANILLA)
+                    val info = vanProv.getDownloadInfo(server.mcVersion, "")
+                    if (info != null) {
+                        downloader.download(info.url, mojangFile, info.sha256).onFailure { e ->
                             android.util.Log.w("AppState", "Failed to pre-seed Mojang jar: ${e.message}")
                         }
                     }

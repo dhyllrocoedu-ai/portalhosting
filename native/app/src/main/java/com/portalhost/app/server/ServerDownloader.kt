@@ -3,29 +3,13 @@ package com.portalhost.app.server
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.portalhost.app.server.providers.*
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
-
-enum class ServerType(
-    val displayName: String,
-    val description: String
-) {
-    PAPER("Paper", "High-performance, feature-rich server software"),
-    VANILLA("Vanilla", "Official Mojang server jar"),
-    FABRIC("Fabric", "Lightweight mod loader for Minecraft"),
-    FORGE("Forge", "Popular mod loader with extensive mod support")
-}
-
-data class PaperBuild(
-    val version: String,
-    val build: Int,
-    val downloadUrl: String,
-    val sha256: String?
-)
 
 class ServerDownloader {
     private val TAG = "ServerDownloader"
@@ -42,47 +26,15 @@ class ServerDownloader {
         }
         .build()
 
-    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
-    /** Fetch available Paper versions using Fill v3 API. */
-    suspend fun getPaperVersions(): List<String> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder().url("https://fill.papermc.io/v3/projects/paper/versions").build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperVersionsResponse>(body)
-            response.versions
-                .flatMap { entry ->
-                    // Each entry has e.g. version.id = "1.21" and sub-versions in builds array
-                    val mainVersion = entry.version.id
-                    // Some versions are like "26.2-rc-2" - filter non-release
-                    if (mainVersion.matches(Regex("^\\d+(\\.\\d+)*$"))) listOf(mainVersion) else emptyList()
-                }
-                .distinct()
-                .sortedByDescending { it }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get Paper versions: ${e.message}")
-            emptyList()
-        }
+    fun getProvider(type: ServerType): ServerProvider = when (type) {
+        ServerType.PAPER -> PaperProvider(client, json)
+        ServerType.VANILLA -> VanillaProvider(client, json)
+        ServerType.FABRIC -> FabricProvider(client, json)
+        ServerType.FORGE -> ForgeProvider(client, json)
     }
 
-    /** Get the latest Paper build for a version. */
-    suspend fun getLatestPaperBuild(version: String): PaperBuild? = withContext(Dispatchers.IO) {
-        try {
-            val url = "https://fill.papermc.io/v3/projects/paper/versions/$version/builds/latest"
-            val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext null
-            val response = json.decodeFromString<PaperBuildLatestResponse>(body)
-
-            val serverDownload = response.downloads?.get("server:default") ?: return@withContext null
-            val sha256 = serverDownload.checksums?.get("sha256")
-            PaperBuild(version, response.id, serverDownload.url, sha256)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get Paper build: ${e.message}")
-            null
-        }
-    }
-
-    /** Download a server jar, optionally verifying SHA-256. */
     suspend fun download(
         url: String,
         destFile: File,
@@ -124,7 +76,6 @@ class ServerDownloader {
 
             Log.i(TAG, "Downloaded ${destFile.length()} bytes to ${destFile.absolutePath}")
 
-            // Verify SHA-256
             if (sha256 != null) {
                 val actual = sha256sum(destFile)
                 if (actual != sha256.lowercase()) {
@@ -143,123 +94,6 @@ class ServerDownloader {
         }
     }
 
-    /** Fetch available Vanilla Minecraft versions. */
-    suspend fun getVanillaVersions(): List<String> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder().url("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json").build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val manifest = json.decodeFromString<VanillaManifest>(body)
-            manifest.versions
-                .filter { it.type == "release" }
-                .map { it.id }
-                .reversed()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get Vanilla versions: ${e.message}")
-            emptyList()
-        }
-    }
-
-    /** Get download URL for a specific Vanilla version. */
-    suspend fun getVanillaDownloadUrl(version: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder().url("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json").build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext null
-            val manifest = json.decodeFromString<VanillaManifest>(body)
-            val entry = manifest.versions.find { it.id == version } ?: return@withContext null
-
-            val versionReq = Request.Builder().url(entry.url).build()
-            val versionBody = client.newCall(versionReq).execute().body?.string() ?: return@withContext null
-            val versionInfo = json.decodeFromString<VanillaVersionInfo>(versionBody)
-            versionInfo.downloads?.server?.url
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get Vanilla URL: ${e.message}")
-            null
-        }
-    }
-
-    /** Download Paper server jar: get latest build, download, verify. */
-    suspend fun downloadPaper(
-        version: String,
-        destFile: File,
-        onProgress: ((Long, Long) -> Unit)? = null
-    ): Result<File> {
-        val build = getLatestPaperBuild(version)
-            ?: return Result.failure(Exception("No Paper build found for v$version"))
-        return download(build.downloadUrl, destFile, build.sha256, onProgress)
-    }
-
-    /** Download Vanilla server jar. */
-    suspend fun downloadVanilla(
-        version: String,
-        destFile: File,
-        onProgress: ((Long, Long) -> Unit)? = null
-    ): Result<File> {
-        val url = getVanillaDownloadUrl(version)
-            ?: return Result.failure(Exception("No Vanilla download URL for v$version"))
-        return download(url, destFile, null, onProgress)
-    }
-
-    /** Download Fabric server jar (direct download from Fabric meta). */
-    suspend fun downloadFabric(
-        mcVersion: String,
-        loaderVersion: String? = null,
-        destFile: File,
-        onProgress: ((Long, Long) -> Unit)? = null
-    ): Result<File> {
-        val loader = loaderVersion ?: getLatestFabricLoader(mcVersion)
-            ?: return Result.failure(Exception("No Fabric loader found for MC $mcVersion"))
-
-        val url = "https://meta.fabricmc.net/v2/versions/loader/$mcVersion/$loader/server/jar"
-        return download(url, destFile, null, onProgress)
-    }
-
-    /** Fetch available Forge versions grouped by Minecraft version. */
-    suspend fun getForgeVersions(): Map<String, String> = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder().url("https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json").build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyMap()
-
-            // New format: {"26.2": ["26.2-65.0.0", "26.2-65.0.1", ...], ...}
-            // Fallback to old promos format if needed
-            val raw = json.decodeFromString<Map<String, List<String>>>(body)
-            val result = mutableMapOf<String, String>()
-            for ((mcVer, versions) in raw) {
-                val latest = versions.lastOrNull() ?: continue
-                // latest is like "26.2-65.0.3" — extract forge version after mcVer prefix
-                val forgeVer = latest.removePrefix("$mcVer-").ifBlank { latest }
-                result[mcVer] = forgeVer
-            }
-            result.toSortedMap(compareByDescending { it })
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get Forge versions: ${e.message}")
-            emptyMap()
-        }
-    }
-
-    /** Download Forge server jar for a given Minecraft and Forge version. */
-    suspend fun downloadForge(
-        mcVersion: String,
-        forgeVersion: String,
-        destFile: File,
-        onProgress: ((Long, Long) -> Unit)? = null
-    ): Result<File> {
-        val fullVer = "$mcVersion-$forgeVersion"
-        val url = "https://maven.minecraftforge.net/net/minecraftforge/forge/$fullVer/forge-$fullVer-universal.jar"
-        return download(url, destFile, null, onProgress)
-    }
-
-    private suspend fun getLatestFabricLoader(mcVersion: String): String? = withContext(Dispatchers.IO) {
-        try {
-            val req = Request.Builder().url("https://meta.fabricmc.net/v2/versions/loader/$mcVersion").build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext null
-            val loaders = json.decodeFromString<List<FabricLoaderEntry>>(body)
-            loaders.firstOrNull()?.loader?.version
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to get Fabric loader: ${e.message}")
-            null
-        }
-    }
-
     private fun sha256sum(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
@@ -272,74 +106,3 @@ class ServerDownloader {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 }
-
-// v3 API response data classes
-@kotlinx.serialization.Serializable
-private data class PaperVersionsResponse(
-    val versions: List<PaperVersionEntry>
-)
-
-@kotlinx.serialization.Serializable
-private data class PaperVersionEntry(
-    val version: PaperVersionId
-)
-
-@kotlinx.serialization.Serializable
-private data class PaperVersionId(
-    val id: String
-)
-
-@kotlinx.serialization.Serializable
-private data class PaperBuildLatestResponse(
-    val id: Int,
-    val channel: String,
-    val downloads: Map<String, PaperDownloadEntry>? = null
-)
-
-@kotlinx.serialization.Serializable
-private data class PaperDownloadEntry(
-    val url: String,
-    val checksums: Map<String, String>? = null
-)
-
-@kotlinx.serialization.Serializable
-private data class VanillaManifest(
-    val versions: List<VanillaVersionEntry>
-)
-
-@kotlinx.serialization.Serializable
-private data class VanillaVersionEntry(
-    val id: String,
-    val type: String,
-    val url: String
-)
-
-@kotlinx.serialization.Serializable
-private data class VanillaVersionInfo(
-    val downloads: VanillaDownloads?
-)
-
-@kotlinx.serialization.Serializable
-private data class VanillaDownloads(
-    val server: VanillaServerDownload? = null
-)
-
-@kotlinx.serialization.Serializable
-private data class VanillaServerDownload(
-    val url: String
-)
-
-@kotlinx.serialization.Serializable
-private data class ForgeMetadata(
-    val promos: Map<String, String>? = null
-)
-
-@kotlinx.serialization.Serializable
-private data class FabricLoaderEntry(
-    val loader: FabricLoader
-)
-
-@kotlinx.serialization.Serializable
-private data class FabricLoader(
-    val version: String
-)

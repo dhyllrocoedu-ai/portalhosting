@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.server.providers.BuildInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,7 +25,13 @@ fun StepChooseSource(
     availableVersions: List<String>,
     versionsLoading: Boolean,
     versionsError: String?,
+    selectedBuildId: String,
+    availableBuilds: List<BuildInfo>,
+    buildsLoading: Boolean,
+    buildsError: String?,
+    showBuildPicker: Boolean,
     onVersionChange: (String) -> Unit,
+    onBuildChange: (String) -> Unit,
     onSelectPickFile: () -> Unit,
     onSelectDownload: (CreateSource) -> Unit
 ) {
@@ -34,7 +41,6 @@ fun StepChooseSource(
         Text("Choose a server jar source — download the latest or pick your own file", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
 
-        // Download options
         DownloadOptionCard(
             icon = Icons.Default.Description,
             title = "Paper",
@@ -67,9 +73,11 @@ fun StepChooseSource(
             onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_FORGE) }
         )
 
-        // Version picker for download types
+        // Version and build pickers for download types
         if (createSource != null && createSource != CreateSource.PICK_FILE) {
             Spacer(Modifier.height(12.dp))
+
+            // Version picker
             if (versionsLoading) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -81,13 +89,34 @@ fun StepChooseSource(
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         Spacer(Modifier.width(8.dp))
-                        Text(versionsError, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(versionsError, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { onSelectDownload(createSource) }) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Retry")
+                }
             } else if (availableVersions.isEmpty()) {
-                Text("No versions available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text("No versions available. The server may not have published any releases yet.", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { onSelectDownload(createSource) }) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Refresh")
+                }
             } else if (!downloading && jarName.isBlank()) {
-                var expanded by remember { mutableStateOf(false) }
+                // Version dropdown
+                var versionExpanded by remember { mutableStateOf(false) }
                 Box {
                     OutlinedTextField(
                         value = if (mcVersion.isNotBlank()) mcVersion else "Select version",
@@ -95,24 +124,79 @@ fun StepChooseSource(
                         readOnly = true,
                         label = { Text("Minecraft Version") },
                         trailingIcon = {
-                            IconButton(onClick = { expanded = true }) {
+                            IconButton(onClick = { versionExpanded = true }) {
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = "Select version")
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    DropdownMenu(expanded = versionExpanded, onDismissRequest = { versionExpanded = false }) {
                         availableVersions.forEach { v ->
                             DropdownMenuItem(
                                 text = { Text(v) },
-                                onClick = { onVersionChange(v); expanded = false }
+                                onClick = { onVersionChange(v); versionExpanded = false }
                             )
                         }
                     }
                 }
                 if (mcVersion.isNotBlank()) {
                     Text("Selected: $mcVersion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+
+                // Build picker (for Paper, Fabric, Forge)
+                if (showBuildPicker && mcVersion.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    if (buildsLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Loading builds...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (buildsError != null) {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(buildsError, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    } else if (availableBuilds.isNotEmpty()) {
+                        var buildExpanded by remember { mutableStateOf(false) }
+                        val selectedLabel = availableBuilds.find { it.id == selectedBuildId }?.let { b ->
+                            b.label
+                        } ?: "Latest"
+
+                        Box {
+                            OutlinedTextField(
+                                value = selectedLabel,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Build") },
+                                trailingIcon = {
+                                    IconButton(onClick = { buildExpanded = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Select build")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            DropdownMenu(expanded = buildExpanded, onDismissRequest = { buildExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Latest") },
+                                    onClick = { onBuildChange(""); buildExpanded = false }
+                                )
+                                availableBuilds.take(100).forEach { b ->
+                                    DropdownMenuItem(
+                                        text = { Text(b.label) },
+                                        onClick = { onBuildChange(b.id); buildExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -161,20 +245,22 @@ fun StepChooseSource(
             }
         }
 
-        // Download error
+        // Download error with retry
         downloadError?.let { error ->
             Spacer(Modifier.height(8.dp))
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.width(8.dp))
-                    Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }
 
         // Show selection
-        if (createSource != null && !downloading && downloadError == null) {
+        if (createSource != null && !downloading && downloadError == null && jarName.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {

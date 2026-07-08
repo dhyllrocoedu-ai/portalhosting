@@ -18,13 +18,27 @@ import androidx.compose.ui.unit.dp
 import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.JarAnalyzer
 import com.portalhost.app.server.RamStatus
+import com.portalhost.app.server.ServerCache
 import com.portalhost.app.server.ServerDownloader
+import com.portalhost.app.server.providers.*
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import kotlinx.coroutines.launch
 import java.io.File
 
 enum class CreateSource { PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE }
+
+fun CreateSource.toServerType(): ServerType? = when (this) {
+    CreateSource.DOWNLOAD_PAPER -> ServerType.PAPER
+    CreateSource.DOWNLOAD_VANILLA -> ServerType.VANILLA
+    CreateSource.DOWNLOAD_FABRIC -> ServerType.FABRIC
+    CreateSource.DOWNLOAD_FORGE -> ServerType.FORGE
+    CreateSource.PICK_FILE -> null
+}
+
+fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
+    it == ServerType.PAPER || it == ServerType.FABRIC || it == ServerType.FORGE
+} ?: false
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,6 +59,10 @@ fun CreateServerScreen(
     var availableVersions by remember { mutableStateOf<List<String>>(emptyList()) }
     var versionsLoading by remember { mutableStateOf(false) }
     var versionsError by remember { mutableStateOf<String?>(null) }
+    var selectedBuildId by remember { mutableStateOf("") }
+    var availableBuilds by remember { mutableStateOf<List<BuildInfo>>(emptyList()) }
+    var buildsLoading by remember { mutableStateOf(false) }
+    var buildsError by remember { mutableStateOf<String?>(null) }
     var minRam by remember { mutableStateOf(1.0f) }
     var maxRam by remember { mutableStateOf(2.0f) }
     var port by remember { mutableStateOf("25565") }
@@ -98,48 +116,61 @@ fun CreateServerScreen(
 
     val scope = rememberCoroutineScope()
     val downloader = remember { ServerDownloader() }
+    val cache = remember { ServerCache() }
     val scrollState = rememberScrollState()
 
+    val provider: ServerProvider? = createSource?.toServerType()?.let { downloader.getProvider(it) }
+
+    // Fetch builds when version changes for types that support them
+    LaunchedEffect(mcVersion, createSource) {
+        if (mcVersion.isNotBlank() && (createSource?.supportsBuilds() == true) && provider != null) {
+            val cacheKey = "${createSource!!.name}.builds.$mcVersion"
+            val cached = cache.get<List<BuildInfo>>(cacheKey)
+            if (cached != null) {
+                availableBuilds = cached
+            } else {
+                buildsLoading = true
+                buildsError = null
+                try {
+                    val builds = provider.getBuildInfos(mcVersion)
+                    cache.set(cacheKey, builds)
+                    availableBuilds = builds
+                    if (builds.isEmpty()) {
+                        buildsError = "No builds currently available for $mcVersion.\nTry another version or refresh."
+                    }
+                } catch (e: Exception) {
+                    buildsError = "Failed to load builds: ${e.message}"
+                    availableBuilds = emptyList()
+                }
+                buildsLoading = false
+            }
+            selectedBuildId = ""
+        }
+    }
+
+    val hasValidBuildSelection = !provider?.supportsBuilds!! || selectedBuildId.isNotBlank()
     val step0Complete = createSource != null && downloadError == null && (
-        createSource == CreateSource.PICK_FILE || (mcVersion.isNotBlank() && !downloading)
+        createSource == CreateSource.PICK_FILE || (mcVersion.isNotBlank() && !downloading && hasValidBuildSelection)
     )
 
-    fun startDownload(version: String) {
+    fun startDownload(version: String, buildId: String) {
         val type = createSource ?: return
+        val prov = provider ?: return
         downloading = true
         downloadError = null
         scope.launch {
             try {
+                val info = prov.getDownloadInfo(version, buildId)
+                if (info == null) {
+                    downloadError = "No download available for $version"
+                    downloading = false
+                    return@launch
+                }
+                jarName = info.suggestedFileName
                 val destFile = File(context.cacheDir, "downloads/${type.name.lowercase()}.jar")
                 destFile.parentFile?.mkdirs()
-                val result = when (type) {
-                    CreateSource.DOWNLOAD_PAPER -> {
-                        jarName = "paper-$version.jar"
-                        downloader.downloadPaper(version, destFile) { read, total ->
-                            downloadProgress = read.toFloat() / total.toFloat()
-                        }
-                    }
-                    CreateSource.DOWNLOAD_VANILLA -> {
-                        jarName = "vanilla-$version.jar"
-                        downloader.downloadVanilla(version, destFile) { read, total ->
-                            downloadProgress = read.toFloat() / total.toFloat()
-                        }
-                    }
-                    CreateSource.DOWNLOAD_FABRIC -> {
-                        jarName = "fabric-$version-loader.jar"
-                        downloader.downloadFabric(version, null, destFile) { read, total ->
-                            downloadProgress = read.toFloat() / total.toFloat()
-                        }
-                    }
-                    CreateSource.DOWNLOAD_FORGE -> {
-                        val forgeVers = downloader.getForgeVersions()
-                        val forgeVer = forgeVers[version] ?: throw Exception("No Forge build for MC $version")
-                        jarName = "forge-$version-$forgeVer-server.jar"
-                        downloader.downloadForge(version, forgeVer, destFile) { read, total ->
-                            downloadProgress = read.toFloat() / total.toFloat()
-                        }
-                    }
-                    else -> throw Exception("Invalid download type")
+                val result = downloader.download(info.url, destFile, info.sha256) { read, total ->
+                    downloadProgress = read.toFloat() / total.toFloat()
                 }
                 if (result.isSuccess) {
                     jarTargetPath = destFile.absolutePath
@@ -204,33 +235,46 @@ fun CreateServerScreen(
                     availableVersions = availableVersions,
                     versionsLoading = versionsLoading,
                     versionsError = versionsError,
+                    selectedBuildId = selectedBuildId,
+                    availableBuilds = availableBuilds,
+                    buildsLoading = buildsLoading,
+                    buildsError = buildsError,
                     onVersionChange = { mcVersion = it },
+                    onBuildChange = { selectedBuildId = it },
+                    showBuildPicker = (createSource?.supportsBuilds() == true),
                     onSelectPickFile = { filePickerLauncher.launch(arrayOf("application/java-archive", "application/octet-stream", "*/*")) },
                     onSelectDownload = { type ->
                         createSource = type
                         mcVersion = ""
+                        selectedBuildId = ""
                         jarName = ""
                         jarTargetPath = null
                         downloadError = null
+                        availableBuilds = emptyList()
+                        buildsLoading = false
+                        buildsError = null
                         versionsLoading = true
                         versionsError = null
                         availableVersions = emptyList()
+                        val cacheKey = type.name
                         scope.launch {
-                            val (vers, err) = try {
-                                val result = when (type) {
-                                    CreateSource.DOWNLOAD_PAPER -> downloader.getPaperVersions()
-                                    CreateSource.DOWNLOAD_VANILLA -> downloader.getVanillaVersions()
-                                    CreateSource.DOWNLOAD_FABRIC -> downloader.getVanillaVersions()
-                                    CreateSource.DOWNLOAD_FORGE -> downloader.getForgeVersions().keys.toList()
-                                    else -> emptyList()
+                            val cached = cache.get<List<String>>(cacheKey)
+                            if (cached != null) {
+                                availableVersions = cached
+                                versionsLoading = false
+                            } else {
+                                val (vers, err) = try {
+                                    val prov = downloader.getProvider(type.toServerType()!!)
+                                    val result = prov.getVersions()
+                                    cache.set(cacheKey, result)
+                                    Pair(result, null)
+                                } catch (e: Exception) {
+                                    Pair(emptyList(), e.message ?: "Failed to fetch versions")
                                 }
-                                Pair(result, null)
-                            } catch (e: Exception) {
-                                Pair(emptyList(), e.message ?: "Failed to fetch versions")
+                                availableVersions = vers
+                                versionsError = err
+                                versionsLoading = false
                             }
-                            availableVersions = vers
-                            versionsError = err
-                            versionsLoading = false
                         }
                     }
                 )
@@ -266,7 +310,7 @@ fun CreateServerScreen(
                     Button(
                         onClick = {
                             if (currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath == null && mcVersion.isNotBlank()) {
-                                startDownload(mcVersion)
+                                startDownload(mcVersion, selectedBuildId)
                             } else {
                                 currentStep++
                             }
@@ -279,13 +323,18 @@ fun CreateServerScreen(
                         },
                         modifier = Modifier.weight(1f)
                     ) {
+                        val supportsBuilds = createSource?.supportsBuilds() == true
+                        val buildLabel = availableBuilds.find { it.id == selectedBuildId }?.label ?: "Latest"
                         Text(
-                            if (currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath == null && mcVersion.isNotBlank())
-                                "Download ${mcVersion} & Next"
-                            else if (currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath != null)
-                                "Ready - Next"
-                            else
-                                "Next"
+                            when {
+                                currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath == null && mcVersion.isNotBlank() && supportsBuilds ->
+                                    "Download $mcVersion build $buildLabel & Next"
+                                currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath == null && mcVersion.isNotBlank() ->
+                                    "Download $mcVersion & Next"
+                                currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath != null ->
+                                    "Ready - Next"
+                                else -> "Next"
+                            }
                         )
                     }
                 } else {
