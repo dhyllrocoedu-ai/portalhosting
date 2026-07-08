@@ -281,7 +281,9 @@ fun CreateServerScreen(
                     ) {
                         Text(
                             if (currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath == null && mcVersion.isNotBlank())
-                                "Download & Next"
+                                "Download ${mcVersion} & Next"
+                            else if (currentStep == 0 && createSource != null && createSource != CreateSource.PICK_FILE && jarTargetPath != null)
+                                "Ready - Next"
                             else
                                 "Next"
                         )

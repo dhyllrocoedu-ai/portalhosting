@@ -1,5 +1,6 @@
 package com.portalhost.app.ui.screens.create
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -87,17 +88,19 @@ fun StepChooseSource(
                 Text("No versions available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             } else if (!downloading && jarName.isBlank()) {
                 var expanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+                Box {
                     OutlinedTextField(
-                        value = mcVersion.ifBlank { "Select version" },
+                        value = if (mcVersion.isNotBlank()) mcVersion else "Select version",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Minecraft Version") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                        trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth().clickable { expanded = true },
                         singleLine = true
                     )
-                    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    // Invisible spacer to capture clicks on the whole field
+                    Box(modifier = Modifier.matchParentSize().clickable { expanded = true })
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                         availableVersions.forEach { v ->
                             DropdownMenuItem(
                                 text = { Text(v) },
@@ -105,6 +108,9 @@ fun StepChooseSource(
                             )
                         }
                     }
+                }
+                if (mcVersion.isNotBlank()) {
+                    Text("Selected: $mcVersion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
