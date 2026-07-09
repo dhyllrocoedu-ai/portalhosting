@@ -22,6 +22,7 @@ import com.portalhost.app.server.TunnelState
 import com.portalhost.app.storage.StorageStats
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.model.ServerConfig
+import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.home.*
 import java.io.File
 
@@ -60,7 +61,8 @@ fun HomeScreen(
     onSaveSecretKey: (String) -> Unit = {},
     tunnelAvailable: Boolean = true,
     serverDir: File? = null,
-    activeServer: ServerConfig? = null
+    activeServer: ServerConfig? = null,
+    repository: ServerRepository
 ) {
     val activeServer = activeServer ?: serverConfigs.find { it.id == activeServerId }
     val maxPlayers = remember(serverDir) { readMaxPlayers(serverDir) }
@@ -135,6 +137,7 @@ fun HomeScreen(
                     networkInfo = networkInfo,
                     tunnelUrl = tunnelUrl,
                     tunnelState = tunnelState,
+                    repository = repository,
                     onSelectServer = onSelectServer,
                     onCreateServer = onCreateServer,
                     onDeleteServer = onDeleteServer

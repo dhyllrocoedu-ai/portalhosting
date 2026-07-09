@@ -171,7 +171,8 @@ fun AppNavigation(
                     onSaveSecretKey = { key -> tunnelManager?.setSecretKey(key) },
                     tunnelAvailable = tunnelManager != null,
                     serverDir = activeServer?.let { appState.repository.getServerDir(it.id) },
-                    activeServer = activeServer
+                    activeServer = activeServer,
+                    repository = appState.repository
                 )
             }
 
