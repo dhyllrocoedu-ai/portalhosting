@@ -8,15 +8,19 @@ import java.io.File
 
 fun saveServerIcon(contentResolver: ContentResolver, uri: Uri, destFile: File): Boolean {
     return try {
-        contentResolver.openInputStream(uri)?.use { input ->
-            val bitmap = BitmapFactory.decodeStream(input) ?: return false
-            val resized = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
-            destFile.outputStream().use { output ->
-                resized.compress(Bitmap.CompressFormat.PNG, 100, output)
-            }
-            if (resized != bitmap) resized.recycle()
-            bitmap.recycle()
-            true
-        } ?: false
-    } catch (e: Exception) { false }
+        destFile.parentFile?.mkdirs()
+        val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return false
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return false
+        val resized = Bitmap.createScaledBitmap(bitmap, 64, 64, true)
+        destFile.outputStream().use { output ->
+            resized.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+        if (resized != bitmap) resized.recycle()
+        bitmap.recycle()
+        android.util.Log.i("ServerIcon", "Saved icon to ${destFile.absolutePath} (${destFile.length()} bytes)")
+        true
+    } catch (e: Exception) {
+        android.util.Log.e("ServerIcon", "Failed to save icon: ${e.message}", e)
+        false
+    }
 }

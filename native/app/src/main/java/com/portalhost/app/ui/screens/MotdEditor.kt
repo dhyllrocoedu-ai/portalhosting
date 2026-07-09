@@ -3,6 +3,7 @@ package com.portalhost.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,10 +20,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -47,15 +50,15 @@ private val MC_COLORS = listOf(
     'f' to Color(0xFFFFFFFF)
 )
 
-private data class FormatCode(val label: String, val code: String, val color: Color? = null)
+private data class FormatCodeDef(val label: String, val code: String)
 
 private val FORMAT_CODES = listOf(
-    FormatCode("Bold", "§l"),
-    FormatCode("Italic", "§o"),
-    FormatCode("Underline", "§n"),
-    FormatCode("Strike", "§m"),
-    FormatCode("Obfuscate", "§k"),
-    FormatCode("Reset", "§r")
+    FormatCodeDef("Bold", "§l"),
+    FormatCodeDef("Italic", "§o"),
+    FormatCodeDef("Underline", "§n"),
+    FormatCodeDef("Strike", "§m"),
+    FormatCodeDef("Obfuscated", "§k"),
+    FormatCodeDef("Reset", "§r")
 )
 
 @Composable
@@ -66,10 +69,22 @@ fun MotdEditor(
 ) {
     var showColors by remember { mutableStateOf(false) }
 
+    var tfv by remember { mutableStateOf(TextFieldValue(motd, TextRange(motd.length))) }
+
+    LaunchedEffect(motd) {
+        if (motd != tfv.text) {
+            val clamped = tfv.selection.start.coerceAtMost(motd.length)
+            tfv = TextFieldValue(motd, TextRange(clamped))
+        }
+    }
+
     Column(modifier = modifier) {
         OutlinedTextField(
-            value = motd,
-            onValueChange = onMotdChange,
+            value = tfv,
+            onValueChange = { newVal ->
+                tfv = newVal
+                onMotdChange(newVal.text)
+            },
             label = { Text("MOTD") },
             placeholder = { Text("A Minecraft Server") },
             modifier = Modifier.fillMaxWidth(),
@@ -93,21 +108,72 @@ fun MotdEditor(
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(4.dp))
-                Text(if (showColors) "Hide Colors" else "Color Codes", style = MaterialTheme.typography.labelSmall)
-            }
-            TextButton(onClick = { onMotdChange(motd + "§") }) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(2.dp))
-                Text("Add §", style = MaterialTheme.typography.labelSmall)
+                Text(if (showColors) "Hide Codes" else "Color Codes", style = MaterialTheme.typography.labelSmall)
             }
         }
 
         if (showColors) {
-            ColorCodeGrid(onInsert = { code -> onMotdChange(motd + code) })
+            val insertAtCursor: (String) -> Unit = { code ->
+                val pos = tfv.selection.start
+                val newText = tfv.text.substring(0, pos) + code + tfv.text.substring(pos)
+                val newPos = pos + code.length
+                val newTfv = TextFieldValue(newText, TextRange(newPos))
+                tfv = newTfv
+                onMotdChange(newText)
+            }
+
             Spacer(Modifier.height(4.dp))
+            Text("Colors", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MC_COLORS.forEach { (code, color) ->
+                    val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                            .border(0.5.dp, borderColor, CircleShape)
+                            .clickable { insertAtCursor("§$code") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            code.toString(),
+                            fontSize = 10.sp,
+                            color = if (code in listOf('0', '8', '4')) Color.White else Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("Formatting", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                FORMAT_CODES.forEach { fmt ->
+                    SuggestionChip(
+                        onClick = { insertAtCursor(fmt.code) },
+                        label = { Text(fmt.label, fontSize = 11.sp) }
+                    )
+                }
+            }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
         Text("Preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(4.dp))
@@ -128,55 +194,6 @@ fun MotdEditor(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ColorCodeGrid(onInsert: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Colors", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            MC_COLORS.chunked(8).forEach { row ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    row.forEach { (code, color) ->
-                        val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .border(0.5.dp, borderColor, CircleShape)
-                                .clickable { onInsert("§$code") },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                code.toString(),
-                                fontSize = 9.sp,
-                                color = if (code in listOf('0', '8', '4')) Color.White else Color.Black,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-        Text("Formatting", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            FORMAT_CODES.forEach { fmt ->
-                SuggestionChip(
-                    onClick = { onInsert(fmt.code) },
-                    label = { Text(fmt.label, fontSize = 10.sp) }
-                )
-            }
-        }
-
-        Spacer(Modifier.height(4.dp))
-        Text("Codes are inserted at the end of your MOTD text.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
