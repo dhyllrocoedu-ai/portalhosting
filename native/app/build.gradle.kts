@@ -18,8 +18,8 @@ android {
         applicationId = "com.portalhost.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 29
-        versionName = "3.19.0"
+        versionCode = 30
+        versionName = "3.20.0"
         buildConfigField("String", "VERSION_NAME", "\"$versionName\"")
         buildConfigField("int", "VERSION_CODE", "$versionCode")
     }

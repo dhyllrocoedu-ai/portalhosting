@@ -18,11 +18,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.portalhost.app.network.NetworkInfo
+import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
-import com.portalhost.app.server.TunnelState
+import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import java.io.File
@@ -43,13 +44,13 @@ fun ServerCard(
     serverConfigs: List<ServerConfig>,
     serverState: ServerState,
     statusColor: Color,
-    networkInfo: NetworkInfo,
-    tunnelUrl: String = "",
-    tunnelState: TunnelState? = null,
     repository: ServerRepository,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
-    onDeleteServer: (ServerConfig) -> Unit = {}
+    onDeleteServer: (ServerConfig) -> Unit = {},
+    onStart: () -> Unit = {},
+    onStop: () -> Unit = {},
+    onRestart: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -58,159 +59,201 @@ fun ServerCard(
         loadServerIcon(serverDir)
     }
 
-    Surface(
+    val canStart = (serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.STOPPED || serverState.status == ServerStatus.CRASHED) && activeServer != null
+    val canStop = serverState.status == ServerStatus.ONLINE
+    val canRestart = serverState.status == ServerStatus.ONLINE
+
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+        Column {
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .fillMaxHeight()
+                    .fillMaxWidth()
+                    .height(4.dp)
                     .background(statusColor)
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = !expanded }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (serverIcon != null) {
-                        Image(
-                            bitmap = serverIcon,
-                            contentDescription = "${activeServer?.name} icon",
-                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Surface(
-                            modifier = Modifier.size(48.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                    Spacer(Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                if (serverIcon != null) {
+                    Image(
+                        bitmap = serverIcon,
+                        contentDescription = "${activeServer?.name} icon",
+                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    GrassIcon(size = 64.dp)
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = activeServer?.name ?: "No Server",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
                         )
-                        if (activeServer != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = statusColor.copy(alpha = 0.15f)
+                        ) {
                             Text(
-                                text = "${activeServer.jarName} · ${activeServer.mcVersion.ifBlank { serverTypeLabel(activeServer.serverType) }} · ${serverState.status.name}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = serverState.status.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = statusColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
-                        Spacer(Modifier.height(4.dp))
-                        if (serverState.status == ServerStatus.ONLINE) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    text = if (networkInfo.localIp != "Unknown") "${networkInfo.localIp}:${activeServer?.port}" else "Local IP unknown",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Spacer(Modifier.width(4.dp))
-                                Text(text = "Server not running", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        if (tunnelUrl.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                Spacer(Modifier.width(4.dp))
-                                Text(text = tunnelUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        if (tunnelState?.tunnels?.isNotEmpty() == true) {
-                            for (tunnel in tunnelState.tunnels) {
-                                Spacer(Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(text = "${tunnel.type.uppercase()}: ${tunnel.publicAddress}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        }
-                        if (networkInfo.isCellular && serverState.status == ServerStatus.ONLINE) {
-                            Spacer(Modifier.height(2.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFFC107))
-                                Spacer(Modifier.width(4.dp))
-                                Text(text = "Mobile data — port forwarding may not work", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFC107))
-                            }
-                        }
                     }
-
-                    if (serverConfigs.isNotEmpty()) {
-                        Icon(
-                            if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                            contentDescription = "Switch server"
+                    if (activeServer != null) {
+                        Text(
+                            text = "${activeServer.jarName} ${activeServer.mcVersion}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                }
-
-                if (expanded) {
-                    HorizontalDivider()
-                    serverConfigs.forEach { config ->
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onSelectServer(config.id)
-                                    expanded = false
-                                },
-                            color = if (config.id == activeServer?.id)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surface
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(12.dp))
-                                Text(config.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        StatChip(label = "MC Version", value = activeServer?.mcVersion?.ifBlank { "Latest" } ?: "—")
+                        StatChip(label = "RAM", value = activeServer?.maxRam ?: "—")
                     }
+                }
+                if (serverConfigs.size > 1) {
+                    Icon(
+                        if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                        contentDescription = "Switch server",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ElevatedButton(
+                    onClick = onStart,
+                    enabled = canStart,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f),
+                        contentColor = Color(0xFF4CAF50),
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Start", fontWeight = FontWeight.Medium)
+                }
+                ElevatedButton(
+                    onClick = onStop,
+                    enabled = canStop,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = Color(0xFFF44336).copy(alpha = 0.15f),
+                        contentColor = Color(0xFFF44336),
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Stop", fontWeight = FontWeight.Medium)
+                }
+                ElevatedButton(
+                    onClick = onRestart,
+                    enabled = canRestart,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Restart", fontWeight = FontWeight.Medium)
+                }
+            }
+
+            if (expanded) {
+                HorizontalDivider()
+                serverConfigs.forEach { config ->
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                onDeleteServer(activeServer!!)
+                                onSelectServer(config.id)
                                 expanded = false
                             },
-                        color = MaterialTheme.colorScheme.surface
+                        color = if (config.id == activeServer?.id)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else Color.Transparent
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Text("Delete Server", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                            Text(config.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                             Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onDeleteServer(activeServer!!)
+                            expanded = false
+                        },
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Delete Server", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun StatChip(label: String, value: String) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        ) {
+            Text(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }

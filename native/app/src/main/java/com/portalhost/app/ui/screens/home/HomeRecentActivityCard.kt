@@ -18,11 +18,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun RecentActivityCard(activityLog: ActivityLog) {
+fun RecentActivityCard(activityLog: ActivityLog, modifier: Modifier = Modifier) {
     val entries = activityLog.entries.takeLast(10)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {

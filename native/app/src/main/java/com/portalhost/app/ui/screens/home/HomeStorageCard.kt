@@ -13,11 +13,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.storage.StorageStats
 
 @Composable
 fun StorageCard(storageStats: StorageStats) {
     val usedBytes = storageStats.totalBytes - storageStats.availableBytes
+    val usedFormatted = StorageInfo.formatBytes(usedBytes)
     val progress = if (storageStats.totalBytes > 0) usedBytes.toFloat() / storageStats.totalBytes.toFloat() else 0f
 
     Card(
@@ -30,11 +32,15 @@ fun StorageCard(storageStats: StorageStats) {
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                StorageMiniCard("World", storageStats.worldFormatted, Icons.Default.Public, Modifier.weight(1f))
-                StorageMiniCard("Logs", storageStats.logsFormatted, Icons.Default.Article, Modifier.weight(1f))
-                StorageMiniCard("Backups", storageStats.backupsFormatted, Icons.Default.Backup, Modifier.weight(1f))
+                Text("World", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("|", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                Text("Logs", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("|", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                Text("Backups", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("|", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
+                Text("Available", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
             }
             Spacer(Modifier.height(12.dp))
             LinearProgressIndicator(
@@ -52,10 +58,8 @@ fun StorageCard(storageStats: StorageStats) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Available", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(8.dp))
-                Text(storageStats.availableFormatted, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Spacer(Modifier.width(4.dp))
+                Text(usedFormatted, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(6.dp))
                 Text("/ ${storageStats.totalFormatted}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
