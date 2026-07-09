@@ -379,7 +379,8 @@ fun CreateServerScreen(
                                     }
                                 }
                                 if (iconUri != null) {
-                                    saveServerIcon(context.contentResolver, iconUri!!, File(serverDir, "server-icon.png"))
+                                    val iconOk = saveServerIcon(context.contentResolver, iconUri!!, File(serverDir, "server-icon.png"))
+                                    android.util.Log.i("CreateServer", "Icon saved: $iconOk to ${File(serverDir, "server-icon.png").absolutePath}")
                                 }
                                 val updated = created.copy(jarPath = targetFile.absolutePath)
                                 repository.update(updated)
