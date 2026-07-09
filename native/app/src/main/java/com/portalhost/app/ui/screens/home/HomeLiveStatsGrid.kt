@@ -57,7 +57,7 @@ fun SmallStatCard(label: String, value: String, modifier: Modifier = Modifier) {
         ) {
             Text(
                 value,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace,
                 maxLines = 1,

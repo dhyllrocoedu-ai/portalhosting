@@ -54,7 +54,7 @@ fun PlayersScreen(
             }
 
             when (selectedTab) {
-                0 -> OnlinePlayersTab(currentPlayers, isOnline, onCommand)
+                0 -> OnlinePlayersTab(currentPlayers, isOnline, onCommand, serverDir)
                 1 -> WhitelistTab(serverDir)
                 2 -> OperatorsTab(serverDir, onCommand)
                 3 -> BannedPlayersTab(serverDir, onCommand)
@@ -65,7 +65,10 @@ fun PlayersScreen(
 }
 
 @Composable
-private fun OnlinePlayersTab(players: List<String>, isOnline: Boolean, onCommand: (String) -> Unit) {
+private fun OnlinePlayersTab(players: List<String>, isOnline: Boolean, onCommand: (String) -> Unit, serverDir: File?) {
+    val opsFile = if (serverDir != null) File(serverDir, "ops.json") else null
+    val opsList = remember(opsFile) { readOpsList(opsFile).map { it.name.lowercase() }.toSet() }
+
     LazyColumn(modifier = Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         item {
             Text("Online Players (${players.size})", style = MaterialTheme.typography.titleSmall)
@@ -81,13 +84,14 @@ private fun OnlinePlayersTab(players: List<String>, isOnline: Boolean, onCommand
         }
 
         items(players, key = { it }) { player ->
-            PlayerActionCard(player = player, isOnline = isOnline, onCommand = onCommand)
+            PlayerActionCard(player = player, isOnline = isOnline, onCommand = onCommand, opsList = opsList)
         }
     }
 }
 
 @Composable
-private fun PlayerActionCard(player: String, isOnline: Boolean, onCommand: (String) -> Unit) {
+private fun PlayerActionCard(player: String, isOnline: Boolean, onCommand: (String) -> Unit, opsList: Set<String> = emptySet()) {
+    val isOp = player.lowercase() in opsList
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             MinecraftHeadIcon(player = player, size = 32.dp)
@@ -99,7 +103,11 @@ private fun PlayerActionCard(player: String, isOnline: Boolean, onCommand: (Stri
                 Spacer(Modifier.width(4.dp))
                 SmallChip("Ban", Color(0xFFF44336)) { onCommand("/ban $player") }
                 Spacer(Modifier.width(4.dp))
-                SmallChip("OP", Color(0xFF4CAF50)) { onCommand("/op $player") }
+                if (isOp) {
+                    SmallChip("De-OP", Color(0xFFFF9800)) { onCommand("/deop $player") }
+                } else {
+                    SmallChip("OP", Color(0xFF4CAF50)) { onCommand("/op $player") }
+                }
             }
         }
     }

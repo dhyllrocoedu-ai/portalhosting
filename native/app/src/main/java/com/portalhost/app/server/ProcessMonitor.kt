@@ -115,22 +115,29 @@ class ProcessMonitor {
 
     private fun measureNetworkRate(): Pair<Long, Long> {
         return try {
+            var rx: Long
+            var tx: Long
             val netFile = File("/proc/net/dev")
-            if (!netFile.exists()) return 0L to 0L
-            var rx: Long = 0
-            var tx: Long = 0
-            netFile.readLines().forEach { line ->
-                // Lines: "  eth0: 12345 0 0 0 0 0 0 0 54321 ..."
-                if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
-                    val parts = line.trim().split("\\s+".toRegex())
-                    if (parts.size >= 10) {
-                        val iface = parts[0].removeSuffix(":")
-                        // Skip loopback — we want real network traffic
-                        if (iface == "lo") return@forEach
-                        rx += parts[1].toLongOrNull() ?: 0
-                        tx += parts[9].toLongOrNull() ?: 0
+            if (netFile.exists()) {
+                var rxTotal = 0L
+                var txTotal = 0L
+                netFile.readLines().forEach { line ->
+                    if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
+                        val parts = line.trim().split("\\s+".toRegex())
+                        if (parts.size >= 10) {
+                            val iface = parts[0].removeSuffix(":")
+                            if (iface == "lo") return@forEach
+                            rxTotal += parts[1].toLongOrNull() ?: 0
+                            txTotal += parts[9].toLongOrNull() ?: 0
+                        }
                     }
                 }
+                rx = rxTotal
+                tx = txTotal
+            } else {
+                val ts = android.net.TrafficStats::class.java
+                rx = ts.getDeclaredMethod("getTotalRxBytes").invoke(null) as Long
+                tx = ts.getDeclaredMethod("getTotalTxBytes").invoke(null) as Long
             }
             val now = System.nanoTime()
             val elapsedNs = now - lastNetTime

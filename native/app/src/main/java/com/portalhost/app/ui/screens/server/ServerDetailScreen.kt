@@ -248,6 +248,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                         Text(if (iconPreview != null) "Change" else "Select")
                     }
                 }
+                Text("Recommended: 64x64 PNG — restart server to apply", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp, bottom = 8.dp))
             }
 
             Text("Server Properties", style = MaterialTheme.typography.titleSmall)

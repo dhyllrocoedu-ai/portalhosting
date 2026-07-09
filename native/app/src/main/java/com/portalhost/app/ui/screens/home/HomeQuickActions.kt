@@ -80,19 +80,20 @@ fun ActionButton(
     ElevatedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(56.dp),
+        modifier = modifier.height(64.dp),
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.elevatedButtonColors(
             containerColor = color.copy(alpha = 0.15f),
             contentColor = color,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        ),
+        contentPadding = PaddingValues(vertical = 4.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.height(4.dp))
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Icon(icon, contentDescription = label, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(2.dp))
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
     }
 }

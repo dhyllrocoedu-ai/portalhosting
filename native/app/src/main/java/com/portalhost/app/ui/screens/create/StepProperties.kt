@@ -97,6 +97,7 @@ fun StepProperties(
                     Text(if (previewBitmap != null) "Change" else "Select")
                 }
             }
+            Text("Recommended: 64x64 PNG", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp, bottom = 8.dp))
         }
         Spacer(Modifier.height(12.dp))
 
