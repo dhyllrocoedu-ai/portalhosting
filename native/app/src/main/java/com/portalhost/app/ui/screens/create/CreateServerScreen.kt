@@ -23,6 +23,7 @@ import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.providers.*
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
+import com.portalhost.app.ui.screens.saveServerIcon
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -378,10 +379,7 @@ fun CreateServerScreen(
                                     }
                                 }
                                 if (iconUri != null) {
-                                    val iconFile = File(serverDir, "server-icon.png")
-                                    context.contentResolver.openInputStream(iconUri!!)?.use { input ->
-                                        iconFile.outputStream().use { output -> input.copyTo(output) }
-                                    }
+                                    saveServerIcon(context.contentResolver, iconUri!!, File(serverDir, "server-icon.png"))
                                 }
                                 val updated = created.copy(jarPath = targetFile.absolutePath)
                                 repository.update(updated)

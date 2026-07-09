@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.ui.screens.MotdEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -135,14 +136,6 @@ fun StepProperties(
             }
         }
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = motd,
-            onValueChange = onMotdChange,
-            label = { Text("MOTD") },
-            placeholder = { Text("A Minecraft Server") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null) }
-        )
+        MotdEditor(motd = motd, onMotdChange = onMotdChange)
     }
 }

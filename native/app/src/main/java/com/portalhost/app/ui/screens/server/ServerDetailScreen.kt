@@ -35,6 +35,8 @@ import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 
 import com.portalhost.app.ui.model.ServerConfig
+import com.portalhost.app.ui.screens.MotdEditor
+import com.portalhost.app.ui.screens.saveServerIcon
 import java.io.File
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -202,9 +204,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
         if (uri != null) {
             val iconFile = File(serverDir, "server-icon.png")
             try {
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    iconFile.outputStream().use { output -> input.copyTo(output) }
-                }
+                saveServerIcon(context.contentResolver, uri, iconFile)
                 iconPreview = loadServerIconFile(serverDir)
             } catch (e: Exception) { android.util.Log.e("ServerDetail", "Failed to save icon", e) }
         }
@@ -268,7 +268,7 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                     FilterChip(selected = difficulty == diff, onClick = { difficulty = diff }, label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) })
                 }
             }
-            OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            MotdEditor(motd = motd, onMotdChange = { motd = it })
             OutlinedTextField(value = spawnProtectionText, onValueChange = { spawnProtectionText = it.filter { c -> c.isDigit() }.take(4) }, label = { Text("Spawn Protection (radius)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
 
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
