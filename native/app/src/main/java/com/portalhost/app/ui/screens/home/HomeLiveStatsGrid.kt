@@ -18,25 +18,15 @@ import com.portalhost.app.server.ServerState
 fun LiveStatsGrid(
     processStats: ProcessStats,
     serverState: ServerState,
-    maxPlayers: Int = 20,
-    onOpenPerformance: () -> Unit = {}
+    maxPlayers: Int = 20
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Performance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = onOpenPerformance, contentPadding = PaddingValues(0.dp)) {
-                    Text("View Details →")
-                }
-            }
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text("Performance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -46,8 +36,8 @@ fun LiveStatsGrid(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
                     SmallStatCard("Players", "${serverState.players.size}/$maxPlayers", Modifier.weight(1f))
-                    SmallStatCard("↓ Download", processStats.rxFormatted, Modifier.weight(1f))
-                    SmallStatCard("↑ Upload", processStats.txFormatted, Modifier.weight(1f))
+                    SmallStatCard("↓ Down", processStats.rxFormatted, Modifier.weight(1f))
+                    SmallStatCard("↑ Up", processStats.txFormatted, Modifier.weight(1f))
                 }
             }
         }

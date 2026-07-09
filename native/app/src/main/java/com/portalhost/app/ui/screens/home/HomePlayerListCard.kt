@@ -19,11 +19,10 @@ fun PlayerListCard(
     isOnline: Boolean,
     onCommand: (String) -> Unit,
     onOpenPlayers: () -> Unit,
-    maxPlayers: Int = 20,
-    modifier: Modifier = Modifier
+    maxPlayers: Int = 20
 ) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {

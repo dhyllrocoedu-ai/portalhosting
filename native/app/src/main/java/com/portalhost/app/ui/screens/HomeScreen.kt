@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.server.ProcessStats
@@ -61,10 +62,7 @@ fun HomeScreen(
     tunnelAvailable: Boolean = true,
     serverDir: File? = null,
     activeServer: ServerConfig? = null,
-    repository: ServerRepository,
-    onPlugins: () -> Unit = {},
-    onBackups: () -> Unit = {},
-    onWorlds: () -> Unit = {}
+    repository: ServerRepository
 ) {
     val activeServer = activeServer ?: serverConfigs.find { it.id == activeServerId }
     val maxPlayers = remember(serverDir) { readMaxPlayers(serverDir) }
@@ -80,33 +78,14 @@ fun HomeScreen(
         }, label = "statusColor"
     )
 
-    var showMenu by remember { mutableStateOf(false) }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            GrassIcon(size = 24.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text("PortalHost", fontWeight = FontWeight.Bold)
-                        }
-                        Text("Host. Manage. Play.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
-                    }
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                            DropdownMenuItem(text = { Text("Settings") }, onClick = { showMenu = false })
-                            DropdownMenuItem(text = { Text("About") }, onClick = { showMenu = false })
-                        }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GrassIcon(size = 24.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("PortalHost", fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -149,145 +128,141 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+            item {
+                ServerCard(
+                    activeServer = activeServer,
+                    serverConfigs = serverConfigs,
+                    serverState = serverState,
+                    statusColor = statusColor,
+                    networkInfo = networkInfo,
+                    tunnelUrl = tunnelUrl,
+                    tunnelState = tunnelState,
+                    repository = repository,
+                    onSelectServer = onSelectServer,
+                    onCreateServer = onCreateServer,
+                    onDeleteServer = onDeleteServer
+                )
+            }
+
+            if (jdkInstalling) {
                 item {
-                    ServerCard(
-                        activeServer = activeServer,
-                        serverConfigs = serverConfigs,
-                        serverState = serverState,
-                        statusColor = statusColor,
-                        networkInfo = networkInfo,
-                        tunnelUrl = tunnelUrl,
-                        tunnelState = tunnelState,
-                        repository = repository,
-                        onSelectServer = onSelectServer,
-                        onCreateServer = onCreateServer,
-                        onDeleteServer = onDeleteServer,
-                        onStart = onStart,
-                        onStop = onStop,
-                        onRestart = onRestart
-                    )
-                }
-
-                if (jdkInstalling) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                    Spacer(Modifier.width(12.dp))
-                                    Text("Installing Java runtime...")
-                                }
-                                if (jdkProgress > 0f) {
-                                    Spacer(Modifier.height(8.dp))
-                                    LinearProgressIndicator(
-                                        progress = { jdkProgress },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else if (!jdkInstalled) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                        ) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                Spacer(Modifier.width(12.dp))
-                                Text("Java runtime not installed. Restart app to retry.")
-                            }
-                        }
-                    }
-                }
-
-                serverState.error?.let { error ->
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                        ) {
-                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                Spacer(Modifier.width(8.dp))
-                                Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    QuickActionsGrid(
-                        onFiles = onOpenFiles,
-                        onLogs = onOpenLogs,
-                        onPlayers = onOpenPlayers,
-                        onPerformance = onOpenPerformance,
-                        onTunnel = onTunnelStart,
-                        onPlugins = onPlugins,
-                        onBackups = onBackups,
-                        onWorlds = onWorlds
-                    )
-                }
-
-                if (tunnelAvailable) {
-                    item {
-                        TunnelCard(
-                            tunnelState = tunnelState,
-                            onStart = onTunnelStart,
-                            onStop = onTunnelStop,
-                            onReset = onTunnelReset,
-                            onSaveSecretKey = onSaveSecretKey
-                        )
-                    }
-                }
-
-                item {
-                    LiveStatsGrid(
-                        processStats = processStats,
-                        serverState = serverState,
-                        maxPlayers = maxPlayers,
-                        onOpenPerformance = onOpenPerformance
-                    )
-                }
-
-                item {
-                    ConsolePreview(
-                        consoleLines = consoleLines,
-                        onOpenConsole = onOpenConsole,
-                        onCommand = onCommand,
-                        onClearConsole = onClearConsole,
-                        isOnline = serverState.status == ServerStatus.ONLINE
-                    )
-                }
-
-                item {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        PlayerListCard(
-                            players = serverState.players,
-                            isOnline = serverState.status == ServerStatus.ONLINE,
-                            onCommand = onCommand,
-                            onOpenPlayers = onOpenPlayers,
-                            maxPlayers = maxPlayers,
-                            modifier = Modifier.weight(1f)
-                        )
-                        RecentActivityCard(
-                            activityLog = activityLog,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Installing Java runtime...")
+                            }
+                            if (jdkProgress > 0f) {
+                                Spacer(Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { jdkProgress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
                     }
                 }
-
+            } else if (!jdkInstalled) {
                 item {
-                    StorageCard(storageStats = storageStats)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Java runtime not installed. Restart app to retry.")
+                        }
+                    }
                 }
+            }
+
+            serverState.error?.let { error ->
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(8.dp))
+                            Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
+            item {
+                QuickActions(
+                    serverState = serverState,
+                    activeServer = activeServer,
+                    onStart = onStart,
+                    onStop = onStop,
+                    onRestart = onRestart
+                )
+            }
+
+            if (tunnelAvailable) {
+                item {
+                    TunnelCard(
+                        tunnelState = tunnelState,
+                        onStart = onTunnelStart,
+                        onStop = onTunnelStop,
+                        onReset = onTunnelReset,
+                        onSaveSecretKey = onSaveSecretKey
+                    )
+                }
+            }
+
+            item {
+                LiveStatsGrid(
+                    processStats = processStats,
+                    serverState = serverState,
+                    maxPlayers = maxPlayers
+                )
+            }
+
+            item {
+                ConsolePreview(
+                    consoleLines = consoleLines,
+                    onOpenConsole = onOpenConsole,
+                    onCommand = onCommand,
+                    onClearConsole = onClearConsole,
+                    isOnline = serverState.status == ServerStatus.ONLINE
+                )
+            }
+
+            item {
+                PlayerListCard(
+                    players = serverState.players,
+                    isOnline = serverState.status == ServerStatus.ONLINE,
+                    onCommand = onCommand,
+                    onOpenPlayers = onOpenPlayers,
+                    maxPlayers = maxPlayers
+                )
+            }
+
+            item {
+                RecentActivityCard(activityLog = activityLog)
+            }
+
+            item {
+                StorageCard(storageStats = storageStats)
+            }
+
+            item {
+                ShortcutGrid(
+                    onFiles = onOpenFiles,
+                    onLogs = onOpenLogs,
+                    onPerformance = onOpenPerformance,
+                    onPlayers = onOpenPlayers
+                )
             }
         }
     }
+}
 }
