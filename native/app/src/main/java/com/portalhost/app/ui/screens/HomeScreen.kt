@@ -92,12 +92,12 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        val bottomPadding = innerPadding.calculateBottomPadding()
+        val topPadding = maxOf(innerPadding.calculateTopPadding(), innerPadding.calculateBottomPadding())
         val contentPadding = PaddingValues(
-            top = 8.dp,
+            top = topPadding,
             start = 12.dp,
             end = 12.dp,
-            bottom = bottomPadding + 8.dp
+            bottom = topPadding + 8.dp
         )
 
         if (serverConfigs.isEmpty()) {

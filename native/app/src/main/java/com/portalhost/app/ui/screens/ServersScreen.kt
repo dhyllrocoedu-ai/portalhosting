@@ -2,8 +2,8 @@ package com.portalhost.app.ui.screens
 
 import android.graphics.BitmapFactory
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -73,12 +73,12 @@ fun ServersScreen(
             }
         }
     ) { innerPadding ->
-        val bottomPadding = innerPadding.calculateBottomPadding()
+        val topPadding = maxOf(innerPadding.calculateTopPadding(), innerPadding.calculateBottomPadding())
         val contentPadding = PaddingValues(
-            top = 8.dp,
+            top = topPadding,
             start = 16.dp,
             end = 16.dp,
-            bottom = bottomPadding
+            bottom = topPadding
         )
 
         if (servers.isEmpty()) {
