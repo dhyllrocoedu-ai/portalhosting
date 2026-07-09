@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.server.ProcessStats
@@ -90,12 +91,20 @@ fun HomeScreen(
                 )
             )
         }
-    ) { padding ->
+    ) { innerPadding ->
+        val bottomPadding = innerPadding.calculateBottomPadding()
+        val contentPadding = PaddingValues(
+            top = 8.dp,
+            start = 12.dp,
+            end = 12.dp,
+            bottom = bottomPadding + 8.dp
+        )
+
         if (serverConfigs.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(contentPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -120,8 +129,7 @@ fun HomeScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 12.dp),
+                    .padding(contentPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {

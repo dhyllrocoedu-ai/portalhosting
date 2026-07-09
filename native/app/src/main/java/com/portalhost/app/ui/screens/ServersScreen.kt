@@ -72,10 +72,18 @@ fun ServersScreen(
                 Icon(Icons.Default.Add, contentDescription = "Create Server")
             }
         }
-    ) { padding ->
+    ) { innerPadding ->
+        val bottomPadding = innerPadding.calculateBottomPadding()
+        val contentPadding = PaddingValues(
+            top = 8.dp,
+            start = 16.dp,
+            end = 16.dp,
+            bottom = bottomPadding
+        )
+
         if (servers.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize().padding(contentPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -88,7 +96,7 @@ fun ServersScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(contentPadding),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(servers, key = { it.id }) { server ->

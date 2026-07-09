@@ -64,8 +64,9 @@ fun ServerDetailScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+    ) { innerPadding ->
+        val bottomPadding = innerPadding.calculateBottomPadding()
+        Column(modifier = Modifier.fillMaxSize().padding(PaddingValues(bottom = bottomPadding))) {
             ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp, modifier = Modifier.padding(vertical = 0.dp)) {
                 ALL_TABS.forEachIndexed { index, label ->
                     Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })
