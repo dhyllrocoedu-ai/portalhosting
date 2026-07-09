@@ -92,19 +92,11 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        val topPadding = maxOf(innerPadding.calculateTopPadding(), innerPadding.calculateBottomPadding())
-        val contentPadding = PaddingValues(
-            top = topPadding,
-            start = 12.dp,
-            end = 12.dp,
-            bottom = topPadding + 8.dp
-        )
-
         if (serverConfigs.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(contentPadding),
+                    .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -129,7 +121,8 @@ fun HomeScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(contentPadding),
+                    .padding(innerPadding)
+                    .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {

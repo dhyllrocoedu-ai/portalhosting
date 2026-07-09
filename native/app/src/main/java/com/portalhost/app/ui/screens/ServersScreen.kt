@@ -73,12 +73,11 @@ fun ServersScreen(
             }
         }
     ) { innerPadding ->
-        val topPadding = maxOf(innerPadding.calculateTopPadding(), innerPadding.calculateBottomPadding())
         val contentPadding = PaddingValues(
-            top = topPadding,
+            top = innerPadding.calculateTopPadding(),
             start = 16.dp,
             end = 16.dp,
-            bottom = topPadding
+            bottom = innerPadding.calculateBottomPadding()
         )
 
         if (servers.isEmpty()) {

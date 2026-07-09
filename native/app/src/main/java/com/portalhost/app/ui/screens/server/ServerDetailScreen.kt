@@ -65,12 +65,7 @@ fun ServerDetailScreen(
             )
         }
     ) { innerPadding ->
-        val topPadding = if (innerPadding.calculateTopPadding() > innerPadding.calculateBottomPadding()) {
-            innerPadding.calculateTopPadding()
-        } else {
-            innerPadding.calculateBottomPadding()
-        }
-        Column(modifier = Modifier.fillMaxSize().padding(PaddingValues(top = topPadding, bottom = topPadding))) {
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp, modifier = Modifier.padding(vertical = 0.dp)) {
                 ALL_TABS.forEachIndexed { index, label ->
                     Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })

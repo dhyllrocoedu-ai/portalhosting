@@ -53,13 +53,8 @@ fun SettingsScreen(
             )
         }
     ) { innerPadding ->
-        val topPadding = if (innerPadding.calculateTopPadding() > innerPadding.calculateBottomPadding()) {
-            innerPadding.calculateTopPadding()
-        } else {
-            innerPadding.calculateBottomPadding()
-        }
         Column(
-            modifier = Modifier.fillMaxSize().padding(PaddingValues(top = topPadding, bottom = topPadding)).padding(16.dp).verticalScroll(rememberScrollState()),
+            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Appearance
