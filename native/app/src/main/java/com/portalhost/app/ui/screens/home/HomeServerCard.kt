@@ -20,9 +20,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.server.TunnelState
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
@@ -44,6 +45,9 @@ fun ServerCard(
     serverConfigs: List<ServerConfig>,
     serverState: ServerState,
     statusColor: Color,
+    networkInfo: NetworkInfo,
+    tunnelUrl: String = "",
+    tunnelState: TunnelState? = null,
     repository: ServerRepository,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
@@ -62,6 +66,9 @@ fun ServerCard(
     val canStart = (serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.STOPPED || serverState.status == ServerStatus.CRASHED) && activeServer != null
     val canStop = serverState.status == ServerStatus.ONLINE
     val canRestart = serverState.status == ServerStatus.ONLINE
+
+    val tunnelAddress = tunnelState?.tunnels?.firstOrNull()?.publicAddress
+    val displayAddress = tunnelAddress?.takeIf { it.isNotBlank() } ?: tunnelUrl.takeIf { it.isNotBlank() }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -107,10 +114,10 @@ fun ServerCard(
                         ) {
                             Text(
                                 text = serverState.status.name,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = statusColor,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
                     }
@@ -124,9 +131,46 @@ fun ServerCard(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        StatChip(label = "MC Version", value = activeServer?.mcVersion?.ifBlank { "Latest" } ?: "—")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        StatChip(label = "MC", value = activeServer?.mcVersion?.ifBlank { "Latest" } ?: "—")
                         StatChip(label = "RAM", value = activeServer?.maxRam ?: "—")
+                        StatChip(label = "Port", value = activeServer?.port?.toString() ?: "—")
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    if (serverState.status == ServerStatus.ONLINE) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "${networkInfo.localIp}:${activeServer?.port}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (displayAddress != null) {
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = displayAddress,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (networkInfo.isCellular && serverState.status == ServerStatus.ONLINE) {
+                        Spacer(Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFFC107))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Mobile data — port forwarding may not work", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFC107))
+                        }
                     }
                 }
                 if (serverConfigs.size > 1) {
@@ -147,7 +191,7 @@ fun ServerCard(
                 ElevatedButton(
                     onClick = onStart,
                     enabled = canStart,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.elevatedButtonColors(
                         containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f),
@@ -156,14 +200,14 @@ fun ServerCard(
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Start", fontWeight = FontWeight.Medium)
                 }
                 ElevatedButton(
                     onClick = onStop,
                     enabled = canStop,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.elevatedButtonColors(
                         containerColor = Color(0xFFF44336).copy(alpha = 0.15f),
@@ -172,14 +216,14 @@ fun ServerCard(
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
-                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Stop", fontWeight = FontWeight.Medium)
                 }
                 ElevatedButton(
                     onClick = onRestart,
                     enabled = canRestart,
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier.weight(1f).height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.elevatedButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
@@ -188,7 +232,7 @@ fun ServerCard(
                         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 ) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Restart", fontWeight = FontWeight.Medium)
                 }
@@ -250,9 +294,9 @@ private fun StatChip(label: String, value: String) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
-            Text(value, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 1)
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
