@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.portalhost.app.activity.ActivityEntry
 import com.portalhost.app.activity.ActivityLog
@@ -18,18 +19,27 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun RecentActivityCard(activityLog: ActivityLog) {
+fun ActivityCard(activityLog: ActivityLog) {
     val entries = activityLog.entries.takeLast(10)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Recent Activity", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {}) {
+                    Text("View All", style = MaterialTheme.typography.labelSmall)
+                }
+            }
             if (entries.isEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 Text("No recent activity", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 Spacer(Modifier.height(8.dp))
@@ -48,9 +58,7 @@ fun RecentActivityCard(activityLog: ActivityLog) {
 fun ActivityRow(entry: ActivityEntry) {
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val icon = when (entry.type) {

@@ -2,7 +2,9 @@ package com.portalhost.app.ui.screens
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -12,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.server.ProcessStats
@@ -26,7 +27,7 @@ import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.home.*
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     serverConfigs: List<ServerConfig>,
@@ -78,76 +79,77 @@ fun HomeScreen(
         }, label = "statusColor"
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GrassIcon(size = 24.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("PortalHost", fontWeight = FontWeight.Bold)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp)
+    ) {
+        // ─── Header ────────────────────────────────────────
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            GrassIcon(size = 28.dp)
+            Spacer(Modifier.width(10.dp))
+            Text("PortalHost", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = {}) {
+                Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+            }
+            IconButton(onClick = {}) {
+                Icon(Icons.Default.MoreVert, contentDescription = "More")
+            }
         }
-    ) { innerPadding ->
-        if (serverConfigs.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    GrassIcon(size = 64.dp)
-                    Spacer(Modifier.height(16.dp))
-                    Text("No servers yet", style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Create your first Minecraft server",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Button(onClick = onCreateServer) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Create Server")
+
+        // ─── Scrollable Content ────────────────────────────
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (serverConfigs.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        GrassIcon(size = 64.dp)
+                        Spacer(Modifier.height(16.dp))
+                        Text("No servers yet", style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Create your first Minecraft server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(24.dp))
+                        Button(onClick = onCreateServer) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Create Server")
+                        }
                     }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-            item {
+            } else {
+                // Server Overview Card (with controls integrated)
                 ServerCard(
                     activeServer = activeServer,
                     serverConfigs = serverConfigs,
                     serverState = serverState,
                     statusColor = statusColor,
-                    networkInfo = networkInfo,
-                    tunnelUrl = tunnelUrl,
-                    tunnelState = tunnelState,
                     repository = repository,
                     onSelectServer = onSelectServer,
                     onCreateServer = onCreateServer,
-                    onDeleteServer = onDeleteServer
+                    onDeleteServer = onDeleteServer,
+                    onStart = onStart,
+                    onStop = onStop,
+                    onRestart = onRestart
                 )
-            }
 
-            if (jdkInstalling) {
-                item {
+                // JDK install progress
+                if (jdkInstalling) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
@@ -158,16 +160,11 @@ fun HomeScreen(
                             }
                             if (jdkProgress > 0f) {
                                 Spacer(Modifier.height(8.dp))
-                                LinearProgressIndicator(
-                                    progress = { jdkProgress },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                LinearProgressIndicator(progress = { jdkProgress }, modifier = Modifier.fillMaxWidth())
                             }
                         }
                     }
-                }
-            } else if (!jdkInstalled) {
-                item {
+                } else if (!jdkInstalled) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -179,10 +176,9 @@ fun HomeScreen(
                         }
                     }
                 }
-            }
 
-            serverState.error?.let { error ->
-                item {
+                // Error banner
+                serverState.error?.let { error ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
@@ -194,75 +190,38 @@ fun HomeScreen(
                         }
                     }
                 }
-            }
 
-            item {
-                QuickActions(
-                    serverState = serverState,
-                    activeServer = activeServer,
-                    onStart = onStart,
-                    onStop = onStop,
-                    onRestart = onRestart
-                )
-            }
-
-            if (tunnelAvailable) {
-                item {
+                // Tunnel
+                if (tunnelAvailable) {
                     TunnelCard(
                         tunnelState = tunnelState,
                         onStart = onTunnelStart,
-                        onStop = onTunnelStop,
-                        onReset = onTunnelReset,
-                        onSaveSecretKey = onSaveSecretKey
+                        onStop = onTunnelStop
                     )
                 }
-            }
 
-            item {
-                LiveStatsGrid(
+                // Performance
+                PerformanceCard(
                     processStats = processStats,
                     serverState = serverState,
-                    maxPlayers = maxPlayers
+                    maxPlayers = maxPlayers,
+                    onOpenPerformance = onOpenPerformance
                 )
-            }
 
-            item {
-                ConsolePreview(
+                // Console
+                ConsoleCard(
                     consoleLines = consoleLines,
                     onOpenConsole = onOpenConsole,
                     onCommand = onCommand,
                     onClearConsole = onClearConsole,
                     isOnline = serverState.status == ServerStatus.ONLINE
                 )
-            }
 
-            item {
-                PlayerListCard(
-                    players = serverState.players,
-                    isOnline = serverState.status == ServerStatus.ONLINE,
-                    onCommand = onCommand,
-                    onOpenPlayers = onOpenPlayers,
-                    maxPlayers = maxPlayers
-                )
-            }
+                // Activity
+                ActivityCard(activityLog = activityLog)
 
-            item {
-                RecentActivityCard(activityLog = activityLog)
-            }
-
-            item {
-                StorageCard(storageStats = storageStats)
-            }
-
-            item {
-                ShortcutGrid(
-                    onFiles = onOpenFiles,
-                    onLogs = onOpenLogs,
-                    onPerformance = onOpenPerformance,
-                    onPlayers = onOpenPlayers
-                )
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
-}
 }

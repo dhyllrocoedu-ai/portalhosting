@@ -14,12 +14,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.ui.screens.consoleLineColor
 
 @Composable
-fun ConsolePreview(
+fun ConsoleCard(
     consoleLines: List<String>,
     onOpenConsole: () -> Unit,
     onCommand: (String) -> Unit,
@@ -30,37 +31,33 @@ fun ConsolePreview(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Console", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = onClearConsole,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear console", modifier = Modifier.size(18.dp))
-                        }
-                        TextButton(onClick = onOpenConsole) {
-                            Text("Open Console →")
-                        }
-                    }
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onClearConsole, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Clear", modifier = Modifier.size(18.dp))
                 }
+                TextButton(onClick = onOpenConsole) {
+                    Text("Open Console", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
 
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(100.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF0D0D0D))
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center
+                    .padding(8.dp)
             ) {
                 if (consoleLines.isEmpty()) {
                     Text(
@@ -71,7 +68,7 @@ fun ConsolePreview(
                     )
                 } else {
                     LazyColumn {
-                        items(consoleLines.takeLast(5)) { line ->
+                        items(consoleLines.takeLast(6)) { line ->
                             Text(
                                 text = line,
                                 color = consoleLineColor(line),
@@ -86,10 +83,7 @@ fun ConsolePreview(
 
             if (isOnline) {
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = commandInput,
                         onValueChange = { commandInput = it },
@@ -99,14 +93,12 @@ fun ConsolePreview(
                         textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            if (commandInput.isNotBlank()) {
-                                onCommand(commandInput)
-                                commandInput = ""
-                            }
+                    IconButton(onClick = {
+                        if (commandInput.isNotBlank()) {
+                            onCommand(commandInput)
+                            commandInput = ""
                         }
-                    ) {
+                    }) {
                         Icon(Icons.Default.Send, contentDescription = "Send")
                     }
                 }
