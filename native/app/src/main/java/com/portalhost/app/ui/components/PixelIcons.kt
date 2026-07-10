@@ -249,6 +249,118 @@ fun MinecraftHeadIcon(player: String, modifier: Modifier = Modifier, size: Dp = 
     PixelArt(modifier = modifier, size = size, pixels = variant.pixels, colors = variant.colors)
 }
 
+// ── Server Type Icons ─────────────────────────────────
+private val PaperWhite = Color(0xFFF5F5F5)
+private val PaperLine = Color(0xFFB0B0B0)
+private val FabricLight = Color(0xFFD4A8E0)
+private val FabricDark = Color(0xFF9C5CB0)
+private val ForgeMetal = Color(0xFFD4C4A0)
+private val ForgeDark = Color(0xFF8B7A5A)
+private val PurpurLight = Color(0xFFC084FC)
+private val PurpurDark = Color(0xFF7C3AED)
+private val FoliageGreen = Color(0xFF4CAF50)
+private val FoliageDark = Color(0xFF2E7D32)
+private val VanillaWhite = Color(0xFFFFF8E1)
+private val VanillaYellow = Color(0xFFFFD54F)
+
+@Composable
+fun PaperIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 0, 1, 1, 1, 1, 0, 0),
+        listOf(0, 1, 1, 1, 1, 1, 1, 0),
+        listOf(0, 1, 2, 0, 0, 0, 1, 0),
+        listOf(0, 1, 0, 2, 0, 0, 1, 0),
+        listOf(0, 1, 0, 0, 2, 0, 1, 0),
+        listOf(0, 1, 0, 0, 0, 2, 1, 0),
+        listOf(0, 1, 1, 1, 1, 1, 1, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to PaperWhite, 2 to PaperLine))
+}
+
+@Composable
+fun FabricIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 1, 0, 1, 0, 1, 0, 0),
+        listOf(1, 0, 1, 0, 1, 0, 1, 0),
+        listOf(0, 1, 0, 1, 0, 1, 0, 0),
+        listOf(1, 0, 1, 0, 1, 0, 1, 0),
+        listOf(0, 1, 0, 1, 0, 1, 0, 0),
+        listOf(1, 0, 1, 0, 1, 0, 1, 0),
+        listOf(0, 1, 0, 1, 0, 1, 0, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to FabricLight))
+}
+
+@Composable
+fun ForgeIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 1, 1, 1, 1, 0, 0),
+        listOf(0, 1, 1, 1, 1, 1, 1, 0),
+        listOf(0, 1, 2, 2, 2, 2, 1, 0),
+        listOf(0, 0, 1, 1, 1, 1, 0, 0),
+        listOf(0, 0, 1, 1, 1, 1, 0, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to ForgeMetal, 2 to ForgeDark))
+}
+
+@Composable
+fun NeoForgeIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+        listOf(0, 0, 0, 1, 1, 1, 0, 0),
+        listOf(0, 0, 1, 0, 0, 1, 0, 0),
+        listOf(0, 1, 1, 1, 1, 1, 1, 0),
+        listOf(0, 1, 1, 1, 1, 1, 1, 0),
+        listOf(0, 0, 1, 1, 1, 1, 0, 0),
+        listOf(0, 0, 1, 1, 1, 1, 0, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to ForgeMetal, 2 to ForgeDark))
+}
+
+@Composable
+fun PurpurIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 1, 2, 2, 1, 0, 0),
+        listOf(0, 1, 2, 2, 2, 2, 1, 0),
+        listOf(0, 1, 0, 1, 1, 0, 1, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to PurpurLight, 2 to PurpurDark))
+}
+
+@Composable
+fun FoliaIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 1, 2, 2, 1, 0, 0),
+        listOf(0, 1, 2, 2, 2, 2, 1, 0),
+        listOf(0, 1, 2, 2, 2, 2, 1, 0),
+        listOf(0, 0, 1, 2, 1, 1, 0, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to FoliageGreen, 2 to FoliageDark))
+}
+
+@Composable
+fun VanillaIcon(modifier: Modifier = Modifier, size: Dp = 24.dp) {
+    PixelArt(modifier = modifier, size = size, pixels = listOf(
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+        listOf(0, 0, 0, 1, 1, 0, 0, 0),
+        listOf(0, 0, 2, 2, 2, 2, 0, 0),
+        listOf(0, 0, 0, 2, 2, 0, 0, 0),
+        listOf(0, 2, 2, 2, 2, 2, 2, 0),
+        listOf(0, 0, 0, 2, 2, 0, 0, 0),
+        listOf(0, 0, 0, 2, 2, 0, 0, 0),
+        listOf(0, 0, 0, 0, 0, 0, 0, 0),
+    ), colors = mapOf(0 to Color.Transparent, 1 to VanillaWhite, 2 to VanillaYellow))
+}
+
 // Generic 8x8 pixel art renderer
 @Composable
 private fun PixelArt(

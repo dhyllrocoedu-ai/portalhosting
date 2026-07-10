@@ -6,7 +6,11 @@ fun serverTypeLabel(type: String): String = when (type) {
     "paper" -> "Paper"
     "vanilla" -> "Vanilla"
     "fabric" -> "Fabric"
-    else -> ""
+    "forge" -> "Forge"
+    "neoforge" -> "NeoForge"
+    "purpur" -> "Purpur"
+    "folia" -> "Folia"
+    else -> type.replaceFirstChar { it.uppercase() }
 }
 
 fun formatRelativeTime(seconds: Long): String {

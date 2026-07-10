@@ -1,9 +1,11 @@
 package com.portalhost.app
 
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -47,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         javaRuntimeManager = JavaRuntimeManager(this)
         consoleStreamer = ConsoleStreamer()
@@ -75,7 +78,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var darkTheme by remember { mutableStateOf(true) }
-            PortalHostTheme(darkTheme = darkTheme) {
+            var useDynamicColors by remember { mutableStateOf(true) }
+            PortalHostTheme(
+                darkTheme = darkTheme,
+                dynamicColor = useDynamicColors
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -90,7 +97,9 @@ class MainActivity : ComponentActivity() {
                         networkManager = networkManager,
                         storageInfo = storageInfo,
                         darkTheme = darkTheme,
-                        onToggleTheme = { darkTheme = !darkTheme }
+                        onToggleTheme = { darkTheme = !darkTheme },
+                        useDynamicColors = useDynamicColors,
+                        onToggleDynamicColors = { useDynamicColors = !useDynamicColors }
                     )
                 }
             }
@@ -115,7 +124,9 @@ private fun AppEntry(
     networkManager: NetworkManager,
     storageInfo: StorageInfo,
     darkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    useDynamicColors: Boolean = true,
+    onToggleDynamicColors: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -208,6 +219,8 @@ private fun AppEntry(
         storageInfo = storageInfo,
         darkTheme = darkTheme,
         onToggleTheme = onToggleTheme,
+        useDynamicColors = useDynamicColors,
+        onToggleDynamicColors = onToggleDynamicColors,
         tunnelUrl = tunnelUrl,
         onTunnelUrlChange = onTunnelUrlChange
     )

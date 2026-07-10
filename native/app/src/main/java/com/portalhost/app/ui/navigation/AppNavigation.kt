@@ -31,6 +31,37 @@ import com.portalhost.app.ui.screens.server.ServerDetailScreen
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+
+private fun File.zipTo(target: File) {
+    val zipOut = ZipOutputStream(FileOutputStream(target))
+    try {
+        val sourcePath = toPath()
+        filesInDir().forEach { file ->
+            val relative = sourcePath.relativize(file.toPath()).toString().replace("\\", "/")
+            zipOut.putNextEntry(ZipEntry(if (file.isDirectory) "$relative/" else relative))
+            if (!file.isDirectory) file.inputStream().use { it.copyTo(zipOut) }
+            zipOut.closeEntry()
+        }
+    } finally {
+        zipOut.close()
+    }
+}
+
+private fun File.filesInDir(): List<File> {
+    val result = mutableListOf<File>()
+    val queue = ArrayDeque(listOf(this))
+    while (queue.isNotEmpty()) {
+        val current = queue.removeFirst()
+        result.add(current)
+        val children = current.listFiles()
+        if (children != null) queue.addAll(children.toList())
+    }
+    return result
+}
 
 @Composable
 fun AppNavigation(
@@ -81,7 +112,11 @@ fun AppNavigation(
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
+                NavigationBar(
+                    tonalElevation = 8.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
                     tabs.forEach { tab ->
                         val selected = currentDestination?.hierarchy?.any { it.route == tab.route } == true
                         NavigationBarItem(
@@ -187,6 +222,32 @@ fun AppNavigation(
                             scope.launch { appState.serverManager.stop() }
                         }
                         appState.deleteServer(server)
+                    },
+                    onRenameServer = { server -> appState.updateServer(server) },
+                    onDuplicateServer = { server ->
+                        val newId = java.util.UUID.randomUUID().toString()
+                        val dir = appState.repository.getServerDir(server.id)
+                        val newDir = appState.repository.getServerDir(newId)
+                        if (dir.exists()) dir.copyRecursively(newDir, overwrite = true)
+                        val dup = server.copy(id = newId, name = "${server.name} Copy")
+                        appState.repository.save(dup)
+                        appState.refreshServers()
+                    },
+                    onBackupServer = { server ->
+                        val dir = appState.repository.getServerDir(server.id)
+                        if (dir.exists()) {
+                            val backupDir = File(appState.filesDir, "backups")
+                            backupDir.mkdirs()
+                            val zipFile = File(backupDir, "${server.name}_${java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())}.zip")
+                            dir.zipTo(zipFile)
+                        }
+                    },
+                    onExportServer = { server ->
+                        val dir = appState.repository.getServerDir(server.id)
+                        if (dir.exists()) {
+                            val exportFile = File(appState.filesDir, "${server.name}_export.zip")
+                            dir.zipTo(exportFile)
+                        }
                     }
                 )
             }
@@ -230,6 +291,8 @@ fun AppNavigation(
                     onClearAppData = appState.onClearAppData,
                     darkTheme = appState.darkTheme,
                     onToggleTheme = appState.onToggleTheme,
+                    useDynamicColors = appState.useDynamicColors,
+                    onToggleDynamicColors = appState.onToggleDynamicColors,
                     activeServer = appState.activeServer,
                     onUpdateServer = { updated -> appState.updateServer(updated) },
                     tunnelUrl = appState.tunnelUrl,

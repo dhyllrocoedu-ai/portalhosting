@@ -141,9 +141,14 @@ class ServerManager(
         // Generate server.properties if missing
         val props = File(workDir, "server.properties")
         if (!props.exists()) {
+            val escapedMotd = motd.replace("\\", "\\\\")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t")
+                .replace("§", "\\u00A7")
             props.writeText("""
 #Minecraft server properties
-motd=$motd
+motd=$escapedMotd
 server-port=$port
 gamemode=$gamemode
 difficulty=$difficulty

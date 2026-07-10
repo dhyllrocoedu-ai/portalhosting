@@ -36,6 +36,8 @@ fun SettingsScreen(
     onClearAppData: () -> Unit,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    useDynamicColors: Boolean = true,
+    onToggleDynamicColors: () -> Unit = {},
     activeServer: ServerConfig?,
     onUpdateServer: (ServerConfig) -> Unit,
     tunnelUrl: String = "",
@@ -81,6 +83,23 @@ fun SettingsScreen(
                             modifier = Modifier.weight(1f)
                         )
                         Switch(checked = darkTheme, onCheckedChange = { onToggleTheme() })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Palette,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Dynamic Colors",
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = useDynamicColors, onCheckedChange = { onToggleDynamicColors() })
                     }
                 }
             }

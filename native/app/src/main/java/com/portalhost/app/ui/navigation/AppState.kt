@@ -53,6 +53,8 @@ class AppState(
     val storageInfo: StorageInfo,
     val darkTheme: Boolean,
     val onToggleTheme: () -> Unit,
+    val useDynamicColors: Boolean = true,
+    val onToggleDynamicColors: () -> Unit = {},
     val tunnelUrl: String,
     val onTunnelUrlChange: (String) -> Unit
 ) {
@@ -250,6 +252,8 @@ fun rememberAppState(
     storageInfo: StorageInfo,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    useDynamicColors: Boolean = true,
+    onToggleDynamicColors: () -> Unit = {},
     tunnelUrl: String,
     onTunnelUrlChange: (String) -> Unit
 ): AppState {
@@ -271,6 +275,8 @@ fun rememberAppState(
             storageInfo = storageInfo,
             darkTheme = darkTheme,
             onToggleTheme = onToggleTheme,
+            useDynamicColors = useDynamicColors,
+            onToggleDynamicColors = onToggleDynamicColors,
             tunnelUrl = tunnelUrl,
             onTunnelUrlChange = onTunnelUrlChange,
             jdkProgress = jdkProgress

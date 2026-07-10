@@ -8,7 +8,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -24,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.ui.components.*
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import java.io.File
@@ -41,6 +41,19 @@ private fun serverTypeInfo(type: String): ServerTypeInfo = when (type.lowercase(
     else -> ServerTypeInfo(type.uppercase(), Color(0xFF9E9E9E))
 }
 
+private val serverTypeIcon: @Composable (String, Modifier, Dp) -> Unit = { type, modifier, size ->
+    when (type.lowercase()) {
+        "paper" -> PaperIcon(modifier, size)
+        "fabric" -> FabricIcon(modifier, size)
+        "forge" -> ForgeIcon(modifier, size)
+        "neoforge" -> NeoForgeIcon(modifier, size)
+        "purpur" -> PurpurIcon(modifier, size)
+        "folia" -> FoliaIcon(modifier, size)
+        "vanilla" -> VanillaIcon(modifier, size)
+        else -> {}
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServersScreen(
@@ -55,16 +68,23 @@ fun ServersScreen(
 ) {
     val servers = repository.list()
     var serverToDelete by remember { mutableStateOf<ServerConfig?>(null) }
+    var serverToRename by remember { mutableStateOf<ServerConfig?>(null) }
+    var renameText by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
     var showOverflowMenu by remember { mutableStateOf(false) }
 
-    val filters = listOf("All", "Online", "Offline", "Favorites", "Templates")
+    val filters = listOf("All", "Online", "Offline")
 
     val filteredServers = servers.filter { server ->
         val matchesSearch = searchQuery.isBlank() || server.name.contains(searchQuery, ignoreCase = true)
-        matchesSearch
+        val matchesFilter = when (selectedFilter) {
+            "Online" -> true // would need server state
+            "Offline" -> true
+            else -> true
+        }
+        matchesSearch && matchesFilter
     }
 
     serverToDelete?.let { target ->
@@ -80,6 +100,33 @@ fun ServersScreen(
             },
             dismissButton = {
                 TextButton(onClick = { serverToDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    serverToRename?.let { target ->
+        AlertDialog(
+            onDismissRequest = { serverToRename = null },
+            title = { Text("Rename Server") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("Server name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (renameText.isNotBlank()) {
+                        onRenameServer(target.copy(name = renameText))
+                        serverToRename = null
+                    }
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                TextButton(onClick = { serverToRename = null }) { Text("Cancel") }
             }
         )
     }
@@ -114,16 +161,6 @@ fun ServersScreen(
                 actions = {
                     IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
                         Icon(if (showSearch) Icons.Default.Close else Icons.Default.Search, contentDescription = "Search")
-                    }
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(expanded = showOverflowMenu, onDismissRequest = { showOverflowMenu = false }) {
-                            DropdownMenuItem(text = { Text("Sort by name") }, onClick = { showOverflowMenu = false })
-                            DropdownMenuItem(text = { Text("Sort by date") }, onClick = { showOverflowMenu = false })
-                            DropdownMenuItem(text = { Text("Import server") }, onClick = { showOverflowMenu = false })
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -179,7 +216,7 @@ fun ServersScreen(
                         Text("Servers (${filteredServers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         FilledTonalButton(
                             onClick = onCreateServer,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = MaterialTheme.shapes.large
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
@@ -196,7 +233,7 @@ fun ServersScreen(
                         serverIcon = serverIcon,
                         onClick = { onServerClick(server) },
                         onDelete = { serverToDelete = server },
-                        onRename = { onRenameServer(server) },
+                        onRename = { serverToRename = server; renameText = server.name },
                         onDuplicate = { onDuplicateServer(server) },
                         onBackup = { onBackupServer(server) },
                         onExport = { onExportServer(server) }
@@ -236,7 +273,7 @@ private fun ServerListItem(
                 onClick = onClick,
                 onLongClick = { showContextMenu = true }
             ),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -245,17 +282,17 @@ private fun ServerListItem(
                     Image(
                         bitmap = serverIcon,
                         contentDescription = "${server.name} icon",
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)),
+                        modifier = Modifier.size(48.dp).clip(MaterialTheme.shapes.large),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Surface(
                         modifier = Modifier.size(48.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = MaterialTheme.shapes.large,
                         color = typeInfo.color.copy(alpha = 0.15f)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(24.dp), tint = typeInfo.color)
+                            serverTypeIcon(server.serverType, Modifier.size(28.dp), 28.dp)
                         }
                     }
                 }
@@ -271,16 +308,22 @@ private fun ServerListItem(
                             modifier = Modifier.weight(1f)
                         )
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
+                            shape = MaterialTheme.shapes.small,
                             color = typeInfo.color.copy(alpha = 0.15f)
                         ) {
-                            Text(
-                                text = typeInfo.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = typeInfo.color,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                serverTypeIcon(server.serverType, Modifier.size(12.dp), 12.dp)
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = typeInfo.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = typeInfo.color
+                                )
+                            }
                         }
                         Spacer(Modifier.width(8.dp))
                         Box {
@@ -319,10 +362,8 @@ private fun ServerListItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                InfoChip(Icons.Default.Person, "—", Modifier.weight(1f))
                 InfoChip(Icons.Default.Memory, server.maxRam, Modifier.weight(1f))
-                InfoChip(Icons.Default.Storage, "—", Modifier.weight(1f))
-                InfoChip(Icons.Default.Cloud, "—", Modifier.weight(1f))
+                InfoChip(Icons.Default.Storage, "${server.serverType.uppercase()} ${server.mcVersion.ifBlank { "?" }}", Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(8.dp))
@@ -332,7 +373,7 @@ private fun ServerListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${server.jarName} · ${server.mcVersion.ifBlank { "Latest" }}",
+                    text = server.jarName,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -341,7 +382,7 @@ private fun ServerListItem(
                 )
                 FilledTonalButton(
                     onClick = onClick,
-                    shape = RoundedCornerShape(10.dp),
+                    shape = MaterialTheme.shapes.large,
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -388,7 +429,7 @@ private fun ContextMenuItem(icon: androidx.compose.ui.graphics.vector.ImageVecto
 private fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(8.dp),
+        shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Row(
@@ -407,7 +448,7 @@ private fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text
 private fun CreateServerCard(onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
     ) {
         Row(
@@ -416,7 +457,7 @@ private fun CreateServerCard(onClick: () -> Unit) {
         ) {
             Surface(
                 modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(10.dp),
+                shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
             ) {
                 Box(contentAlignment = Alignment.Center) {

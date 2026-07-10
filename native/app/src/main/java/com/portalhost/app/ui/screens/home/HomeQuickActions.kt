@@ -27,7 +27,7 @@ fun QuickActions(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
@@ -81,7 +81,7 @@ fun ActionButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(64.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = MaterialTheme.shapes.large,
         colors = ButtonDefaults.elevatedButtonColors(
             containerColor = color.copy(alpha = 0.15f),
             contentColor = color,

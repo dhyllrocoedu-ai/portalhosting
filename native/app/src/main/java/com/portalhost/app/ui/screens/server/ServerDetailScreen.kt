@@ -168,7 +168,11 @@ private fun RamStatusBadge(ramStatus: RamStatus) {
 }
 
 private fun String.escapeProperties(): String {
-    return this.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+    return this.replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+        .replace("§", "\\u00A7")
 }
 
 @Composable
@@ -204,9 +208,22 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
         if (uri != null) {
             val iconFile = File(serverDir, "server-icon.png")
             try {
-                saveServerIcon(context.contentResolver, uri, iconFile)
-                iconPreview = loadServerIconFile(serverDir)
-            } catch (e: Exception) { android.util.Log.e("ServerDetail", "Failed to save icon", e) }
+                if (saveServerIcon(context.contentResolver, uri, iconFile)) {
+                    iconPreview = loadServerIconFile(serverDir)
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Icon saved. Restart server for it to appear in the Minecraft server list.", duration = SnackbarDuration.Short)
+                    }
+                } else {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Failed to save icon: image could not be decoded", duration = SnackbarDuration.Long)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ServerDetail", "Failed to save icon", e)
+                scope.launch {
+                    snackbarHostState.showSnackbar("Failed to save icon: ${e.message}", duration = SnackbarDuration.Long)
+                }
+            }
         }
     }
 
@@ -416,8 +433,9 @@ private fun readProp(serverDir: File, key: String, default: String): String {
     val propsFile = File(serverDir, "server.properties")
     if (!propsFile.exists()) return default
     return try {
-        propsFile.readLines().firstOrNull { it.matches(Regex("^$key=.*")) }
-            ?.substringAfter("=")?.trim() ?: default
+        val props = java.util.Properties()
+        propsFile.inputStream().use { props.load(it) }
+        props.getProperty(key)?.trim() ?: default
     } catch (_: Exception) { default }
 }
 
