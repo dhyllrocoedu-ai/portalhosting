@@ -2,6 +2,7 @@ package com.portalhost.app.ui.screens.server
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -338,11 +339,15 @@ white-list=$whiteListEnabled
                                 "white-list" to whiteListEnabled.toString()
                             )
                             for ((key, value) in replacements) {
-                                val regex = Regex("(?m)^$key=.*")
-                                content = if (regex.containsMatchIn(content)) {
-                                    content.replace(regex, "$key=$value")
+                                val prefix = "$key="
+                                val lines = content.lines()
+                                val found = lines.any { it.startsWith(prefix) }
+                                content = if (found) {
+                                    lines.joinToString("\n") { line ->
+                                        if (line.startsWith(prefix)) "$prefix$value" else line
+                                    }
                                 } else {
-                                    content + "\n$key=$value"
+                                    content.trimEnd() + "\n$prefix$value"
                                 }
                             }
                             propsFile.writeText(content)
@@ -434,8 +439,12 @@ private fun readProp(serverDir: File, key: String, default: String): String {
     if (!propsFile.exists()) return default
     return try {
         val props = java.util.Properties()
-        propsFile.inputStream().use { props.load(it) }
-        props.getProperty(key)?.trim() ?: default
+        propsFile.inputStream().use { stream ->
+            props.load(java.io.InputStreamReader(stream, Charsets.UTF_8))
+        }
+        props.getProperty(key)?.trim()
+            ?.replace("Â§", "§")
+            ?: default
     } catch (_: Exception) { default }
 }
 
@@ -926,10 +935,19 @@ private fun formatSize(bytes: Long): String = when {
 
 private fun loadServerIconFile(serverDir: File): ImageBitmap? {
     val iconFile = File(serverDir, "server-icon.png")
-    if (!iconFile.exists()) return null
+    if (!iconFile.exists()) {
+        Log.i("ServerIcon", "load: file not found")
+        return null
+    }
+    Log.i("ServerIcon", "load: file=${iconFile.absolutePath} size=${iconFile.length()}")
     return try {
-        BitmapFactory.decodeFile(iconFile.absolutePath)?.asImageBitmap()
-    } catch (e: Exception) { null }
+        val bm = BitmapFactory.decodeFile(iconFile.absolutePath)
+        Log.i("ServerIcon", "decodeFile: ${if (bm != null) "${bm.width}x${bm.height}" else "null"}")
+        bm?.asImageBitmap()
+    } catch (e: Exception) {
+        Log.e("ServerIcon", "decodeFile threw: ${e.message}", e)
+        null
+    }
 }
 
 private fun formatTimestamp(millis: Long): String {

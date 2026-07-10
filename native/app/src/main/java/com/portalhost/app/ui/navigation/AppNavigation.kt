@@ -225,12 +225,10 @@ fun AppNavigation(
                     },
                     onRenameServer = { server -> appState.updateServer(server) },
                     onDuplicateServer = { server ->
-                        val newId = java.util.UUID.randomUUID().toString()
                         val dir = appState.repository.getServerDir(server.id)
-                        val newDir = appState.repository.getServerDir(newId)
+                        val dup = appState.repository.add(server.copy(name = "${server.name} Copy"))
+                        val newDir = appState.repository.getServerDir(dup.id)
                         if (dir.exists()) dir.copyRecursively(newDir, overwrite = true)
-                        val dup = server.copy(id = newId, name = "${server.name} Copy")
-                        appState.repository.save(dup)
                         appState.refreshServers()
                     },
                     onBackupServer = { server ->

@@ -32,23 +32,25 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+private data class McColorInfo(val code: Char, val color: Color, val label: String)
+
 private val MC_COLORS = listOf(
-    '0' to Color(0xFF000000) to "Black",
-    '1' to Color(0xFF0000AA) to "Dark Blue",
-    '2' to Color(0xFF00AA00) to "Dark Green",
-    '3' to Color(0xFF00AAAA) to "Dark Aqua",
-    '4' to Color(0xFFAA0000) to "Dark Red",
-    '5' to Color(0xFFAA00AA) to "Dark Purple",
-    '6' to Color(0xFFFFAA00) to "Gold",
-    '7' to Color(0xFFAAAAAA) to "Gray",
-    '8' to Color(0xFF555555) to "Dark Gray",
-    '9' to Color(0xFF5555FF) to "Blue",
-    'a' to Color(0xFF55FF55) to "Green",
-    'b' to Color(0xFF55FFFF) to "Aqua",
-    'c' to Color(0xFFFF5555) to "Red",
-    'd' to Color(0xFFFF55FF) to "Light Purple",
-    'e' to Color(0xFFFFFF55) to "Yellow",
-    'f' to Color(0xFFFFFFFF) to "White"
+    McColorInfo('0', Color(0xFF000000), "Black"),
+    McColorInfo('1', Color(0xFF0000AA), "Dark Blue"),
+    McColorInfo('2', Color(0xFF00AA00), "Dark Green"),
+    McColorInfo('3', Color(0xFF00AAAA), "Dark Aqua"),
+    McColorInfo('4', Color(0xFFAA0000), "Dark Red"),
+    McColorInfo('5', Color(0xFFAA00AA), "Dark Purple"),
+    McColorInfo('6', Color(0xFFFFAA00), "Gold"),
+    McColorInfo('7', Color(0xFFAAAAAA), "Gray"),
+    McColorInfo('8', Color(0xFF555555), "Dark Gray"),
+    McColorInfo('9', Color(0xFF5555FF), "Blue"),
+    McColorInfo('a', Color(0xFF55FF55), "Green"),
+    McColorInfo('b', Color(0xFF55FFFF), "Aqua"),
+    McColorInfo('c', Color(0xFFFF5555), "Red"),
+    McColorInfo('d', Color(0xFFFF55FF), "Light Purple"),
+    McColorInfo('e', Color(0xFFFFFF55), "Yellow"),
+    McColorInfo('f', Color(0xFFFFFFFF), "White")
 )
 
 private data class FormatCodeDef(val label: String, val code: String, val icon: @Composable () -> Unit = {})
@@ -198,27 +200,27 @@ fun MotdEditor(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                MC_COLORS.forEach { ((code, color), label) ->
+                MC_COLORS.forEach { mc ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
+                        val borderColor = if (mc.code == 'f') Color(0xFF888888) else Color.Transparent
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
                                 .clip(CircleShape)
-                                .background(color)
+                                .background(mc.color)
                                 .border(0.5.dp, borderColor, CircleShape)
-                                .clickable { insertAtCursor("§$code") },
+                                .clickable { insertAtCursor("§${mc.code}") },
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                code.toString(),
+                                mc.code.toString(),
                                 fontSize = 10.sp,
-                                color = if (code in listOf('0', '8', '4')) Color.White else Color.Black,
+                                color = if (mc.code in listOf('0', '8', '4')) Color.White else Color.Black,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Text(
-                            label.take(6),
+                            mc.label.take(6),
                             fontSize = 7.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1

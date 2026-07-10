@@ -114,11 +114,9 @@ class ProcessMonitor {
     }
 
     private fun measureNetworkRate(): Pair<Long, Long> {
-        return try {
-            var rx: Long
-            var tx: Long
+        try {
             val netFile = File("/proc/net/dev")
-            if (netFile.exists()) {
+            if (netFile.exists() && netFile.canRead()) {
                 var rxTotal = 0L
                 var txTotal = 0L
                 netFile.readLines().forEach { line ->
@@ -132,31 +130,34 @@ class ProcessMonitor {
                         }
                     }
                 }
-                rx = rxTotal
-                tx = txTotal
-            } else {
-                val ts = android.net.TrafficStats::class.java
-                rx = ts.getDeclaredMethod("getTotalRxBytes").invoke(null) as Long
-                tx = ts.getDeclaredMethod("getTotalTxBytes").invoke(null) as Long
+                return computeRate(rxTotal, txTotal)
             }
-            val now = System.nanoTime()
-            val elapsedNs = now - lastNetTime
-            if (lastNetTime == 0L || elapsedNs <= 0) {
-                lastNetRx = rx
-                lastNetTx = tx
-                lastNetTime = now
-                return 0L to 0L
-            }
-            val elapsedSec = elapsedNs / 1_000_000_000.0
-            val rxRate = if (elapsedSec > 0) ((rx - lastNetRx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
-            val txRate = if (elapsedSec > 0) ((tx - lastNetTx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
-            lastNetRx = rx
-            lastNetTx = tx
-            lastNetTime = now
-            rxRate to txRate
-        } catch (_: Exception) {
-            0L to 0L
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "/proc/net/dev failed: ${e.message}")
         }
+        // Fallback: TrafficStats (deprecated but works on most devices)
+        try {
+            val rx = android.net.TrafficStats.getTotalRxBytes()
+            val tx = android.net.TrafficStats.getTotalTxBytes()
+            if (rx >= 0 && tx >= 0) return computeRate(rx, tx)
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "TrafficStats failed: ${e.message}")
+        }
+        return 0L to 0L
+    }
+
+    private fun computeRate(rx: Long, tx: Long): Pair<Long, Long> {
+        val now = System.nanoTime()
+        val elapsedNs = now - lastNetTime
+        if (lastNetTime == 0L || elapsedNs <= 0) {
+            lastNetRx = rx; lastNetTx = tx; lastNetTime = now
+            return 0L to 0L
+        }
+        val elapsedSec = elapsedNs / 1_000_000_000.0
+        val rxRate = if (elapsedSec > 0) ((rx - lastNetRx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
+        val txRate = if (elapsedSec > 0) ((tx - lastNetTx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
+        lastNetRx = rx; lastNetTx = tx; lastNetTime = now
+        return rxRate to txRate
     }
 
     fun parseTps(line: String): Float? {

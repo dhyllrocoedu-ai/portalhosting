@@ -244,15 +244,34 @@ use-native-transport=true
             // Save args for restart
             lastJarPath = jarPath
             lastJavaArgs = javaArgs
-            effectiveJavaArgs = javaArgs
             lastServerDir = serverDir
             autoRestartEnabled = config?.autoRestart ?: false
+
+            // Ensure java.io.tmpdir directory exists for ImageIO (needed for PNG encoding)
+            // Use app's cache directory which is guaranteed to exist and be writable
+            val tmpDir = File(workDir.parentFile, "tmp")
+            if (!tmpDir.exists()) {
+                tmpDir.mkdirs()
+                Log.i(TAG, "Created tmpdir: ${tmpDir.absolutePath}")
+            }
+            effectiveJavaArgs = javaArgs.toMutableList().apply { add("-Djava.io.tmpdir=${tmpDir.absolutePath}") }
 
             // Ensure system library shims exist before starting JVM
             javaRuntimeManager.fixupLibraries()
 
             // Initialize server directory (eula, properties, subdirs)
             initServerDir(workDir, config)
+
+            // Log server-icon.png status for debugging
+            val iconFile = File(workDir, "server-icon.png")
+            if (iconFile.exists()) {
+                Log.i(TAG, "server-icon.png found: ${iconFile.length()} bytes")
+                val magic = iconFile.inputStream().use { it.readBytes().take(4).toByteArray() }
+                val hex = magic.joinToString("") { "%02X".format(it) }
+                Log.i(TAG, "server-icon.png magic bytes: $hex (expect 89504E47)")
+            } else {
+                Log.w(TAG, "server-icon.png NOT FOUND — server will serve default gray icon")
+            }
 
             val javaDir = File(javaPath).parentFile ?: File(serverDir)
             val jdkHome = javaDir.parentFile ?: File(serverDir)
@@ -264,7 +283,42 @@ use-native-transport=true
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
 
             val env = mapOf("LD_LIBRARY_PATH" to "${libDir.absolutePath}:${libDir.absolutePath}/server:${libDir.absolutePath}/jli")
-            val cmd = listOf(linker, javaPath, javaPath) + javaArgs + listOf("-jar", jarFile.name, "nogui")
+
+            // Check if Java ImageIO can write PNG (Paper re-encodes icon via ImageIO.write)
+            try {
+                val testFile = File(workDir, "ImageIOTest.java")
+                testFile.writeText("""
+import javax.imageio.*;
+import java.util.*;
+public class ImageIOTest {
+    public static void main(String[] args) {
+        System.out.println("WRITERS:" + Arrays.toString(ImageIO.getWriterFormatNames()));
+        System.out.println("READERS:" + Arrays.toString(ImageIO.getReaderFormatNames()));
+        System.out.println("HAS_PNG_WRITER:" + ImageIO.getImageWritersByFormatName("PNG").hasNext());
+    }
+}
+""".trimStart())
+                val run = ProcessBuilder(linker, javaPath, javaPath, "ImageIOTest.java")
+                    .directory(workDir)
+                    .redirectErrorStream(true)
+                    .also { pb -> env.forEach { (k, v) -> pb.environment()[k] = v } }
+                    .start()
+                run.waitFor(30, TimeUnit.SECONDS)
+                val out = run.inputStream.bufferedReader().readText()
+                Log.i(TAG, "ImageIO diagnostic: $out")
+                out.lines().forEach { line ->
+                    when {
+                        line.startsWith("HAS_PNG_WRITER:") -> Log.i(TAG, "PNG writer: ${line.substringAfter(":")}")
+                        line.startsWith("WRITERS:") -> Log.i(TAG, "Available writers: ${line.substringAfter(":")}")
+                        line.startsWith("READERS:") -> Log.i(TAG, "Available readers: ${line.substringAfter(":")}")
+                    }
+                }
+                testFile.delete()
+            } catch (e: Exception) {
+                Log.w(TAG, "ImageIO diagnostic failed: ${e.message}")
+            }
+
+            val cmd = (mutableListOf<String>(linker, javaPath, javaPath) + effectiveJavaArgs!! + mutableListOf("-jar", jarFile.name, "nogui"))
             val proc = ProcessBuilder(cmd)
                 .directory(workDir)
                 .redirectErrorStream(true)
