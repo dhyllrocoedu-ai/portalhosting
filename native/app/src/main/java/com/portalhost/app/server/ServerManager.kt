@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import android.os.Build
 import android.util.Log
 import com.portalhost.app.activity.ActivityLog
@@ -14,10 +15,13 @@ import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val TAG = "ServerManager"
 private const val MAX_RESTART_RETRIES = 2
 private const val RENICE_SERVER = 10
+private val JOIN_REGEX = Regex("""(\w+)\s+joined the game""")
+private val LEAVE_REGEX = Regex("""(\w+)\s+left the game""")
 
 enum class ServerStatus {
     OFFLINE, STARTING, ONLINE, STOPPING, STOPPED, CRASHED
@@ -94,7 +98,7 @@ class ServerManager(
         }
     }
 
-    private var startingLock = false
+    private var startingLock = AtomicBoolean(false)
 
     /** Set STOPPED state and schedule transition to OFFLINE after 3 seconds. */
     private fun scheduleOfflineTransition(exitCode: Int) {
@@ -213,8 +217,7 @@ use-native-transport=true
         config: ServerConfig? = null
     ): Result<Unit> {
         if (isRunning) return Result.failure(Exception("Server already running"))
-        if (startingLock) return Result.failure(Exception("Server already starting"))
-        startingLock = true
+        if (!startingLock.compareAndSet(false, true)) return Result.failure(Exception("Server already starting"))
         restartCount = 0
         stoppedJob?.cancel()
         processJob?.cancel()
@@ -232,14 +235,14 @@ use-native-transport=true
                 val msg = "Server jar not found: $jarPath"
                 Log.e(TAG, msg)
                 _state.value = _state.value.copy(status = ServerStatus.OFFLINE, error = msg)
-                startingLock = false
+                startingLock.set(false)
                 return Result.failure(Exception(msg))
             }
             if (!File(javaPath).exists()) {
                 val msg = "Java not found at: $javaPath — install JDK first"
                 Log.e(TAG, msg)
                 _state.value = _state.value.copy(status = ServerStatus.OFFLINE, error = msg)
-                startingLock = false
+                startingLock.set(false)
                 return Result.failure(Exception(msg))
             }
 
@@ -413,14 +416,14 @@ use-native-transport=true
             }
 
             Log.i(TAG, "Server process started successfully")
-            startingLock = false
+            startingLock.set(false)
             Result.success(Unit)
         } catch (e: Exception) {
             val msg = "Server start failed: ${e.message}"
             Log.e(TAG, msg, e)
             _state.value = _state.value.copy(status = ServerStatus.CRASHED, error = msg)
             process = null
-            startingLock = false
+            startingLock.set(false)
             Result.failure(e)
         }
     }
@@ -473,13 +476,17 @@ use-native-transport=true
         val javaArgs = lastJavaArgs ?: listOf("-Xms512M", "-Xmx2G")
         val serverDir = lastServerDir ?: File(jarPath).parent ?: "."
         stop()
-        delay(2000)
+        state.first { it.status == ServerStatus.OFFLINE || it.status == ServerStatus.STOPPED }
         return start(jarPath, javaArgs, serverDir)
     }
 
     /** Force-kill the server. */
     fun kill() {
         stoppedJob?.cancel()
+        uptimeJob?.cancel()
+        statsJob?.cancel()
+        processJob?.cancel()
+        processJob = null
         process?.destroyForcibly()
         process = null
         _state.value = _state.value.copy(status = ServerStatus.OFFLINE)
@@ -495,15 +502,14 @@ use-native-transport=true
         try {
             proc.outputStream.write("$command\n".toByteArray())
             proc.outputStream.flush()
-        } catch (_: IOException) {}
+        } catch (e: IOException) {
+            Log.w(TAG, "writeCommand failed: ${e.message}")
+        }
     }
 
     /** Parse Minecraft log lines for player join/leave events. */
     private fun parsePlayerEvents(line: String) {
-        val joinRegex = Regex("""(\w+)\s+joined the game""")
-        val leaveRegex = Regex("""(\w+)\s+left the game""")
-
-        joinRegex.find(line)?.let { match ->
+        JOIN_REGEX.find(line)?.let { match ->
             val name = match.groupValues[1]
             val current = _state.value.players.toMutableList()
             if (name !in current) {
@@ -513,7 +519,7 @@ use-native-transport=true
             }
         }
 
-        leaveRegex.find(line)?.let { match ->
+        LEAVE_REGEX.find(line)?.let { match ->
             val name = match.groupValues[1]
             _state.value = _state.value.copy(
                 players = _state.value.players - name

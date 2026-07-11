@@ -33,6 +33,7 @@ fun RconDialog(
     var commandText by remember { mutableStateOf("") }
     val responses = remember { mutableStateListOf<String>() }
     val listState = rememberLazyListState()
+    val maxResponses = 500
 
     AlertDialog(
         onDismissRequest = {
@@ -65,6 +66,7 @@ fun RconDialog(
                                     client = c
                                     connected = true
                                     responses.add("Connected to $host:$port")
+                                    if (responses.size > 500) while (responses.size > 400) responses.removeAt(0)
                                 } else {
                                     Toast.makeText(context, "RCON failed: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
                                 }
@@ -102,16 +104,19 @@ fun RconDialog(
                         Spacer(Modifier.width(8.dp))
                         IconButton(onClick = {
                             val cmd = commandText.trim()
-                            if (cmd.isNotBlank()) {
-                                responses.add("> $cmd")
-                                commandText = ""
-                                scope.launch {
-                                    client?.command(cmd)?.onSuccess { result ->
-                                        responses.add(result)
-                                    }?.onFailure { e ->
-                                        responses.add("Error: ${e.message}")
+                                if (cmd.isNotBlank()) {
+                                    responses.add("> $cmd")
+                                    if (responses.size > 500) while (responses.size > 400) responses.removeAt(0)
+                                    commandText = ""
+                                    scope.launch {
+                                        client?.command(cmd)?.onSuccess { result ->
+                                            responses.add(result)
+                                            if (responses.size > 500) while (responses.size > 400) responses.removeAt(0)
+                                        }?.onFailure { e ->
+                                            responses.add("Error: ${e.message}")
+                                            if (responses.size > 500) while (responses.size > 400) responses.removeAt(0)
+                                        }
                                     }
-                                }
                             }
                         }) {
                             Icon(Icons.Default.Send, contentDescription = "Send")

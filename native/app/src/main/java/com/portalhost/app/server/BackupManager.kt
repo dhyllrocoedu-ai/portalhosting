@@ -99,6 +99,9 @@ class BackupManager(private val serverDir: File) {
                 while (entry != null) {
                     val name = entry.name
                     val target = File(serverDir, name)
+                    if (!target.canonicalPath.startsWith(serverDir.canonicalPath + File.separator)) {
+                        throw SecurityException("Zip slip detected: $name")
+                    }
 
                     if (!entry.isDirectory) {
                         target.parentFile?.mkdirs()

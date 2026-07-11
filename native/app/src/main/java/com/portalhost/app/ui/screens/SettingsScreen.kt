@@ -216,7 +216,6 @@ fun SettingsScreen(
             }
 
             // Battery Optimization
-            val context = LocalContext.current
             val powerManager = context.getSystemService(android.content.Context.POWER_SERVICE) as PowerManager
             var isBatteryExempt by remember { mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName)) }
 

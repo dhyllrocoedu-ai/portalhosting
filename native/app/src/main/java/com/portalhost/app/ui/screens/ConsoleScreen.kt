@@ -282,7 +282,7 @@ fun ConsoleScreen(
                     .padding(8.dp)
             ) {
                 LazyColumn(state = listState) {
-                    items(count = displayLines.size, key = { index -> "line_$index" }) { index ->
+                    items(count = displayLines.size) { index ->
                         val line = displayLines[index]
                         Text(
                             text = line,

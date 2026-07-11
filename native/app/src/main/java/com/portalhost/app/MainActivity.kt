@@ -1,5 +1,6 @@
 package com.portalhost.app
 
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -77,8 +78,15 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            var darkTheme by remember { mutableStateOf(true) }
-            var useDynamicColors by remember { mutableStateOf(true) }
+            val prefs = getSharedPreferences("portalhost_prefs", Context.MODE_PRIVATE)
+            var darkTheme by remember { mutableStateOf(prefs.getBoolean("dark_theme", true)) }
+            var useDynamicColors by remember { mutableStateOf(prefs.getBoolean("dynamic_colors", true)) }
+            LaunchedEffect(darkTheme, useDynamicColors) {
+                prefs.edit()
+                    .putBoolean("dark_theme", darkTheme)
+                    .putBoolean("dynamic_colors", useDynamicColors)
+                    .apply()
+            }
             PortalHostTheme(
                 darkTheme = darkTheme,
                 dynamicColor = useDynamicColors

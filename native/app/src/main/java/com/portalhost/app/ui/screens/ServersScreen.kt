@@ -125,7 +125,8 @@ fun ServersScreen(
             confirmButton = {
                 TextButton(onClick = {
                     if (renameText.isNotBlank()) {
-                        onRenameServer(target.copy(name = renameText))
+                        val safeName = renameText.replace(Regex("[/\\\\:*?\"<>|\\0]"), "")
+                        onRenameServer(target.copy(name = safeName))
                         serverToRename = null
                     }
                 }) { Text("Rename") }
