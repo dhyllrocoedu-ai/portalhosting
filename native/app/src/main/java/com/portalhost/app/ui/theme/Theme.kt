@@ -44,16 +44,16 @@ private val LightColorScheme = lightColorScheme(
 )
 
 val PixelFont = FontFamily(
-    Font(R.font.pressstart2p)
+    Font(R.font.minecraft)
 )
 
 private val PixelTypography = Typography(
-    headlineLarge = TextStyle(fontFamily = PixelFont, fontWeight = FontWeight.Bold),
-    headlineMedium = TextStyle(fontFamily = PixelFont, fontWeight = FontWeight.Bold),
-    headlineSmall = TextStyle(fontFamily = PixelFont, fontWeight = FontWeight.Bold),
-    titleLarge = TextStyle(fontFamily = PixelFont, fontWeight = FontWeight.Bold),
-    titleMedium = TextStyle(fontFamily = PixelFont, fontWeight = FontWeight.Bold),
-    titleSmall = TextStyle(fontFamily = PixelFont, fontWeight = FontWeight.Bold),
+    headlineLarge = TextStyle(fontFamily = PixelFont, fontSize = 24.sp),
+    headlineMedium = TextStyle(fontFamily = PixelFont, fontSize = 20.sp),
+    headlineSmall = TextStyle(fontFamily = PixelFont, fontSize = 18.sp),
+    titleLarge = TextStyle(fontFamily = PixelFont, fontSize = 18.sp),
+    titleMedium = TextStyle(fontFamily = PixelFont, fontSize = 16.sp),
+    titleSmall = TextStyle(fontFamily = PixelFont, fontSize = 14.sp),
 )
 
 val PortalHostShapes = Shapes(

@@ -157,7 +157,7 @@ fun ServersScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("PortalHost", fontWeight = FontWeight.Bold)
+                                Text("Portal Host", fontWeight = FontWeight.Bold)
                             }
                             Text("Manage all your servers", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
