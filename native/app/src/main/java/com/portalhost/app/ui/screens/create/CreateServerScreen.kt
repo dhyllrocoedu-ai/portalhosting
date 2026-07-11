@@ -27,18 +27,22 @@ import com.portalhost.app.ui.screens.saveServerIcon
 import kotlinx.coroutines.launch
 import java.io.File
 
-enum class CreateSource { PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE }
+enum class CreateSource { PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE, DOWNLOAD_NEOFORGE, DOWNLOAD_PURPUR, DOWNLOAD_FOLIA }
 
 fun CreateSource.toServerType(): ServerType? = when (this) {
     CreateSource.DOWNLOAD_PAPER -> ServerType.PAPER
     CreateSource.DOWNLOAD_VANILLA -> ServerType.VANILLA
     CreateSource.DOWNLOAD_FABRIC -> ServerType.FABRIC
     CreateSource.DOWNLOAD_FORGE -> ServerType.FORGE
+    CreateSource.DOWNLOAD_NEOFORGE -> ServerType.NEOFORGE
+    CreateSource.DOWNLOAD_PURPUR -> ServerType.PURPUR
+    CreateSource.DOWNLOAD_FOLIA -> ServerType.FOLIA
     CreateSource.PICK_FILE -> null
 }
 
 fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
-    it == ServerType.PAPER || it == ServerType.FABRIC || it == ServerType.FORGE
+    it == ServerType.PAPER || it == ServerType.FABRIC || it == ServerType.FORGE ||
+    it == ServerType.NEOFORGE || it == ServerType.PURPUR || it == ServerType.FOLIA
 } ?: false
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -347,6 +351,9 @@ fun CreateServerScreen(
                                 CreateSource.DOWNLOAD_VANILLA -> "vanilla"
                                 CreateSource.DOWNLOAD_FABRIC -> "fabric"
                                 CreateSource.DOWNLOAD_FORGE -> "forge"
+                                CreateSource.DOWNLOAD_NEOFORGE -> "neoforge"
+                                CreateSource.DOWNLOAD_PURPUR -> "purpur"
+                                CreateSource.DOWNLOAD_FOLIA -> "folia"
                                 else -> "custom"
                             }
                             val config = ServerConfig(

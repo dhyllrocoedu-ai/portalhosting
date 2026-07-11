@@ -143,31 +143,30 @@ fun ConsoleScreen(
         }
     }
 
-    // Timestamp-based log rotation: auto-save every 500 new lines
     var lastSavedCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(consoleLines.size / 500) {
         val serverDirVal = serverDir ?: return@LaunchedEffect
         val count = consoleLines.size
         if (count - lastSavedCount >= 500) {
+            val oldCount = lastSavedCount
             lastSavedCount = count
             withContext(Dispatchers.IO) {
                 val logsDir = File(serverDirVal, "logs")
                 logsDir.mkdirs()
-                val existing = logsDir.listFiles()?.filter { it.name.startsWith("console_") && it.name.endsWith(".log") }
-                existing?.forEach { file ->
-                    if (file.length() > 2 * 1024 * 1024) {
-                        val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date(file.lastModified()))
-                        file.renameTo(File(logsDir, "console_$ts.log"))
-                    }
-                }
                 val ts = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date())
                 val logFile = File(logsDir, "console_$ts.log")
                 try {
-                    logFile.writeText(consoleLines.joinToString("\n"))
+                    val newLines = consoleLines.drop(oldCount).joinToString("\n")
+                    logFile.appendText(newLines + "\n")
+                    val existing = logsDir.listFiles()?.filter { it.name.startsWith("console_prev_") && it.name.endsWith(".log") }
+                    existing?.forEach { file ->
+                        if (file.length() > 10 * 1024 * 1024) file.delete()
+                    }
                 } catch (_: Exception) {}
             }
         }
     }
+
 
     Scaffold(
         topBar = {

@@ -33,6 +33,9 @@ class ServerDownloader {
         ServerType.VANILLA -> VanillaProvider(client, json)
         ServerType.FABRIC -> FabricProvider(client, json)
         ServerType.FORGE -> ForgeProvider(client, json)
+        ServerType.NEOFORGE -> NeoForgeProvider(client, json)
+        ServerType.PURPUR -> PurpurProvider(client, json)
+        ServerType.FOLIA -> FoliaProvider(client, json)
     }
 
     suspend fun download(

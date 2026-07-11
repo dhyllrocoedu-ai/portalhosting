@@ -37,6 +37,7 @@ class ServerManager(
     private val activityLog: ActivityLog = ActivityLog(),
     private val processMonitor: ProcessMonitor = ProcessMonitor()
 ) {
+    var onServerStopped: (suspend () -> Unit)? = null
     private var process: Process? = null
     private var processJob: Job? = null
     private var uptimeJob: Job? = null
@@ -112,6 +113,7 @@ class ServerManager(
             delay(3000)
             if (process == null && _state.value.status == ServerStatus.STOPPED) {
                 _state.value = _state.value.copy(status = ServerStatus.OFFLINE)
+                onServerStopped?.invoke()
             }
         }
     }
@@ -284,39 +286,7 @@ use-native-transport=true
 
             val env = mapOf("LD_LIBRARY_PATH" to "${libDir.absolutePath}:${libDir.absolutePath}/server:${libDir.absolutePath}/jli")
 
-            // Check if Java ImageIO can write PNG (Paper re-encodes icon via ImageIO.write)
-            try {
-                val testFile = File(workDir, "ImageIOTest.java")
-                testFile.writeText("""
-import javax.imageio.*;
-import java.util.*;
-public class ImageIOTest {
-    public static void main(String[] args) {
-        System.out.println("WRITERS:" + Arrays.toString(ImageIO.getWriterFormatNames()));
-        System.out.println("READERS:" + Arrays.toString(ImageIO.getReaderFormatNames()));
-        System.out.println("HAS_PNG_WRITER:" + ImageIO.getImageWritersByFormatName("PNG").hasNext());
-    }
-}
-""".trimStart())
-                val run = ProcessBuilder(linker, javaPath, javaPath, "ImageIOTest.java")
-                    .directory(workDir)
-                    .redirectErrorStream(true)
-                    .also { pb -> env.forEach { (k, v) -> pb.environment()[k] = v } }
-                    .start()
-                run.waitFor(30, TimeUnit.SECONDS)
-                val out = run.inputStream.bufferedReader().readText()
-                Log.i(TAG, "ImageIO diagnostic: $out")
-                out.lines().forEach { line ->
-                    when {
-                        line.startsWith("HAS_PNG_WRITER:") -> Log.i(TAG, "PNG writer: ${line.substringAfter(":")}")
-                        line.startsWith("WRITERS:") -> Log.i(TAG, "Available writers: ${line.substringAfter(":")}")
-                        line.startsWith("READERS:") -> Log.i(TAG, "Available readers: ${line.substringAfter(":")}")
-                    }
-                }
-                testFile.delete()
-            } catch (e: Exception) {
-                Log.w(TAG, "ImageIO diagnostic failed: ${e.message}")
-            }
+            Log.i(TAG, "Skipping ImageIO diagnostic (was dev-only check)")
 
             val cmd = (mutableListOf<String>(linker, javaPath, javaPath) + effectiveJavaArgs!! + mutableListOf("-jar", jarFile.name, "nogui"))
             val proc = ProcessBuilder(cmd)

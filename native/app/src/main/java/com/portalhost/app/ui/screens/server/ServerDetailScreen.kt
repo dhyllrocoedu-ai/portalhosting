@@ -39,6 +39,7 @@ import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.screens.MotdEditor
 import com.portalhost.app.ui.screens.saveServerIcon
 import java.io.File
+import java.security.MessageDigest
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -196,6 +197,8 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
     var pvpEnabled by remember(server) { mutableStateOf(readProp(serverDir, "pvp", "true") == "true") }
     var spawnProtectionText by remember(server) { mutableStateOf(readProp(serverDir, "spawn-protection", "16")) }
     var whiteListEnabled by remember(server) { mutableStateOf(readProp(serverDir, "white-list", "false") == "true") }
+    var resourcePackUrl by remember(serverDir) { mutableStateOf(readProp(serverDir, "resource-pack", "")) }
+    var resourcePackSha1 by remember(serverDir) { mutableStateOf(readProp(serverDir, "resource-pack-sha1", "")) }
     var showRcon by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var iconPreview by remember(serverDir) { mutableStateOf(loadServerIconFile(serverDir)) }
@@ -302,6 +305,52 @@ private fun PropertiesTab(server: ServerConfig, serverDir: File, onUpdateServer:
                 Switch(checked = whiteListEnabled, onCheckedChange = { whiteListEnabled = it })
             }
 
+            Text("Resource Pack", style = MaterialTheme.typography.titleSmall)
+            OutlinedTextField(
+                value = resourcePackUrl,
+                onValueChange = { resourcePackUrl = it; resourcePackSha1 = "" },
+                label = { Text("Download URL") },
+                placeholder = { Text("https://example.com/pack.zip") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                leadingIcon = { Icon(Icons.Default.CloudDownload, contentDescription = null) }
+            )
+            if (resourcePackSha1.isNotBlank()) {
+                Text("SHA-1: ${resourcePackSha1.take(20)}...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val rpPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) {
+                    scope.launch(Dispatchers.IO) {
+                        val sha1 = try {
+                            context.contentResolver.openInputStream(uri!!)?.use { input ->
+                                val digest = MessageDigest.getInstance("SHA-1")
+                                val buf = ByteArray(32768)
+                                var read: Int
+                                while (input.read(buf).also { read = it } != -1) {
+                                    digest.update(buf, 0, read)
+                                }
+                                digest.digest().joinToString("") { "%02x".format(it) }
+                            } ?: ""
+                        } catch (e: Exception) { "" }
+                        if (sha1.isNotBlank()) resourcePackSha1 = sha1
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { rpPickerLauncher.launch("application/zip") }) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Pick ZIP & Compute SHA-1", fontSize = 12.sp)
+                }
+                if (resourcePackUrl.isNotBlank()) {
+                    TextButton(onClick = { resourcePackUrl = ""; resourcePackSha1 = "" }) {
+                        Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text("Clear", fontSize = 12.sp)
+                    }
+                }
+            }
+
             RamSlider("Minimum RAM", value = minRamMb, onValueChange = { minRamMb = it.coerceAtMost(maxRamMb) }, maxRamGb = maxRamGb, ramStatus = computeRamStatus())
             RamSlider("Maximum RAM", value = maxRamMb, onValueChange = { maxRamMb = it.coerceAtLeast(minRamMb) }, maxRamGb = maxRamGb, ramStatus = computeRamStatus())
 
@@ -327,7 +376,7 @@ white-list=$whiteListEnabled
                             propsFile.writeText(defaultProps)
                         } else {
                             var content = propsFile.readText()
-                            val replacements = mapOf(
+                            val replacements = mutableMapOf(
                                 "server-port" to newPort.toString(),
                                 "gamemode" to gamemode,
                                 "difficulty" to difficulty,
@@ -338,6 +387,10 @@ white-list=$whiteListEnabled
                                 "spawn-protection" to newSpawnProtection.toString(),
                                 "white-list" to whiteListEnabled.toString()
                             )
+                            replacements["resource-pack"] = resourcePackUrl
+                            if (resourcePackSha1.isNotBlank()) {
+                                replacements["resource-pack-sha1"] = resourcePackSha1
+                            }
                             for ((key, value) in replacements) {
                                 val prefix = "$key="
                                 val lines = content.lines()
@@ -442,8 +495,9 @@ private fun readProp(serverDir: File, key: String, default: String): String {
         propsFile.inputStream().use { stream ->
             props.load(java.io.InputStreamReader(stream, Charsets.UTF_8))
         }
-        props.getProperty(key)?.trim()
-            ?.replace("Â§", "§")
+        (props.getProperty(key)?.trim()
+            ?.replace("\\u00A7", "\u00A7")
+            ?.replace("Â§", "\u00A7"))
             ?: default
     } catch (_: Exception) { default }
 }

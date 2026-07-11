@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
 import com.portalhost.app.server.ConsoleStreamer
+import com.portalhost.app.server.BackupManager
 import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.providers.ServerType
@@ -191,6 +192,13 @@ class AppState(
             action = MinecraftService.ACTION_FOREGROUND
         }
         ContextCompat.startForegroundService(context, fgIntent)
+        serverManager.onServerStopped = {
+            if (server.autoBackup) {
+                val serverDir = repository.getServerDir(server.id)
+                val bm = BackupManager(serverDir)
+                bm.createBackup("auto_stop", worlds = true, config = true)
+            }
+        }
         MainScope().launch(Dispatchers.IO) {
             val serverDir = repository.getServerDir(server.id).absolutePath
             if (server.serverType == "paper" && server.mcVersion.isNotBlank()) {

@@ -72,6 +72,30 @@ fun StepChooseSource(
             selected = createSource == CreateSource.DOWNLOAD_FORGE,
             onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_FORGE) }
         )
+        Spacer(Modifier.height(8.dp))
+        DownloadOptionCard(
+            icon = Icons.Default.Build,
+            title = "NeoForge",
+            subtitle = "Modern fork of Forge for newer versions",
+            selected = createSource == CreateSource.DOWNLOAD_NEOFORGE,
+            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_NEOFORGE) }
+        )
+        Spacer(Modifier.height(8.dp))
+        DownloadOptionCard(
+            icon = Icons.Default.Extension,
+            title = "Purpur",
+            subtitle = "High-performance fork of Paper with extra features",
+            selected = createSource == CreateSource.DOWNLOAD_PURPUR,
+            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_PURPUR) }
+        )
+        Spacer(Modifier.height(8.dp))
+        DownloadOptionCard(
+            icon = Icons.Default.Extension,
+            title = "Folia",
+            subtitle = "Paper fork with regionized multithreading",
+            selected = createSource == CreateSource.DOWNLOAD_FOLIA,
+            onClick = { if (!downloading) onSelectDownload(CreateSource.DOWNLOAD_FOLIA) }
+        )
 
         // Version and build pickers for download types
         if (createSource != null && createSource != CreateSource.PICK_FILE) {

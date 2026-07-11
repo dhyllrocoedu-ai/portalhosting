@@ -80,7 +80,9 @@ fun AppNavigation(
     val showBottomBar = currentRoute in tabs.map { it.route }
 
     val state by appState.serverManager.state.collectAsState()
-    val processStats by appState.serverManager.processStats.collectAsState()
+    val processStats by appState.serverManager.processStats
+        .sample(1000)
+        .collectAsState(initial = appState.serverManager.processStats.value)
 
     LaunchedEffect(currentRoute) {
         appState.refreshServers()
@@ -212,8 +214,13 @@ fun AppNavigation(
             }
 
             composable(AppTab.SERVERS.route) {
+                val serverStateMap = remember(state, appState.activeServerId) {
+                    val id = appState.activeServerId
+                    if (id != null) mapOf(id to state.status) else emptyMap()
+                }
                 ServersScreen(
                     repository = appState.repository,
+                    serverStates = serverStateMap,
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
                     onServerClick = { server -> navController.navigate(Routes.serverDetail(server.id)) },
                     onDeleteServer = { server ->

@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.portalhost.app.ui.components.*
+import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import java.io.File
@@ -65,7 +66,8 @@ fun ServersScreen(
     onRenameServer: (ServerConfig) -> Unit = {},
     onDuplicateServer: (ServerConfig) -> Unit = {},
     onBackupServer: (ServerConfig) -> Unit = {},
-    onExportServer: (ServerConfig) -> Unit = {}
+    onExportServer: (ServerConfig) -> Unit = {},
+    serverStates: Map<String, ServerStatus> = emptyMap()
 ) {
     val servers = repository.list()
     var serverToDelete by remember { mutableStateOf<ServerConfig?>(null) }
@@ -80,9 +82,11 @@ fun ServersScreen(
 
     val filteredServers = servers.filter { server ->
         val matchesSearch = searchQuery.isBlank() || server.name.contains(searchQuery, ignoreCase = true)
+        val s = serverStates[server.id] ?: ServerStatus.OFFLINE
+        val isOnline = s == ServerStatus.ONLINE || s == ServerStatus.STARTING
         val matchesFilter = when (selectedFilter) {
-            "Online" -> true // would need server state
-            "Offline" -> true
+            "Online" -> isOnline
+            "Offline" -> !isOnline
             else -> true
         }
         matchesSearch && matchesFilter

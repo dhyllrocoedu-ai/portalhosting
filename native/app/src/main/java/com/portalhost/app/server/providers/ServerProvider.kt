@@ -4,7 +4,10 @@ enum class ServerType(val displayName: String, val description: String) {
     PAPER("Paper", "High-performance, feature-rich server software"),
     VANILLA("Vanilla", "Official Mojang server jar"),
     FABRIC("Fabric", "Lightweight mod loader for Minecraft"),
-    FORGE("Forge", "Popular mod loader with extensive mod support")
+    FORGE("Forge", "Popular mod loader with extensive mod support"),
+    NEOFORGE("NeoForge", "Modern fork of Forge for newer Minecraft versions"),
+    PURPUR("Purpur", "High-performance fork of Paper with extra features"),
+    FOLIA("Folia", "Paper fork with regionized multithreading")
 }
 
 data class BuildInfo(
