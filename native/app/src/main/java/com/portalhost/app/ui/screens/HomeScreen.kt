@@ -7,9 +7,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.Image
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,10 +84,21 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        GrassIcon(size = 24.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("PortalHost", fontWeight = FontWeight.Bold)
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(com.portalhost.app.R.drawable.portal_host_icon),
+                                contentDescription = "Portal Host",
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Portal Host", fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            "Host. Manage. Play.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
