@@ -11,6 +11,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import org.tukaani.xz.XZInputStream
 
@@ -69,6 +70,32 @@ class JavaRuntimeManager(private val context: Context) {
                 }
             }
             Log.i(TAG, "Downloaded ${debFile.length()} bytes")
+
+            // Verify SHA-256 of downloaded file
+            val digest = MessageDigest.getInstance("SHA-256")
+            val sha256Hex = debFile.inputStream().use { input ->
+                val buf = ByteArray(32768)
+                var read: Int
+                while (input.read(buf).also { read = it } != -1) {
+                    digest.update(buf, 0, read)
+                }
+                digest.digest().joinToString("") { "%02x".format(it) }
+            }
+            Log.i(TAG, "SHA-256: $sha256Hex")
+
+            val hashFile = File(context.filesDir, "jdk-21.sha256")
+            if (hashFile.exists()) {
+                val expectedHash = hashFile.readText().trim()
+                if (sha256Hex != expectedHash) {
+                    val msg = "SHA-256 mismatch! Expected: $expectedHash, Got: $sha256Hex"
+                    Log.wtf(TAG, msg)
+                    return@withContext Result.failure(SecurityException(msg))
+                }
+                Log.i(TAG, "SHA-256 verified against stored hash")
+            } else {
+                hashFile.writeText(sha256Hex)
+                Log.w(TAG, "First download — stored SHA-256 for future verification")
+            }
 
             Log.i(TAG, "Extracting data.tar.xz from .deb...")
             val dataTarXz = File(context.cacheDir, "data.tar.xz")

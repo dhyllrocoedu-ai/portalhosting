@@ -52,7 +52,7 @@ class RconClient(private val host: String, private val port: Int, private val pa
     }
 
     fun disconnect() {
-        try { socket?.close() } catch (_: Exception) {}
+        try { socket?.close() } catch (_: Exception) { /* socket already closed */ }
         socket = null; out = null; `in` = null
     }
 

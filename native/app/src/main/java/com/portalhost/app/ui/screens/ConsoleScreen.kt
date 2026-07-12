@@ -139,7 +139,9 @@ fun ConsoleScreen(
         if (!isUserScrolling.value && displayLines.isNotEmpty()) {
             try {
                 listState.scrollToItem(displayLines.size - 1)
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                // scroll position out of bounds — lines may have been trimmed
+            }
         }
     }
 
@@ -162,7 +164,9 @@ fun ConsoleScreen(
                     existing?.forEach { file ->
                         if (file.length() > 10 * 1024 * 1024) file.delete()
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                    // log file write failed — stale references after rotation
+                }
             }
         }
     }

@@ -15,15 +15,22 @@ class ForgeProvider(
     override val type = ServerType.FORGE
     override val supportsBuilds = true
     private val TAG = "ForgeProvider"
+    private var cachedMetadata: Map<String, List<String>>? = null
+
+    private suspend fun fetchMetadata(): Map<String, List<String>> {
+        cachedMetadata?.let { return it }
+        val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
+        val req = Request.Builder().url(url).build()
+        val body = client.newCall(req).execute().body?.string() ?: return emptyMap()
+        @Suppress("UNCHECKED_CAST")
+        val raw = json.decodeFromString<Map<String, List<String>>>(body)
+        cachedMetadata = raw
+        return raw
+    }
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
-            val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            @Suppress("UNCHECKED_CAST")
-            val raw = json.decodeFromString<Map<String, List<String>>>(body)
-            raw.keys.toList().sortedByDescending { it }
+            fetchMetadata().keys.toList().sortedByDescending { it }
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
             emptyList()
@@ -32,11 +39,7 @@ class ForgeProvider(
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
-            val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            @Suppress("UNCHECKED_CAST")
-            val raw = json.decodeFromString<Map<String, List<String>>>(body)
+            val raw = fetchMetadata()
             val forgeVersions = raw[version] ?: return@withContext emptyList()
             forgeVersions.map { full ->
                 val forge = full.removePrefix("$version-").ifBlank { full }

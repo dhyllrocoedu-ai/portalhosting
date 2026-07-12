@@ -96,7 +96,9 @@ class NetworkManager(private val context: Context) {
                 val ip = localAddr.hostAddress ?: ""
                 if (ip.isNotBlank()) return ip
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+            // DatagramSocket failed, fall through to next method
+        }
 
         // 1. Direct WiFi info (fast on older Android, deprecated on API 31+)
         val wifiInfo = wifiManager?.connectionInfo

@@ -99,9 +99,11 @@ class ServerManager(
     }
 
     private var startingLock = AtomicBoolean(false)
+    private var startGeneration = 0L
 
     /** Set STOPPED state and schedule transition to OFFLINE after 3 seconds. */
     private fun scheduleOfflineTransition(exitCode: Int) {
+        val gen = ++startGeneration
         _state.value = _state.value.copy(
             status = ServerStatus.STOPPED,
             exitCode = exitCode,
@@ -115,7 +117,7 @@ class ServerManager(
         stoppedJob?.cancel()
         stoppedJob = scope.launch {
             delay(3000)
-            if (process == null && _state.value.status == ServerStatus.STOPPED) {
+            if (gen == startGeneration && process == null && _state.value.status == ServerStatus.STOPPED) {
                 _state.value = _state.value.copy(status = ServerStatus.OFFLINE)
                 onServerStopped?.invoke()
             }
@@ -378,9 +380,12 @@ use-native-transport=true
                         restartCount++
                         Log.i(TAG, "Auto-restart attempt $restartCount/$MAX_RESTART_RETRIES")
                         delay(3000)
-                        lastJarPath?.let { jar ->
-                            lastJavaArgs?.let { args ->
-                                start(jar, args, lastServerDir ?: File(jar).parent)
+                        val jar = lastJarPath
+                        val args = lastJavaArgs
+                        if (jar != null && args != null) {
+                            val result = start(jar, args, lastServerDir ?: File(jar).parent)
+                            if (result.isFailure) {
+                                Log.w(TAG, "Auto-restart attempt $restartCount failed: ${result.exceptionOrNull()?.message}")
                             }
                         }
                     }
