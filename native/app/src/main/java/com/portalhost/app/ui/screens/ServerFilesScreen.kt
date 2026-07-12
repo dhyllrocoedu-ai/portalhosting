@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.portalhost.app.ui.screens
 
 import android.content.Context
@@ -31,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -66,6 +70,7 @@ fun ServerFilesScreen(
     var compressResult by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<File?>(null) }
     var undoFile by remember { mutableStateOf<File?>(null) }
+    var undoFiles by remember { mutableStateOf<List<File>?>(null) }
     var editingFile by remember { mutableStateOf<File?>(null) }
     var editorValue by remember { mutableStateOf(TextFieldValue("")) }
     var showSnackbar by remember { mutableStateOf("") }
@@ -115,28 +120,51 @@ fun ServerFilesScreen(
 
     // Refresh on directory change
     LaunchedEffect(currentDir, sortBy, sortAsc) {
-        refreshDir(currentDir, sortBy, sortAsc) { entries = it }
+        val result = withContext(Dispatchers.IO) {
+            val files = currentDir.listFiles()?.toList() ?: emptyList()
+            val mapped = files.map { FileEntry(it) }
+            val sorted = when (sortBy) {
+                "name" -> if (sortAsc) mapped.sortedBy { it.file.name.lowercase() } else mapped.sortedByDescending { it.file.name.lowercase() }
+                "date" -> if (sortAsc) mapped.sortedBy { it.lastModified } else mapped.sortedByDescending { it.lastModified }
+                "size" -> if (sortAsc) mapped.sortedBy { it.size } else mapped.sortedByDescending { it.size }
+                else -> mapped
+            }
+            sorted.partition { it.isDirectory }.let { (dirs, files) -> dirs + files }
+        }
+        entries = result
     }
 
     // Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(showSnackbar) {
         if (showSnackbar.isNotBlank()) {
+            val hasUndo = undoFile != null || undoFiles != null
             val result = snackbarHostState.showSnackbar(
                 message = showSnackbar,
-                actionLabel = if (undoFile != null) "Undo" else null
+                actionLabel = if (hasUndo) "Undo" else null
             )
-            if (result == SnackbarResult.ActionPerformed && undoFile != null) {
-                val uf = undoFile!!
-                val original = File(uf.parentFile?.parentFile, uf.name)
-                uf.renameTo(original)
-                undoFile = null
+            if (result == SnackbarResult.ActionPerformed) {
+                if (undoFile != null) {
+                    val uf = undoFile!!
+                    val original = File(uf.parentFile?.parentFile, uf.name)
+                    uf.renameTo(original)
+                    undoFile = null
+                } else if (undoFiles != null) {
+                    undoFiles!!.forEach { trashed ->
+                        val original = File(trashed.parentFile?.parentFile, trashed.name)
+                        trashed.renameTo(original)
+                    }
+                    undoFiles = null
+                }
                 refreshDir(currentDir, sortBy, sortAsc) { entries = it }
             } else if (undoFile != null) {
                 // Dismissed without Undo — permanently delete trash
                 val uf = undoFile!!
                 uf.deleteRecursively()
                 undoFile = null
+            } else if (undoFiles != null) {
+                undoFiles!!.forEach { it.deleteRecursively() }
+                undoFiles = null
             }
             showSnackbar = ""
         }
@@ -306,9 +334,13 @@ fun ServerFilesScreen(
                                 } else if (entry.isDirectory) {
                                     currentDir = entry.file
                                 } else if (isEditableFile(entry.file)) {
-                                    editingFile = entry.file
-                                    val text = entry.file.readText()
-                                    editorValue = TextFieldValue(text, selection = TextRange(text.length))
+                                    if (entry.file.length() > 10 * 1024 * 1024) {
+                                        showSnackbar = "File too large to edit (>10MB)"
+                                    } else {
+                                        editingFile = entry.file
+                                        val text = entry.file.readText()
+                                        editorValue = TextFieldValue(text, selection = TextRange(text.length))
+                                    }
                                 } else {
                                     showSnackbar = "Cannot edit binary file"
                                 }
@@ -317,9 +349,13 @@ fun ServerFilesScreen(
                             onShare = { shareFile(context, it) },
                             onEdit = {
                                 if (isEditableFile(it)) {
-                                    editingFile = it
-                                    val text = it.readText()
-                                    editorValue = TextFieldValue(text, selection = TextRange(text.length))
+                                    if (it.length() > 10 * 1024 * 1024) {
+                                        showSnackbar = "File too large to edit (>10MB)"
+                                    } else {
+                                        editingFile = it
+                                        val text = it.readText()
+                                        editorValue = TextFieldValue(text, selection = TextRange(text.length))
+                                    }
                                 } else {
                                     showSnackbar = "Cannot edit binary file"
                                 }
@@ -465,7 +501,7 @@ fun ServerFilesScreen(
                 TextButton(onClick = {
                     val trashDir = File(serverDir, ".trash")
                     trashDir.mkdirs()
-                    files.forEach { file ->
+                    val trashedFiles = files.map { file ->
                         val trashed = File(trashDir, file.name)
                         var dest = trashed
                         var counter = 1
@@ -474,9 +510,11 @@ fun ServerFilesScreen(
                             counter++
                         }
                         file.renameTo(dest)
+                        dest
                     }
                     batchDeleteTargets = null
                     selectedFiles = emptySet()
+                    undoFiles = trashedFiles
                     showSnackbar = "Deleted ${files.size} file${if (files.size != 1) "s" else ""}"
                     refreshDir(currentDir, sortBy, sortAsc) { entries = it }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }

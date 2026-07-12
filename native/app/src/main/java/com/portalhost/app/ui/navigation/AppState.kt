@@ -192,10 +192,13 @@ class AppState(
             action = MinecraftService.ACTION_FOREGROUND
         }
         ContextCompat.startForegroundService(context, fgIntent)
+        val bm = BackupManager(repository.getServerDir(server.id))
+        if (server.autoBackup) {
+            bm.startAutoBackup(MainScope())
+        }
         serverManager.onServerStopped = {
+            bm.stopAutoBackup()
             if (server.autoBackup) {
-                val serverDir = repository.getServerDir(server.id)
-                val bm = BackupManager(serverDir)
                 bm.createBackup("auto_stop", worlds = true, config = true)
             }
         }

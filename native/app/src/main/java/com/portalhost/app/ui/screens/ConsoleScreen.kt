@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -160,9 +161,12 @@ fun ConsoleScreen(
                 try {
                     val newLines = consoleLines.drop(oldCount).joinToString("\n")
                     logFile.appendText(newLines + "\n")
-                    val existing = logsDir.listFiles()?.filter { it.name.startsWith("console_prev_") && it.name.endsWith(".log") }
-                    existing?.forEach { file ->
-                        if (file.length() > 10 * 1024 * 1024) file.delete()
+                    // Keep only the 10 most recent console log files
+                    val existing = logsDir.listFiles()
+                        ?.filter { it.name.startsWith("console_") && it.name.endsWith(".log") }
+                        ?.sortedByDescending { it.lastModified() }
+                    if ((existing?.size ?: 0) > 10) {
+                        existing!!.drop(10).forEach { it.delete() }
                     }
                 } catch (_: Exception) {
                     // log file write failed — stale references after rotation
@@ -367,7 +371,7 @@ fun ConsoleScreen(
                             }
                         },
                         enabled = isOnline
-                    ) { Icon(Icons.Default.Send, contentDescription = "Send") }
+                    ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send") }
                 }
             }
         }

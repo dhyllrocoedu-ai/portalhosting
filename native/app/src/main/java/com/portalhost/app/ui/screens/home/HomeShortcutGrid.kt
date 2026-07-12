@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.portalhost.app.ui.screens.home
 
 import androidx.compose.foundation.layout.*
