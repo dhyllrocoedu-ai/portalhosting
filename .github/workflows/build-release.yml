@@ -46,11 +46,9 @@ jobs:
 
       - name: Build Windows release
         working-directory: portal_host_desktop
-        run: |
-          # Patch CMakeLists.txt to use VS 2022 generator
-          (Get-Content windows/CMakeLists.txt) -replace 'Visual Studio 16 2019', 'Visual Studio 17 2022' | Set-Content windows/CMakeLists.txt
-          (Get-Content windows/runner/CMakeLists.txt) -replace 'Visual Studio 16 2019', 'Visual Studio 17 2022' | Set-Content windows/runner/CMakeLists.txt
-          flutter build windows --release
+        env:
+          CMAKE_GENERATOR: "Visual Studio 17 2022"
+        run: flutter build windows --release
 
       - name: Build installer
         working-directory: portal_host_desktop
