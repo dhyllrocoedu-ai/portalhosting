@@ -11,9 +11,6 @@ permissions:
 jobs:
   build-desktop:
     runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: portal_host_desktop
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,16 +28,16 @@ jobs:
           echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Get dependencies
-        run: flutter pub get
+        run: cd portal_host_desktop && flutter pub get
 
       - name: Generate code
-        run: dart run build_runner build --delete-conflicting-outputs
+        run: cd portal_host_desktop && dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Windows release
-        run: flutter build windows --release
+        run: cd portal_host_desktop && flutter build windows --release
 
       - name: Build installer
-        run: iscc installer.iss
+        run: cd portal_host_desktop && iscc installer.iss
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
