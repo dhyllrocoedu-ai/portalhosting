@@ -41,9 +41,6 @@ class AppState(
     val consoleStreamer: ConsoleStreamer,
     val repository: ServerRepository,
     val filesDir: File,
-    val jdkInstalled: Boolean,
-    val jdkInstalling: Boolean,
-    val jdkProgress: Float,
     val javaPath: String,
     val onReinstallJava: () -> Unit,
     val onUninstallJava: () -> Unit,
@@ -59,8 +56,9 @@ class AppState(
     val tunnelUrl: String,
     val onTunnelUrlChange: (String) -> Unit
 ) {
-    var servers by mutableStateOf(repository.list())
-        private set
+    var jdkInstalled by mutableStateOf(false)
+    var jdkInstalling by mutableStateOf(false)
+    var jdkProgress by mutableStateOf(0f)
     var activeServerId by mutableStateOf<String?>(null)
         private set
     var networkInfo by mutableStateOf(networkManager.getNetworkInfo())
@@ -82,6 +80,9 @@ class AppState(
         private set
     var showPermissionRationale by mutableStateOf(false)
     var showPermissionSettings by mutableStateOf(false)
+
+    var servers by mutableStateOf(emptyList<ServerConfig>())
+        private set
 
     val activeServer: ServerConfig? get() = servers.find { it.id == activeServerId }
 
@@ -155,6 +156,23 @@ class AppState(
     fun serverCreated(server: ServerConfig) {
         refreshServers()
         activeServerId = server.id
+    }
+
+    // JDK Management
+    fun reinstallJava() {
+        onReinstallJava()
+    }
+
+    fun uninstallJava() {
+        onUninstallJava()
+    }
+
+    fun fixupJava() {
+        onFixupJava()
+    }
+
+    fun clearAppData() {
+        onClearAppData()
     }
 
     fun requestNotificationPermissionOrSettings(server: ServerConfig, context: android.content.Context) {
@@ -274,8 +292,6 @@ fun rememberAppState(
             consoleStreamer = consoleStreamer,
             repository = repository,
             filesDir = filesDir,
-            jdkInstalled = jdkInstalled,
-            jdkInstalling = jdkInstalling,
             javaPath = javaPath,
             onReinstallJava = onReinstallJava,
             onUninstallJava = onUninstallJava,
@@ -289,10 +305,12 @@ fun rememberAppState(
             useDynamicColors = useDynamicColors,
             onToggleDynamicColors = onToggleDynamicColors,
             tunnelUrl = tunnelUrl,
-            onTunnelUrlChange = onTunnelUrlChange,
-            jdkProgress = jdkProgress
+            onTunnelUrlChange = onTunnelUrlChange
         )
     }
+    appState.jdkInstalled = jdkInstalled
+    appState.jdkInstalling = jdkInstalling
+    appState.jdkProgress = jdkProgress
 
     LaunchedEffect(appState.activeServerId) {
         withContext(Dispatchers.IO) {

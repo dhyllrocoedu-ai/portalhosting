@@ -18,6 +18,7 @@ class PurpurProvider(
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
         try {
+            // PurpurMC API v2
             val url = "https://api.purpurmc.org/v2/purpur"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
