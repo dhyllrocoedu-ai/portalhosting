@@ -28,27 +28,26 @@ jobs:
           echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Get dependencies
-        working-directory: ./portal_host_desktop
+        working-directory: portal_host_desktop
         run: flutter pub get
 
       - name: Generate code
-        working-directory: ./portal_host_desktop
+        working-directory: portal_host_desktop
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Windows release
-        working-directory: ./portal_host_desktop
+        working-directory: portal_host_desktop
         run: flutter build windows --release
 
       - name: Build installer
-        run: |
-          iscc portal_host_desktop\installer.iss
+        working-directory: portal_host_desktop
+        run: iscc installer.iss
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
             portal_host_desktop/PortalHost-*-Setup.exe
-            native/app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
 
   build-android:
@@ -67,7 +66,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Build Android release
-        working-directory: ./native
+        working-directory: native
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease
