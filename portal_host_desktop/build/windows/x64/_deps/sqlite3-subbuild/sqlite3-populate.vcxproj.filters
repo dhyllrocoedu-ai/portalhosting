@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\528c0a6a19e749495b10552b08bf7746\sqlite3-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\12ffcb92d4d40f950247579f04212eba\sqlite3-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\a965daed390f1b9e4579cb8ac48e5d83\sqlite3-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="D:\mydevprojects\PortalHost\portal_host_desktop\build\windows\x64\_deps\sqlite3-subbuild\CMakeFiles\sqlite3-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{ECE65A41-5973-344D-84B2-9BE84A10FF0E}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

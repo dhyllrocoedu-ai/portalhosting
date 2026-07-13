@@ -1,0 +1,20 @@
+{
+  "elements": {},
+  "imports": [
+    "package:flutter/material.dart",
+    "package:flutter_riverpod/flutter_riverpod.dart",
+    "package:go_router/go_router.dart",
+    "package:portal_host_desktop/core/providers/settings_provider.dart",
+    "package:portal_host_desktop/core/providers/server_provider.dart",
+    "package:portal_host_desktop/ui/screens/home_screen.dart",
+    "package:portal_host_desktop/ui/screens/servers_screen.dart",
+    "package:portal_host_desktop/ui/screens/create_server_screen.dart",
+    "package:portal_host_desktop/ui/screens/server_detail_screen.dart",
+    "package:portal_host_desktop/ui/screens/console_screen.dart",
+    "package:portal_host_desktop/ui/screens/server_files_screen.dart",
+    "package:portal_host_desktop/ui/screens/rcon_screen.dart",
+    "package:portal_host_desktop/ui/screens/settings_screen.dart",
+    "package:portal_host_desktop/ui/screens/setup_screen.dart",
+    "package:portal_host_desktop/ui/widgets/app_shell.dart"
+  ]
+}

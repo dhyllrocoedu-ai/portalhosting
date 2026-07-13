@@ -1,0 +1,10 @@
+^D:\MYDEVPROJECTS\PORTALHOST\PORTAL_HOST_DESKTOP\BUILD\WINDOWS\X64\CMAKEFILES\EF6665515C98D52758EDD9D65919EE1B\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SD:/mydevprojects/PortalHost/portal_host_desktop/windows -BD:/mydevprojects/PortalHost/portal_host_desktop/build/windows/x64 --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/mydevprojects/PortalHost/portal_host_desktop/build/windows/x64/portal_host_desktop.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,15 @@
+{
+  "elements": {},
+  "imports": [
+    "package:flutter/material.dart",
+    "package:flutter_riverpod/flutter_riverpod.dart",
+    "package:file_picker/file_picker.dart",
+    "package:url_launcher/url_launcher.dart",
+    "package:path/path.dart",
+    "package:shared_preferences/shared_preferences.dart",
+    "package:portal_host_desktop/core/providers/settings_provider.dart",
+    "package:portal_host_desktop/core/java/jdk_manager.dart",
+    "package:portal_host_desktop/core/tunnel/tunnel_provider.dart",
+    "package:portal_host_desktop/ui/screens/jdk_management_screen.dart"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "elements": {},
+  "imports": [
+    "package:archive/archive.dart",
+    "package:path/path.dart",
+    "package:portal_host_desktop/shared/models/backup_entry.dart",
+    "package:portal_host_desktop/core/database/database.dart"
+  ]
+}

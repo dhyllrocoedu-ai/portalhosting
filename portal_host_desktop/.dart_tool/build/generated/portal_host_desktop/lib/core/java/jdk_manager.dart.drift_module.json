@@ -1,0 +1,9 @@
+{
+  "elements": {},
+  "imports": [
+    "package:path/path.dart",
+    "package:crypto/crypto.dart",
+    "package:archive/archive.dart",
+    "package:http/http.dart"
+  ]
+}

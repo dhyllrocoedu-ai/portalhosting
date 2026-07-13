@@ -1,0 +1,7 @@
+{
+  "elements": {},
+  "imports": [
+    "package:http/http.dart",
+    "package:portal_host_desktop/core/server/server_type.dart"
+  ]
+}

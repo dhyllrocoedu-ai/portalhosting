@@ -1,0 +1,8 @@
+{
+  "elements": {},
+  "imports": [
+    "package:flutter_riverpod/flutter_riverpod.dart",
+    "package:shared_preferences/shared_preferences.dart",
+    "package:portal_host_desktop/core/tunnel/tunnel_provider.dart"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "elements": {},
+  "imports": [
+    "package:flutter/material.dart",
+    "package:flutter_riverpod/flutter_riverpod.dart",
+    "package:path/path.dart",
+    "package:portal_host_desktop/core/database/database.dart",
+    "package:portal_host_desktop/core/providers/database_provider.dart"
+  ]
+}

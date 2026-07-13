@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"D:/mydevprojects/PortalHost/portal_host_desktop/build/windows/x64/_deps/sqlite3-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
