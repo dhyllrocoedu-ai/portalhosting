@@ -1,0 +1,79 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*--desktop'
+
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+          echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Get dependencies
+        working-directory: ./portal_host_desktop
+        run: flutter pub get
+
+      - name: Generate code
+        working-directory: ./portal_host_desktop
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build Windows release
+        working-directory: ./portal_host_desktop
+        run: flutter build windows --release
+
+      - name: Build installer
+        run: |
+          iscc portal_host_desktop\installer.iss
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            portal_host_desktop/PortalHost-*-Setup.exe
+            native/app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build Android release
+        working-directory: ./native
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: portalhost-apk
+          path: native/app/build/outputs/apk/release/app-release.apk
