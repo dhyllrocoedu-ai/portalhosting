@@ -48,7 +48,10 @@ jobs:
         working-directory: portal_host_desktop
         env:
           CMAKE_GENERATOR: "Visual Studio 17 2022"
-        run: flutter build windows --release
+        run: |
+          # Clean build directory to avoid cached generator
+          if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
+          flutter build windows --release
 
       - name: Build installer
         working-directory: portal_host_desktop
