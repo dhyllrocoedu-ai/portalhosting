@@ -1,1 +1,0 @@
-{"valid_import":true,"imports":[{"uri":"package:drift/drift.dart","transitive":false}],"elements":[{"kind":"table","name":"servers","dart_name":"Servers"},{"kind":"table","name":"server_properties","dart_name":"ServerProperties"},{"kind":"table","name":"backups","dart_name":"Backups"},{"kind":"table","name":"console_logs","dart_name":"ConsoleLogs"}]}

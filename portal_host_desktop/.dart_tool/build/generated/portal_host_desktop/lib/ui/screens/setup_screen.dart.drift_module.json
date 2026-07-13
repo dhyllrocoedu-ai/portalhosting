@@ -1,9 +1,0 @@
-{
-  "elements": {},
-  "imports": [
-    "package:flutter/material.dart",
-    "package:flutter_riverpod/flutter_riverpod.dart",
-    "package:file_picker/file_picker.dart",
-    "package:portal_host_desktop/core/providers/settings_provider.dart"
-  ]
-}

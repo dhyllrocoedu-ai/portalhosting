@@ -1,7 +1,0 @@
-{
-  "elements": {},
-  "imports": [
-    "package:riverpod_annotation/riverpod_annotation.dart",
-    "package:portal_host_desktop/core/server/playit_tunnel.dart"
-  ]
-}

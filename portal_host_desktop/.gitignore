@@ -1,0 +1,142 @@
+# Build artifacts
+build/
+*.exe
+*.dll
+*.lib
+*.exp
+*.pdb
+*.exp
+*.obj
+*.tlog
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.slnx
+*.cmake
+*.stamp
+*.tlog
+*.recipe
+*.lastbuildstate
+*.log
+*.so
+*.dylib
+
+# IDE/Editor
+.vscode/
+.idea/
+*.iml
+
+# Dart/Flutter
+.dart_tool/
+.pub-cache/
+flutter_*.png
+*.dart_tool/
+
+# Windows build
+build/
+*.exe
+*.pdb
+*.lib
+*.dll
+*.exp
+*.obj
+*.tlog
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.slnx
+*.cmake
+*.stamp
+*.log
+
+# Build generated files
+portal_host_desktop.exe
+*.pdb
+*.manifest
+*.ilk
+*.exp
+*.lib
+
+# Flutter build output
+build/
+.dart_tool/
+*.dart_tool/
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter/Dart
+packages/
+.packages
+.pub-cache/
+
+# Build output
+build/
+*.dll
+*.lib
+*.exp
+*.pdb
+*.obj
+*.tlog
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.slnx
+*.cmake
+*.stamp
+*.tlog
+*.recipe
+*.lastbuildstate
+
+# Windows
+*.exe
+*.dll
+*.lib
+*.exp
+*.pdb
+*.obj
+*.tlog
+*.manifest
+*.ilk
+*.exp
+*.lib
+
+# Build directories
+build/
+build_*/
+*.build/
+*.Build/
+out/
+dist/
+
+# Flutter
+build/
+.dart_tool/
+packages/
+*.flutter
+*.dart_tool/
+
+# Generated files
+generated_*
+*.g.dart
+*.freezed.dart
+*.gr.dart
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

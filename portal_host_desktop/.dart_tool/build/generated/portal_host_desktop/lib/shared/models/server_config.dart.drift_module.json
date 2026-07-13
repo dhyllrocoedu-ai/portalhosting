@@ -1,8 +1,0 @@
-{
-  "elements": {},
-  "imports": [
-    "package:drift/drift.dart",
-    "package:portal_host_desktop/core/database/database.dart",
-    "package:portal_host_desktop/shared/models/server_state.dart"
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "elements": {},
-  "imports": [
-    "package:flutter/foundation.dart",
-    "package:tray_manager/tray_manager.dart",
-    "package:window_manager/window_manager.dart"
-  ]
-}

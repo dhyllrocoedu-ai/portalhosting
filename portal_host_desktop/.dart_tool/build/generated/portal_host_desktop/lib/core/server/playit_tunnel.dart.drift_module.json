@@ -1,7 +1,0 @@
-{
-  "elements": {},
-  "imports": [
-    "package:path/path.dart",
-    "package:http/http.dart"
-  ]
-}

@@ -1,7 +1,0 @@
-{
-  "elements": {},
-  "imports": [
-    "package:flutter_riverpod/flutter_riverpod.dart",
-    "package:portal_host_desktop/core/services/tray_service.dart"
-  ]
-}
