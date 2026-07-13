@@ -28,19 +28,19 @@ jobs:
           echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Get dependencies
-        working-directory: portal_host_desktop
+        working-directory: ${{ github.workspace }}/portal_host_desktop
         run: flutter pub get
 
       - name: Generate code
-        working-directory: portal_host_desktop
+        working-directory: ${{ github.workspace }}/portal_host_desktop
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Windows release
-        working-directory: portal_host_desktop
+        working-directory: ${{ github.workspace }}/portal_host_desktop
         run: flutter build windows --release
 
       - name: Build installer
-        working-directory: portal_host_desktop
+        working-directory: ${{ github.workspace }}/portal_host_desktop
         run: iscc installer.iss
 
       - name: Upload release assets
@@ -49,21 +49,6 @@ jobs:
           files: |
             portal_host_desktop/PortalHost-*-Setup.exe
           generate_release_notes: true
-
-  build-android:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Build Android release
         working-directory: native
