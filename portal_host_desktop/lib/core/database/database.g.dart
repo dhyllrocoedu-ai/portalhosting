@@ -164,6 +164,29 @@ class $ServersTable extends Servers with TableInfo<$ServersTable, Server> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _serverDirMeta = const VerificationMeta(
+    'serverDir',
+  );
+  @override
+  late final GeneratedColumn<String> serverDir = GeneratedColumn<String>(
+    'server_dir',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _iconPathMeta = const VerificationMeta(
+    'iconPath',
+  );
+  @override
+  late final GeneratedColumn<String> iconPath = GeneratedColumn<String>(
+    'icon_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -191,6 +214,8 @@ class $ServersTable extends Servers with TableInfo<$ServersTable, Server> {
     resourcePackSha1,
     status,
     javaPath,
+    serverDir,
+    iconPath,
     createdAt,
   ];
   @override
@@ -301,6 +326,18 @@ class $ServersTable extends Servers with TableInfo<$ServersTable, Server> {
         javaPath.isAcceptableOrUnknown(data['java_path']!, _javaPathMeta),
       );
     }
+    if (data.containsKey('server_dir')) {
+      context.handle(
+        _serverDirMeta,
+        serverDir.isAcceptableOrUnknown(data['server_dir']!, _serverDirMeta),
+      );
+    }
+    if (data.containsKey('icon_path')) {
+      context.handle(
+        _iconPathMeta,
+        iconPath.isAcceptableOrUnknown(data['icon_path']!, _iconPathMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -372,6 +409,14 @@ class $ServersTable extends Servers with TableInfo<$ServersTable, Server> {
         DriftSqlType.string,
         data['${effectivePrefix}java_path'],
       ),
+      serverDir: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_dir'],
+      )!,
+      iconPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon_path'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -400,6 +445,8 @@ class Server extends DataClass implements Insertable<Server> {
   final String? resourcePackSha1;
   final String status;
   final String? javaPath;
+  final String serverDir;
+  final String? iconPath;
   final DateTime? createdAt;
   const Server({
     required this.id,
@@ -416,6 +463,8 @@ class Server extends DataClass implements Insertable<Server> {
     this.resourcePackSha1,
     required this.status,
     this.javaPath,
+    required this.serverDir,
+    this.iconPath,
     this.createdAt,
   });
   @override
@@ -442,6 +491,10 @@ class Server extends DataClass implements Insertable<Server> {
     map['status'] = Variable<String>(status);
     if (!nullToAbsent || javaPath != null) {
       map['java_path'] = Variable<String>(javaPath);
+    }
+    map['server_dir'] = Variable<String>(serverDir);
+    if (!nullToAbsent || iconPath != null) {
+      map['icon_path'] = Variable<String>(iconPath);
     }
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<DateTime>(createdAt);
@@ -473,6 +526,10 @@ class Server extends DataClass implements Insertable<Server> {
       javaPath: javaPath == null && nullToAbsent
           ? const Value.absent()
           : Value(javaPath),
+      serverDir: Value(serverDir),
+      iconPath: iconPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(iconPath),
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
@@ -499,6 +556,8 @@ class Server extends DataClass implements Insertable<Server> {
       resourcePackSha1: serializer.fromJson<String?>(json['resourcePackSha1']),
       status: serializer.fromJson<String>(json['status']),
       javaPath: serializer.fromJson<String?>(json['javaPath']),
+      serverDir: serializer.fromJson<String>(json['serverDir']),
+      iconPath: serializer.fromJson<String?>(json['iconPath']),
       createdAt: serializer.fromJson<DateTime?>(json['createdAt']),
     );
   }
@@ -520,6 +579,8 @@ class Server extends DataClass implements Insertable<Server> {
       'resourcePackSha1': serializer.toJson<String?>(resourcePackSha1),
       'status': serializer.toJson<String>(status),
       'javaPath': serializer.toJson<String?>(javaPath),
+      'serverDir': serializer.toJson<String>(serverDir),
+      'iconPath': serializer.toJson<String?>(iconPath),
       'createdAt': serializer.toJson<DateTime?>(createdAt),
     };
   }
@@ -539,6 +600,8 @@ class Server extends DataClass implements Insertable<Server> {
     Value<String?> resourcePackSha1 = const Value.absent(),
     String? status,
     Value<String?> javaPath = const Value.absent(),
+    String? serverDir,
+    Value<String?> iconPath = const Value.absent(),
     Value<DateTime?> createdAt = const Value.absent(),
   }) => Server(
     id: id ?? this.id,
@@ -559,6 +622,8 @@ class Server extends DataClass implements Insertable<Server> {
         : this.resourcePackSha1,
     status: status ?? this.status,
     javaPath: javaPath.present ? javaPath.value : this.javaPath,
+    serverDir: serverDir ?? this.serverDir,
+    iconPath: iconPath.present ? iconPath.value : this.iconPath,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
   );
   Server copyWithCompanion(ServersCompanion data) {
@@ -589,6 +654,8 @@ class Server extends DataClass implements Insertable<Server> {
           : this.resourcePackSha1,
       status: data.status.present ? data.status.value : this.status,
       javaPath: data.javaPath.present ? data.javaPath.value : this.javaPath,
+      serverDir: data.serverDir.present ? data.serverDir.value : this.serverDir,
+      iconPath: data.iconPath.present ? data.iconPath.value : this.iconPath,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
@@ -610,6 +677,8 @@ class Server extends DataClass implements Insertable<Server> {
           ..write('resourcePackSha1: $resourcePackSha1, ')
           ..write('status: $status, ')
           ..write('javaPath: $javaPath, ')
+          ..write('serverDir: $serverDir, ')
+          ..write('iconPath: $iconPath, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -631,6 +700,8 @@ class Server extends DataClass implements Insertable<Server> {
     resourcePackSha1,
     status,
     javaPath,
+    serverDir,
+    iconPath,
     createdAt,
   );
   @override
@@ -651,6 +722,8 @@ class Server extends DataClass implements Insertable<Server> {
           other.resourcePackSha1 == this.resourcePackSha1 &&
           other.status == this.status &&
           other.javaPath == this.javaPath &&
+          other.serverDir == this.serverDir &&
+          other.iconPath == this.iconPath &&
           other.createdAt == this.createdAt);
 }
 
@@ -669,6 +742,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
   final Value<String?> resourcePackSha1;
   final Value<String> status;
   final Value<String?> javaPath;
+  final Value<String> serverDir;
+  final Value<String?> iconPath;
   final Value<DateTime?> createdAt;
   const ServersCompanion({
     this.id = const Value.absent(),
@@ -685,6 +760,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
     this.resourcePackSha1 = const Value.absent(),
     this.status = const Value.absent(),
     this.javaPath = const Value.absent(),
+    this.serverDir = const Value.absent(),
+    this.iconPath = const Value.absent(),
     this.createdAt = const Value.absent(),
   });
   ServersCompanion.insert({
@@ -702,6 +779,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
     this.resourcePackSha1 = const Value.absent(),
     this.status = const Value.absent(),
     this.javaPath = const Value.absent(),
+    this.serverDir = const Value.absent(),
+    this.iconPath = const Value.absent(),
     this.createdAt = const Value.absent(),
   }) : name = Value(name),
        jarPath = Value(jarPath),
@@ -721,6 +800,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
     Expression<String>? resourcePackSha1,
     Expression<String>? status,
     Expression<String>? javaPath,
+    Expression<String>? serverDir,
+    Expression<String>? iconPath,
     Expression<DateTime>? createdAt,
   }) {
     return RawValuesInsertable({
@@ -738,6 +819,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
       if (resourcePackSha1 != null) 'resource_pack_sha1': resourcePackSha1,
       if (status != null) 'status': status,
       if (javaPath != null) 'java_path': javaPath,
+      if (serverDir != null) 'server_dir': serverDir,
+      if (iconPath != null) 'icon_path': iconPath,
       if (createdAt != null) 'created_at': createdAt,
     });
   }
@@ -757,6 +840,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
     Value<String?>? resourcePackSha1,
     Value<String>? status,
     Value<String?>? javaPath,
+    Value<String>? serverDir,
+    Value<String?>? iconPath,
     Value<DateTime?>? createdAt,
   }) {
     return ServersCompanion(
@@ -774,6 +859,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
       resourcePackSha1: resourcePackSha1 ?? this.resourcePackSha1,
       status: status ?? this.status,
       javaPath: javaPath ?? this.javaPath,
+      serverDir: serverDir ?? this.serverDir,
+      iconPath: iconPath ?? this.iconPath,
       createdAt: createdAt ?? this.createdAt,
     );
   }
@@ -823,6 +910,12 @@ class ServersCompanion extends UpdateCompanion<Server> {
     if (javaPath.present) {
       map['java_path'] = Variable<String>(javaPath.value);
     }
+    if (serverDir.present) {
+      map['server_dir'] = Variable<String>(serverDir.value);
+    }
+    if (iconPath.present) {
+      map['icon_path'] = Variable<String>(iconPath.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -846,6 +939,8 @@ class ServersCompanion extends UpdateCompanion<Server> {
           ..write('resourcePackSha1: $resourcePackSha1, ')
           ..write('status: $status, ')
           ..write('javaPath: $javaPath, ')
+          ..write('serverDir: $serverDir, ')
+          ..write('iconPath: $iconPath, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
@@ -1936,6 +2031,8 @@ typedef $$ServersTableCreateCompanionBuilder =
       Value<String?> resourcePackSha1,
       Value<String> status,
       Value<String?> javaPath,
+      Value<String> serverDir,
+      Value<String?> iconPath,
       Value<DateTime?> createdAt,
     });
 typedef $$ServersTableUpdateCompanionBuilder =
@@ -1954,6 +2051,8 @@ typedef $$ServersTableUpdateCompanionBuilder =
       Value<String?> resourcePackSha1,
       Value<String> status,
       Value<String?> javaPath,
+      Value<String> serverDir,
+      Value<String?> iconPath,
       Value<DateTime?> createdAt,
     });
 
@@ -2098,6 +2197,16 @@ class $$ServersTableFilterComposer
 
   ColumnFilters<String> get javaPath => $composableBuilder(
     column: $table.javaPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get serverDir => $composableBuilder(
+    column: $table.serverDir,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get iconPath => $composableBuilder(
+    column: $table.iconPath,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2261,6 +2370,16 @@ class $$ServersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get serverDir => $composableBuilder(
+    column: $table.serverDir,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get iconPath => $composableBuilder(
+    column: $table.iconPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -2329,6 +2448,12 @@ class $$ServersTableAnnotationComposer
 
   GeneratedColumn<String> get javaPath =>
       $composableBuilder(column: $table.javaPath, builder: (column) => column);
+
+  GeneratedColumn<String> get serverDir =>
+      $composableBuilder(column: $table.serverDir, builder: (column) => column);
+
+  GeneratedColumn<String> get iconPath =>
+      $composableBuilder(column: $table.iconPath, builder: (column) => column);
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -2455,6 +2580,8 @@ class $$ServersTableTableManager
                 Value<String?> resourcePackSha1 = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> javaPath = const Value.absent(),
+                Value<String> serverDir = const Value.absent(),
+                Value<String?> iconPath = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
               }) => ServersCompanion(
                 id: id,
@@ -2471,6 +2598,8 @@ class $$ServersTableTableManager
                 resourcePackSha1: resourcePackSha1,
                 status: status,
                 javaPath: javaPath,
+                serverDir: serverDir,
+                iconPath: iconPath,
                 createdAt: createdAt,
               ),
           createCompanionCallback:
@@ -2489,6 +2618,8 @@ class $$ServersTableTableManager
                 Value<String?> resourcePackSha1 = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> javaPath = const Value.absent(),
+                Value<String> serverDir = const Value.absent(),
+                Value<String?> iconPath = const Value.absent(),
                 Value<DateTime?> createdAt = const Value.absent(),
               }) => ServersCompanion.insert(
                 id: id,
@@ -2505,6 +2636,8 @@ class $$ServersTableTableManager
                 resourcePackSha1: resourcePackSha1,
                 status: status,
                 javaPath: javaPath,
+                serverDir: serverDir,
+                iconPath: iconPath,
                 createdAt: createdAt,
               ),
           withReferenceMapper: (p0) => p0

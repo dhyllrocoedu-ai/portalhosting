@@ -15,6 +15,8 @@ class BuildInfo {
     required this.url,
     this.sha256,
   });
+
+  String get label => build ?? 'latest';
 }
 
 abstract class ServerProvider {
@@ -29,33 +31,92 @@ class PaperProvider extends ServerProvider {
 
   @override
   Future<List<String>> getVersions() async {
-    final res = await http.get(Uri.parse(
-        'https://api.papermc.io/v2/projects/paper'));
-    final data = jsonDecode(res.body) as Map;
-    return List<String>.from(data['versions']);
+    final headers = {'User-Agent': 'PortalHost/1.0', 'Accept': 'application/json'};
+    // Use PaperMC Fill API v3 (v2 is sunset)
+    final endpoints = [
+      'https://fill.papermc.io/v3/projects/paper/versions',
+      'https://api.papermc.io/v3/projects/paper/versions',
+    ];
+
+    for (final endpoint in endpoints) {
+      final res = await http.get(Uri.parse(endpoint), headers: headers);
+      print('[PaperProvider] GET $endpoint -> ${res.statusCode}');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        List<String> versions = [];
+
+        if (data['versions'] is List) {
+          // Fill API v3 returns: {"versions": [{"version":{"id":"1.21.4"...}}, ...]}
+          final versionsList = data['versions'] as List;
+          for (final item in versionsList) {
+            if (item is Map && item['version'] is Map && item['version']['id'] is String) {
+              versions.add(item['version']['id'] as String);
+            }
+          }
+        } else if (data['version_groups'] is List) {
+          for (final group in data['version_groups']) {
+            if (group['versions'] is List) {
+              for (final v in group['versions']) {
+                if (v is Map && v['version'] is Map && v['version']['id'] is String) {
+                  versions.add(v['version']['id'] as String);
+                }
+              }
+            }
+          }
+        } else if (data['project_id'] != null && data['versions'] is Map) {
+          versions = (data['versions'] as Map?)?.keys.cast<String>().toList() ?? [];
+        }
+
+        if (versions.isNotEmpty) {
+          print('[PaperProvider] Got ${versions.length} versions from $endpoint');
+          return versions.reversed.toList();
+        }
+      }
+      if (res.statusCode == 410) {
+        print('[PaperProvider] $endpoint -> 410 Gone, trying next...');
+        continue;
+      }
+    }
+    throw Exception('Failed to fetch Paper versions from all endpoints. PaperMC API may be unavailable.');
   }
 
   @override
   Future<List<BuildInfo>> getBuilds(String version) async {
-    final res = await http.get(Uri.parse(
-        'https://api.papermc.io/v2/projects/paper/versions/$version'));
-    final data = jsonDecode(res.body) as Map;
-    final builds = List<int>.from(data['builds']);
-    final result = <BuildInfo>[];
-    for (final build in builds.reversed.take(10)) {
-      final bRes = await http.get(Uri.parse(
-          'https://api.papermc.io/v2/projects/paper/versions/$version/builds/$build'));
-      final bData = jsonDecode(bRes.body) as Map;
-      final info = bData['downloads']['application'] as Map;
-      result.add(BuildInfo(
-        version: version,
-        build: '$build',
-        url:
-            'https://api.papermc.io/v2/projects/paper/versions/$version/builds/$build/downloads/${info['name']}',
-        sha256: info['sha256'] as String?,
-      ));
+    final headers = {'User-Agent': 'PortalHost/1.0', 'Accept': 'application/json'};
+    final buildEndpoints = [
+      'https://fill.papermc.io/v3/projects/paper/versions/$version/builds',
+      'https://api.papermc.io/v3/projects/paper/versions/$version/builds',
+      'https://fill.papermc.io/v3/projects/paper/versions/$version',
+    ];
+
+    for (final endpoint in buildEndpoints) {
+      final res = await http.get(Uri.parse(endpoint), headers: headers);
+      print('[PaperProvider] GET $endpoint -> ${res.statusCode}');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final builds = (data['builds'] as List?)?.cast<int>() ?? [];
+        final result = <BuildInfo>[];
+        for (final build in builds.reversed.take(10)) {
+          final bRes = await http.get(Uri.parse(
+              'https://fill.papermc.io/v3/projects/paper/versions/$version/builds/$build'), headers: headers);
+          if (bRes.statusCode != 200) continue;
+          final bData = jsonDecode(bRes.body) as Map<String, dynamic>;
+          final downloads = bData['downloads'] as Map<String, dynamic>?;
+          if (downloads == null) continue;
+          final application = downloads['server:default'] as Map<String, dynamic>?;
+          if (application == null || !application.containsKey('name')) continue;
+          result.add(BuildInfo(
+            version: version,
+            build: '$build',
+            url: application['url'] as String,
+            sha256: application['checksums']?['sha256'] as String?,
+          ));
+        }
+        if (result.isNotEmpty) return result;
+      }
+      if (res.statusCode == 410) continue;
     }
-    return result;
+    return [];
   }
 }
 
@@ -67,9 +128,13 @@ class VanillaProvider extends ServerProvider {
   Future<List<String>> getVersions() async {
     final res = await http.get(Uri.parse(
         'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json'));
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch Vanilla versions: HTTP ${res.statusCode}');
+    }
     final data = jsonDecode(res.body) as Map;
     final versions = data['versions'] as List;
     return versions
+        .where((v) => v is Map && v['id'] is String)
         .map((v) => v['id'] as String)
         .where((id) => !id.contains('snapshot') && !id.contains('pre') && !id.contains('rc'))
         .take(20)
@@ -80,19 +145,30 @@ class VanillaProvider extends ServerProvider {
   Future<List<BuildInfo>> getBuilds(String version) async {
     final res = await http.get(Uri.parse(
         'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json'));
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch Vanilla manifest: HTTP ${res.statusCode}');
+    }
     final data = jsonDecode(res.body) as Map;
     final versions = data['versions'] as List;
-    final match = versions.firstWhere(
-        (v) => v['id'] == version,
-        orElse: () => <String, dynamic>{});
-    if (match is! Map || !match.containsKey('url')) return [];
-    final vRes = await http.get(Uri.parse(match['url']));
+    Map<String, dynamic>? match;
+    for (final v in versions) {
+      if (v is Map && v['id'] == version) {
+        match = v as Map<String, dynamic>;
+        break;
+      }
+    }
+    if (match == null || !match.containsKey('url')) return [];
+    final vRes = await http.get(Uri.parse(match['url'] as String));
+    if (vRes.statusCode != 200) return [];
     final vData = jsonDecode(vRes.body) as Map;
-    final server = vData['downloads']['server'] as Map;
+    final downloads = vData['downloads'] as Map?;
+    if (downloads == null) return [];
+    final server = downloads['server'] as Map?;
+    if (server == null || !server.containsKey('url')) return [];
     return [
       BuildInfo(
         version: version,
-        url: server['url'],
+        url: server['url'] as String,
         sha256: server['sha1'] as String?,
       ),
     ];
@@ -107,27 +183,40 @@ class ForgeProvider extends ServerProvider {
   Future<List<String>> getVersions() async {
     final res = await http.get(Uri.parse(
         'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json'));
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch Forge versions: HTTP ${res.statusCode}');
+    }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
-    return data.keys.take(20).toList();
+    return data.keys.toList().take(20).toList();
   }
 
   @override
   Future<List<BuildInfo>> getBuilds(String version) async {
-    final res = await http.get(Uri.parse(
-        'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json'));
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final builds = data[version] as List? ?? [];
-    final result = <BuildInfo>[];
-    for (final build in builds.take(10)) {
-      final buildStr = build.toString();
-      result.add(BuildInfo(
-        version: version,
-        build: buildStr,
-        url:
-            'https://maven.minecraftforge.net/net/minecraftforge/forge/$version-$buildStr/forge-$version-$buildStr-installer.jar',
-      ));
+    try {
+      final res = await http.get(Uri.parse(
+          'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json'));
+      if (res.statusCode != 200) return [];
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final versionData = data[version];
+      if (versionData is! Map<String, dynamic>) return [];
+
+      final builds = versionData['builds'];
+      if (builds is! List) return [];
+
+      final result = <BuildInfo>[];
+      for (final build in builds.take(10)) {
+        final buildStr = build.toString();
+        result.add(BuildInfo(
+          version: version,
+          build: buildStr,
+          url:
+              'https://maven.minecraftforge.net/net/minecraftforge/forge/$version-$buildStr/forge-$version-$buildStr-installer.jar',
+        ));
+      }
+      return result;
+    } catch (_) {
+      return [];
     }
-    return result;
   }
 }
 
@@ -139,6 +228,9 @@ class NeoForgeProvider extends ServerProvider {
   Future<List<String>> getVersions() async {
     final res = await http.get(Uri.parse(
         'https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml'));
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch NeoForge versions: HTTP ${res.statusCode}');
+    }
     final body = res.body;
     final versions = RegExp(r'<version>(.*?)</version>')
         .allMatches(body)
@@ -149,13 +241,17 @@ class NeoForgeProvider extends ServerProvider {
 
   @override
   Future<List<BuildInfo>> getBuilds(String version) async {
-    return [
-      BuildInfo(
-        version: version,
-        url:
-            'https://maven.neoforged.net/releases/net/neoforged/neoforge/$version/neoforge-$version-installer.jar',
-      ),
-    ];
+    try {
+      return [
+        BuildInfo(
+          version: version,
+          url:
+              'https://maven.neoforged.net/releases/net/neoforged/neoforge/$version/neoforge-$version-installer.jar',
+        ),
+      ];
+    } catch (_) {
+      return [];
+    }
   }
 }
 
@@ -167,26 +263,55 @@ class PurpurProvider extends ServerProvider {
   Future<List<String>> getVersions() async {
     final res = await http.get(Uri.parse(
         'https://api.purpurmc.org/v2/purpur'));
+    if (res.statusCode != 200) {
+      throw Exception('Failed to fetch Purpur versions: HTTP ${res.statusCode}');
+    }
     final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final versions = data['versions'] as Map<String, dynamic>;
-    return versions.keys.toList().reversed.take(20).toList();
+    final versionsRaw = data['versions'];
+    List<String> versions = [];
+    if (versionsRaw is List) {
+      versions = versionsRaw.whereType<String>().toList();
+    } else if (versionsRaw is Map) {
+      versions = versionsRaw.keys.whereType<String>().toList();
+    }
+    return versions.reversed.take(20).toList();
   }
 
   @override
   Future<List<BuildInfo>> getBuilds(String version) async {
-    final res = await http.get(Uri.parse(
-        'https://api.purpurmc.org/v2/purpur/$version'));
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final builds = data['builds'] as Map<String, dynamic>;
-    final result = <BuildInfo>[];
-    for (final build in builds.keys.toList().reversed.take(10)) {
-      result.add(BuildInfo(
-        version: version,
-        build: build,
-        url: 'https://api.purpurmc.org/v2/purpur/$version/$build/download',
-      ));
+    try {
+      final res = await http.get(Uri.parse(
+          'https://api.purpurmc.org/v2/purpur/$version'));
+      if (res.statusCode != 200) return [];
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final buildsRaw = data['builds'];
+      final result = <BuildInfo>[];
+      if (buildsRaw is List) {
+        for (final entry in buildsRaw.reversed.take(10)) {
+          if (entry is Map) {
+            final build = entry['build']?.toString();
+            if (build == null) continue;
+            result.add(BuildInfo(
+              version: version,
+              build: build,
+              url: 'https://api.purpurmc.org/v2/purpur/$version/$build/download',
+            ));
+          }
+        }
+      } else if (buildsRaw is Map) {
+        final builds = buildsRaw as Map<String, dynamic>;
+        for (final build in builds.keys.toList().reversed.take(10)) {
+          result.add(BuildInfo(
+            version: version,
+            build: build,
+            url: 'https://api.purpurmc.org/v2/purpur/$version/$build/download',
+          ));
+        }
+      }
+      return result;
+    } catch (_) {
+      return [];
     }
-    return result;
   }
 }
 
@@ -196,33 +321,92 @@ class FoliaProvider extends ServerProvider {
 
   @override
   Future<List<String>> getVersions() async {
-    final res = await http.get(Uri.parse(
-        'https://api.papermc.io/v2/projects/folia'));
-    final data = jsonDecode(res.body) as Map;
-    return List<String>.from(data['versions']);
+    final headers = {'User-Agent': 'PortalHost/1.0', 'Accept': 'application/json'};
+    // Use PaperMC Fill API v3 (v2 is sunset)
+    final endpoints = [
+      'https://fill.papermc.io/v3/projects/folia/versions',
+      'https://api.papermc.io/v3/projects/folia/versions',
+    ];
+
+    for (final endpoint in endpoints) {
+      final res = await http.get(Uri.parse(endpoint), headers: headers);
+      print('[FoliaProvider] GET $endpoint -> ${res.statusCode}');
+      print('[FoliaProvider] Body: ${res.body}');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        List<String> versions = [];
+
+        if (data['versions'] is List) {
+          // Fill API v3 returns: {"versions":[{"version":{"id":"1.21.4"...}}, ...]}
+          final versionsList = data['versions'] as List;
+          for (final item in versionsList) {
+            if (item is Map && item['version'] is Map && item['version']['id'] is String) {
+              versions.add(item['version']['id'] as String);
+            }
+          }
+        } else if (data['version_groups'] is List) {
+          for (final group in data['version_groups']) {
+            if (group['versions'] is List) {
+              for (final v in group['versions']) {
+                if (v is Map && v['version'] is Map && v['version']['id'] is String) {
+                  versions.add(v['version']['id'] as String);
+                }
+              }
+            }
+          }
+        } else if (data['project_id'] != null && data['versions'] is Map) {
+          versions = (data['versions'] as Map?)?.keys.cast<String>().toList() ?? [];
+        }
+
+        if (versions.isNotEmpty) {
+          print('[FoliaProvider] Got ${versions.length} versions from $endpoint');
+          return versions.reversed.take(20).toList();
+        }
+      }
+      if (res.statusCode == 410) {
+        print('[FoliaProvider] $endpoint -> 410 Gone, trying next...');
+        continue;
+      }
+    }
+    throw Exception('Failed to fetch Folia versions from all endpoints. PaperMC API may be unavailable.');
   }
 
   @override
   Future<List<BuildInfo>> getBuilds(String version) async {
-    final res = await http.get(Uri.parse(
-        'https://api.papermc.io/v2/projects/folia/versions/$version'));
-    final data = jsonDecode(res.body) as Map;
-    final builds = List<int>.from(data['builds']);
-    final result = <BuildInfo>[];
-    for (final build in builds.reversed.take(10)) {
-      final bRes = await http.get(Uri.parse(
-          'https://api.papermc.io/v2/projects/folia/versions/$version/builds/$build'));
-      final bData = jsonDecode(bRes.body) as Map;
-      final info = bData['downloads']['application'] as Map;
-      result.add(BuildInfo(
-        version: version,
-        build: '$build',
-        url:
-            'https://api.papermc.io/v2/projects/folia/versions/$version/builds/$build/downloads/${info['name']}',
-        sha256: info['sha256'] as String?,
-      ));
+    final headers = {'User-Agent': 'PortalHost/1.0', 'Accept': 'application/json'};
+    final buildEndpoints = [
+      'https://fill.papermc.io/v3/projects/folia/versions/$version/builds',
+      'https://api.papermc.io/v3/projects/folia/versions/$version/builds',
+    ];
+
+    for (final endpoint in buildEndpoints) {
+      final res = await http.get(Uri.parse(endpoint), headers: headers);
+      print('[FoliaProvider] GET $endpoint -> ${res.statusCode}');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final builds = (data['builds'] as List?)?.whereType<int>().toList() ?? [];
+        final result = <BuildInfo>[];
+        for (final build in builds.reversed.take(10)) {
+          final bRes = await http.get(Uri.parse(
+              'https://fill.papermc.io/v3/projects/folia/versions/$version/builds/$build'), headers: headers);
+          if (bRes.statusCode != 200) continue;
+          final bData = jsonDecode(bRes.body) as Map<String, dynamic>;
+          final downloads = bData['downloads'] as Map<String, dynamic>?;
+          if (downloads == null) continue;
+          final info = downloads['server:default'] as Map<String, dynamic>?;
+          if (info == null || !info.containsKey('name')) continue;
+          result.add(BuildInfo(
+            version: version,
+            build: '$build',
+            url: info['url'] as String,
+            sha256: info['checksums']?['sha256'] as String?,
+          ));
+        }
+        if (result.isNotEmpty) return result;
+      }
+      if (res.statusCode == 410) continue;
     }
-    return result;
+    return [];
   }
 }
 
@@ -232,34 +416,47 @@ class FabricProvider extends ServerProvider {
 
   @override
   Future<List<String>> getVersions() async {
-    final res = await http.get(Uri.parse(
-        'https://meta.fabricmc.net/v2/versions/game'));
-    final data = jsonDecode(res.body) as List;
-    return data
-        .where((v) => !(v['stable'] == false))
-        .map((v) => v['version'] as String)
-        .take(20)
-        .toList();
+    try {
+      final res = await http.get(Uri.parse(
+          'https://meta.fabricmc.net/v2/versions/game'));
+      if (res.statusCode != 200) {
+        throw Exception('Failed to fetch Fabric versions: HTTP ${res.statusCode}');
+      }
+      final data = jsonDecode(res.body) as List;
+      return data
+          .where((v) => v is Map && v['stable'] != false && v['version'] is String)
+          .map((v) => v['version'] as String)
+          .take(20)
+          .toList();
+    } catch (e) {
+      return [];
+    }
   }
 
   @override
   Future<List<BuildInfo>> getBuilds(String version) async {
-    final res = await http.get(Uri.parse(
-        'https://meta.fabricmc.net/v2/versions/loader/$version'));
-    final data = jsonDecode(res.body) as List;
-    if (data.isEmpty) return [];
-    final loader = data.first['loader'] as Map;
-    final installer = data.first['intermediary'] as Map;
-    final loaderVersion = loader['version'];
-    final intermediaryVersion = installer['version'];
-    return [
-      BuildInfo(
-        version: version,
-        build: loaderVersion,
-        url:
-            'https://meta.fabricmc.net/v2/versions/loader/$version/$loaderVersion/$intermediaryVersion/server/jar',
-      ),
-    ];
+    try {
+      final res = await http.get(Uri.parse(
+          'https://meta.fabricmc.net/v2/versions/loader/$version'));
+      if (res.statusCode != 200) return [];
+      final data = jsonDecode(res.body) as List;
+      if (data.isEmpty) return [];
+      final loader = data.first['loader'] as Map?;
+      final installer = data.first['intermediary'] as Map?;
+      if (loader == null || installer == null) return [];
+      final loaderVersion = loader['version'];
+      final intermediaryVersion = installer['version'];
+      return [
+        BuildInfo(
+          version: version,
+          build: loaderVersion?.toString(),
+          url:
+              'https://meta.fabricmc.net/v2/versions/loader/$version/$loaderVersion/$intermediaryVersion/server/jar',
+        ),
+      ];
+    } catch (_) {
+      return [];
+    }
   }
 }
 

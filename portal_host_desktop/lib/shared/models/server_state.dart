@@ -18,6 +18,7 @@ class ServerState {
   final int uptimeSeconds;
   final double cpuUsage;
   final int memoryBytes;
+  final DateTime? startTime;
 
   const ServerState({
     this.status = ServerStatus.stopped,
@@ -25,6 +26,7 @@ class ServerState {
     this.uptimeSeconds = 0,
     this.cpuUsage = 0,
     this.memoryBytes = 0,
+    this.startTime,
   });
 
   ServerState copyWith({
@@ -33,6 +35,7 @@ class ServerState {
     int? uptimeSeconds,
     double? cpuUsage,
     int? memoryBytes,
+    DateTime? startTime,
   }) =>
       ServerState(
         status: status ?? this.status,
@@ -40,5 +43,6 @@ class ServerState {
         uptimeSeconds: uptimeSeconds ?? this.uptimeSeconds,
         cpuUsage: cpuUsage ?? this.cpuUsage,
         memoryBytes: memoryBytes ?? this.memoryBytes,
+        startTime: startTime ?? this.startTime,
       );
 }

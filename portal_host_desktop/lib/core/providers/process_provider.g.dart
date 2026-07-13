@@ -6,7 +6,7 @@ part of 'process_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$processManagerHash() => r'8ac1acb186775aec3dde8b571f53c59802d2ac86';
+String _$processManagerHash() => r'c4872d9eddafc1cd41ad20d8bb2a724ff01f97d4';
 
 /// See also [processManager].
 @ProviderFor(processManager)

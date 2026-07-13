@@ -15,6 +15,8 @@ class Servers extends Table {
   TextColumn get resourcePackSha1 => text().nullable()();
   TextColumn get status => text().withDefault(const Constant('stopped'))();
   TextColumn get javaPath => text().nullable()();
+  TextColumn get serverDir => text().withDefault(const Constant(''))();
+  TextColumn get iconPath => text().nullable()();
   DateTimeColumn get createdAt => dateTime().nullable()();
 }
 

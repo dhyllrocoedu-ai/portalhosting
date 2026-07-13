@@ -6,7 +6,23 @@ part of 'server_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverListHash() => r'8636b27bd95d8d086b05cd41727188a55e671c51';
+String _$selectedServerIdHash() => r'26ddf6ada954e53e6e49747021e324a6f051114f';
+
+/// See also [SelectedServerId].
+@ProviderFor(SelectedServerId)
+final selectedServerIdProvider =
+    AutoDisposeNotifierProvider<SelectedServerId, int?>.internal(
+      SelectedServerId.new,
+      name: r'selectedServerIdProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$selectedServerIdHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$SelectedServerId = AutoDisposeNotifier<int?>;
+String _$serverListHash() => r'b6c1a205241c1ab6d2935a603eb8af06834b4ab4';
 
 /// See also [ServerList].
 @ProviderFor(ServerList)

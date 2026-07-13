@@ -20,7 +20,7 @@ class ServersScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'create_server',
-        onPressed: () => context.go('/servers/create'),
+        onPressed: () => context.push('/servers/create'),
         child: const Icon(Icons.add),
       ),
       body: serversAsync.when(
@@ -60,7 +60,10 @@ class ServersScreen extends ConsumerWidget {
               return _ServerCard(
                 config: server,
                 state: state,
-                onTap: () => context.push('/servers/${server.id}'),
+                onTap: () {
+                  ref.read(selectedServerIdProvider.notifier).select(server.id);
+                  context.push('/servers/${server.id}');
+                },
               );
             },
           );

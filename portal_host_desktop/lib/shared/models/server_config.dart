@@ -17,6 +17,8 @@ class ServerConfig {
   final String? resourcePackSha1;
   final ServerStatus status;
   final String? javaPath;
+  final String serverDir;
+  final String? iconPath;
   final DateTime? createdAt;
 
   ServerConfig({
@@ -34,6 +36,8 @@ class ServerConfig {
     this.resourcePackSha1,
     this.status = ServerStatus.stopped,
     this.javaPath,
+    this.serverDir = '',
+    this.iconPath,
     this.createdAt,
   });
 
@@ -52,6 +56,8 @@ class ServerConfig {
         resourcePackSha1: row.resourcePackSha1,
         status: ServerStatus.fromString(row.status),
         javaPath: row.javaPath,
+        serverDir: row.serverDir,
+        iconPath: row.iconPath,
         createdAt: row.createdAt,
       );
 
@@ -70,6 +76,8 @@ class ServerConfig {
         resourcePackSha1: Value(resourcePackSha1),
         status: Value(status.value),
         javaPath: Value(javaPath),
+        serverDir: Value(serverDir),
+        iconPath: Value(iconPath),
         createdAt: Value(createdAt),
       );
 
@@ -83,6 +91,8 @@ class ServerConfig {
         autoBackup: Value(autoBackup ? 1 : 0),
         autoRestart: Value(autoRestart ? 1 : 0),
         status: Value(status.value),
+        serverDir: Value(serverDir),
+        iconPath: Value(iconPath),
       );
 
   ServerConfig copyWith({
@@ -100,6 +110,8 @@ class ServerConfig {
     String? resourcePackSha1,
     ServerStatus? status,
     String? javaPath,
+    String? serverDir,
+    String? iconPath,
     DateTime? createdAt,
   }) =>
       ServerConfig(
@@ -117,6 +129,8 @@ class ServerConfig {
         resourcePackSha1: resourcePackSha1 ?? this.resourcePackSha1,
         status: status ?? this.status,
         javaPath: javaPath ?? this.javaPath,
+        serverDir: serverDir ?? this.serverDir,
+        iconPath: iconPath ?? this.iconPath,
         createdAt: createdAt ?? this.createdAt,
       );
 }
