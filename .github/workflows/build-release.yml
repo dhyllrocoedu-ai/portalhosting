@@ -43,17 +43,11 @@ jobs:
         run: |
           iscc portal_host_desktop\installer.iss
 
-      - name: Create ZIP archive
-        working-directory: ./portal_host_desktop
-        run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "PortalHost-${{ github.ref_name }}-windows.zip" -Force
-
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
             portal_host_desktop/PortalHost-*-Setup.exe
-            portal_host_desktop/PortalHost-*-windows.zip
             native/app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
 
