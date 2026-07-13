@@ -46,7 +46,9 @@ jobs:
 
       - name: Build Windows release
         working-directory: portal_host_desktop
-        run: flutter build windows --release
+        run: |
+          $env:CMAKE_GENERATOR = "Visual Studio 17 2022"
+          flutter build windows --release
 
       - name: Build installer
         working-directory: portal_host_desktop
