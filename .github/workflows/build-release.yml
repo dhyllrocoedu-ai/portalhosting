@@ -37,16 +37,24 @@ jobs:
           Test-Path portal_host_desktop
 
       - name: Get dependencies
-        run: cd portal_host_desktop && flutter pub get
+        run: |
+          cd portal_host_desktop
+          flutter pub get
 
       - name: Generate code
-        run: cd portal_host_desktop && dart run build_runner build --delete-conflicting-outputs
+        run: |
+          cd portal_host_desktop
+          dart run build_runner build --delete-conflicting-outputs
 
       - name: Build Windows release
-        run: cd portal_host_desktop && flutter build windows --release
+        run: |
+          cd portal_host_desktop
+          flutter build windows --release
 
       - name: Build installer
-        run: cd portal_host_desktop && iscc installer.iss
+        run: |
+          cd portal_host_desktop
+          iscc installer.iss
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
