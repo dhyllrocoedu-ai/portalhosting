@@ -50,13 +50,13 @@ jobs:
 
       - name: Build Windows release
         working-directory: portal_host_desktop
-        env:
-          CMAKE_GENERATOR: "Visual Studio 18 2026"
         run: |
           # Clean build directory
           if (Test-Path "build") { Remove-Item -Recurse -Force "build" }
           # Configure with CMake (will use default generator - VS 2026 after build tools install)
           cmake -B build -S windows
+          # Set CMAKE_GENERATOR as process env var for flutter build's cmake
+          [Environment]::SetEnvironmentVariable("CMAKE_GENERATOR", "Visual Studio 18 2026", "Process")
           # Build with Flutter using pre-configured build directory
           flutter build windows --release
 
