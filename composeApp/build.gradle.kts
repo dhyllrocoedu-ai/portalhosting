@@ -49,7 +49,10 @@ compose.desktop {
     application {
         mainClass = "com.portalhost.desktop.DesktopMainKt"
         nativeDistributions {
-            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
+            targetFormats(
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+            )
             packageName = "PortalHost"
             packageVersion = "4.5.0"
             description = "Minecraft Java Edition Server Manager"
@@ -57,6 +60,11 @@ compose.desktop {
             modules("java.sql", "java.naming", "java.management", "java.net.http")
             windows {
                 menuGroup = "PortalHost"
+                menu = true
+                shortcut = true
+                dirChooser = true
+                perUserInstall = false
+                upgradeUuid = "c7a3b8e1-4d2f-4a9e-8b6c-1d3e5f7a9b0c"
             }
         }
     }
