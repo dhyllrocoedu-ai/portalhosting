@@ -54,6 +54,7 @@ compose.desktop {
             packageVersion = "4.5.0"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
+            modules("java.sql", "java.naming", "java.management", "java.net.http")
             windows {
                 menuGroup = "PortalHost"
             }
