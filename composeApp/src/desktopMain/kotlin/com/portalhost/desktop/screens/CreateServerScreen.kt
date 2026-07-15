@@ -1,8 +1,15 @@
 package com.portalhost.desktop.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,13 +20,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
@@ -30,6 +42,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Build
@@ -70,8 +83,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
 import com.portalhost.java.JdkManager
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerSource
@@ -111,6 +127,7 @@ fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
 } ?: false
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("EXPERIMENTAL_API_USAGE")
 @Composable
 fun CreateServerScreen() {
     val serverManager = koinInject<ServerManager>()
@@ -289,26 +306,11 @@ fun CreateServerScreen() {
                     Text("Retry")
                 }
             } else if (availableVersions.isNotEmpty()) {
-                var versionExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(expanded = versionExpanded, onExpandedChange = { versionExpanded = it }) {
-                    OutlinedTextField(
-                        value = mcVersion.ifBlank { "Select version" },
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Minecraft Version") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = versionExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        singleLine = true
-                    )
-                    ExposedDropdownMenu(expanded = versionExpanded, onDismissRequest = { versionExpanded = false }) {
-                        availableVersions.forEach { v ->
-                            DropdownMenuItem(
-                                text = { Text(v) },
-                                onClick = { mcVersion = v; versionExpanded = false }
-                            )
-                        }
-                    }
-                }
+                DesktopVersionGrid(
+                    selectedVersion = mcVersion,
+                    availableVersions = availableVersions,
+                    onVersionSelected = { mcVersion = it }
+                )
 
                 if (createSource?.supportsBuilds() == true && mcVersion.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
@@ -777,6 +779,172 @@ fun CreateServerScreen() {
                                 Spacer(Modifier.width(8.dp))
                                 Text("Create Server")
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DesktopVersionGrid(
+    selectedVersion: String,
+    availableVersions: List<String>,
+    onVersionSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var currentPage by remember { mutableIntStateOf(0) }
+
+    val filteredVersions = remember(availableVersions, searchQuery) {
+        if (searchQuery.isBlank()) availableVersions
+        else availableVersions.filter { it.contains(searchQuery, ignoreCase = true) }
+    }
+
+    val pageSize = 10
+    val totalPages = remember(filteredVersions.size) { ceil(filteredVersions.size.toFloat() / pageSize).toInt().coerceAtLeast(1) }
+    val pagedVersions = remember(filteredVersions, currentPage) {
+        val start = currentPage * pageSize
+        val end = minOf(start + pageSize, filteredVersions.size)
+        if (start < filteredVersions.size) filteredVersions.subList(start, end) else emptyList()
+    }
+
+    LaunchedEffect(searchQuery) { currentPage = 0 }
+
+    Column {
+        OutlinedTextField(
+            value = if (selectedVersion.isNotBlank()) selectedVersion else "Select version",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Minecraft Version") },
+            trailingIcon = {
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                        contentDescription = if (expanded) "Collapse" else "Expand"
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it; currentPage = 0 },
+                        placeholder = { Text("Search versions...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { }),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    if (pagedVersions.isEmpty()) {
+                        Text(
+                            if (searchQuery.isNotBlank()) "No versions match \"$searchQuery\""
+                            else "No versions available",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth()
+                        )
+                    } else {
+                        val rows = pagedVersions.chunked(5)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rows.forEach { rowItems ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    rowItems.forEach { version ->
+                                        val isSelected = version == selectedVersion
+                                        FilterChip(
+                                            selected = isSelected,
+                                            onClick = {
+                                                onVersionSelected(version)
+                                                expanded = false
+                                                searchQuery = ""
+                                            },
+                                            label = {
+                                                Text(
+                                                    version,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            modifier = Modifier.width(IntrinsicSize.Min),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (filteredVersions.size > pageSize) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = { if (currentPage > 0) currentPage-- },
+                                enabled = currentPage > 0
+                            ) {
+                                Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text("Prev")
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Page ${currentPage + 1} of $totalPages",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(8.dp))
+
+                            TextButton(
+                                onClick = { if (currentPage < totalPages - 1) currentPage++ },
+                                enabled = currentPage < totalPages - 1
+                            ) {
+                                Text("Next")
+                                Spacer(Modifier.width(2.dp))
+                                Icon(Icons.Default.ChevronRight, contentDescription = "Next", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { expanded = false; searchQuery = "" }) {
+                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
