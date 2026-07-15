@@ -19,14 +19,17 @@ pluginManagement {
             if (requested.id.id == "org.jetbrains.kotlin.multiplatform") {
                 useVersion("2.0.20")
             }
-            if (requested.id.id == "com.android.application") {
-                useVersion("8.5.0")
+            if (requested.id.id == "org.jetbrains.kotlin.android") {
+                useVersion("2.0.20")
             }
             if (requested.id.id == "org.jetbrains.kotlin.plugin.compose") {
                 useVersion("2.0.20")
             }
             if (requested.id.id == "org.jetbrains.kotlin.plugin.serialization") {
                 useVersion("2.0.20")
+            }
+            if (requested.id.id == "com.android.application") {
+                useVersion("8.8.2")
             }
             if (requested.id.id == "org.jetbrains.compose.desktop") {
                 useVersion("1.5.14")
