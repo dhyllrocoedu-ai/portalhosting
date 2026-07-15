@@ -15,17 +15,15 @@ class PaperProvider(
     override val type = ServerType.PAPER
     override val supportsBuilds = true
     private val TAG = "PaperProvider"
+    private val projectUrl = "https://api.papermc.io/v2/projects/paper"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://fill.papermc.io/v3/projects/paper/versions"
-            val req = Request.Builder().url(url).build()
+            val req = Request.Builder().url(projectUrl).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperVersionsResponse>(body)
+            val response = json.decodeFromString<PaperProjectResponse>(body)
             response.versions
-                .map { it.version.id }
                 .filter { it.matches(Regex("^\\d+(\\.\\d+)*$")) }
-                .distinct()
                 .sortedByDescending { it }
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
@@ -35,13 +33,13 @@ class PaperProvider(
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://fill.papermc.io/v3/projects/paper/versions/$version/builds"
+            val url = "$projectUrl/versions/$version"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperBuildsResponse>(body)
+            val response = json.decodeFromString<PaperVersionResponse>(body)
             response.builds
-                .sortedByDescending { it.id }
-                .map { BuildInfo("#${it.id}", it.id.toString()) }
+                .sortedByDescending { it }
+                .map { BuildInfo("Build #$it", it.toString()) }
         } catch (e: Exception) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
             emptyList()
@@ -50,18 +48,14 @@ class PaperProvider(
 
     override suspend fun getDownloadInfo(version: String, buildId: String): DownloadInfo? = withContext(Dispatchers.IO) {
         try {
-            val url = if (buildId.isBlank()) {
-                "https://fill.papermc.io/v3/projects/paper/versions/$version/builds/latest"
-            } else {
-                "https://fill.papermc.io/v3/projects/paper/versions/$version/builds/$buildId"
-            }
+            val buildNumber = buildId.toIntOrNull() ?: return@withContext null
+            val url = "$projectUrl/versions/$version/builds/$buildNumber"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext null
             val response = json.decodeFromString<PaperBuildResponse>(body)
-
-            val serverDownload = response.downloads?.get("server:default") ?: return@withContext null
-            val sha256 = serverDownload.checksums?.get("sha256")
-            DownloadInfo(serverDownload.url, sha256, "paper-$version.jar")
+            val app = response.downloads?.application ?: return@withContext null
+            val downloadUrl = "$projectUrl/versions/$version/builds/$buildNumber/downloads/${app.name}"
+            DownloadInfo(downloadUrl, app.sha256, "paper-$version.jar")
         } catch (e: Exception) {
             Log.e(TAG, "getDownloadInfo: ${e.message}")
             null
@@ -69,23 +63,25 @@ class PaperProvider(
     }
 
     @Serializable
-    private data class PaperVersionsResponse(val versions: List<PaperVersionEntry>)
+    private data class PaperProjectResponse(val versions: List<String>)
+
     @Serializable
-    private data class PaperVersionEntry(val version: PaperVersionId)
-    @Serializable
-    private data class PaperVersionId(val id: String)
-    @Serializable
-    private data class PaperBuildsResponse(val builds: List<PaperBuildEntry>)
-    @Serializable
-    private data class PaperBuildEntry(val id: Int)
+    private data class PaperVersionResponse(val version: String, val builds: List<Int>)
+
     @Serializable
     private data class PaperBuildResponse(
-        val id: Int,
-        val downloads: Map<String, PaperDownloadEntry>? = null
+        val build: Int,
+        val downloads: PaperDownloads? = null
     )
+
     @Serializable
-    private data class PaperDownloadEntry(
-        val url: String,
-        val checksums: Map<String, String>? = null
+    private data class PaperDownloads(
+        val application: PaperApplication? = null
+    )
+
+    @Serializable
+    private data class PaperApplication(
+        val name: String,
+        val sha256: String
     )
 }

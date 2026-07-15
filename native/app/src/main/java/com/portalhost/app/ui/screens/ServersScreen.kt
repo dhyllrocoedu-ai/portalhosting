@@ -45,20 +45,19 @@ private fun serverTypeInfo(type: String): ServerTypeInfo = when (type.lowercase(
 @Composable
 fun ServersScreen(
     repository: ServerRepository,
-    onCreateServer: () -> Unit,
     onServerClick: (ServerConfig) -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
     onRenameServer: (ServerConfig) -> Unit = {},
     onDuplicateServer: (ServerConfig) -> Unit = {},
     onBackupServer: (ServerConfig) -> Unit = {},
-    onExportServer: (ServerConfig) -> Unit = {}
+    onExportServer: (ServerConfig) -> Unit = {},
+    onOpenDrawer: () -> Unit
 ) {
     val servers = repository.list()
     var serverToDelete by remember { mutableStateOf<ServerConfig?>(null) }
     var selectedFilter by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
-    var showOverflowMenu by remember { mutableStateOf(false) }
 
     val filters = listOf("All", "Online", "Offline", "Favorites", "Templates")
 
@@ -87,6 +86,11 @@ fun ServersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open menu")
+                    }
+                },
                 title = {
                     if (showSearch) {
                         OutlinedTextField(
@@ -114,16 +118,6 @@ fun ServersScreen(
                 actions = {
                     IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }) {
                         Icon(if (showSearch) Icons.Default.Close else Icons.Default.Search, contentDescription = "Search")
-                    }
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                        }
-                        DropdownMenu(expanded = showOverflowMenu, onDismissRequest = { showOverflowMenu = false }) {
-                            DropdownMenuItem(text = { Text("Sort by name") }, onClick = { showOverflowMenu = false })
-                            DropdownMenuItem(text = { Text("Sort by date") }, onClick = { showOverflowMenu = false })
-                            DropdownMenuItem(text = { Text("Import server") }, onClick = { showOverflowMenu = false })
-                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -171,21 +165,11 @@ fun ServersScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Servers (${filteredServers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        FilledTonalButton(
-                            onClick = onCreateServer,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Create Server")
-                        }
-                    }
+                    Text(
+                        "Servers (${filteredServers.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(4.dp))
                 }
 
@@ -204,9 +188,7 @@ fun ServersScreen(
                 }
 
                 item {
-                    Spacer(Modifier.height(4.dp))
-                    CreateServerCard(onClick = onCreateServer)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(72.dp))
                 }
             }
         }
@@ -399,36 +381,6 @@ private fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, text
             Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(4.dp))
             Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-        }
-    }
-}
-
-@Composable
-private fun CreateServerCard(onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(48.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Create New Server", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Paper, Fabric, Forge, NeoForge, Vanilla, etc.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

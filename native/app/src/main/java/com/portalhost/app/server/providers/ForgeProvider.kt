@@ -54,7 +54,7 @@ class ForgeProvider(
             builds.firstOrNull()?.id ?: return null
         }
         val fullVer = "$version-$forgeVer"
-        val url = "https://maven.minecraftforge.net/net/minecraftforge/forge/$fullVer/forge-$fullVer-universal.jar"
+        val url = "https://maven.minecraftforge.net/net/minecraftforge/forge/$fullVer/forge-$fullVer-server.jar"
         return DownloadInfo(url, null, "forge-$version-$forgeVer-server.jar")
     }
 }

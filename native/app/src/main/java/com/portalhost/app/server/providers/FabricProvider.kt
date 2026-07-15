@@ -15,17 +15,18 @@ class FabricProvider(
     override val type = ServerType.FABRIC
     override val supportsBuilds = true
     private val TAG = "FabricProvider"
+    private val metaUrl = "https://meta.fabricmc.net/v2"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
+            val url = "$metaUrl/versions/game"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val manifest = json.decodeFromString<VanillaManifest>(body)
-            manifest.versions
-                .filter { it.type == "release" }
-                .map { it.id }
-                .reversed()
+            val versions = json.decodeFromString<List<FabricGameVersion>>(body)
+            versions
+                .filter { it.stable }
+                .map { it.version }
+                .sortedByDescending { it }
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
             emptyList()
@@ -34,7 +35,7 @@ class FabricProvider(
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
         try {
-            val url = "https://meta.fabricmc.net/v2/versions/loader/$version"
+            val url = "$metaUrl/versions/loader/$version"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
             val loaders = json.decodeFromString<List<FabricLoaderEntry>>(body)
@@ -50,19 +51,16 @@ class FabricProvider(
             val builds = getBuildInfos(version)
             builds.firstOrNull()?.id ?: return null
         }
-        val url = "https://meta.fabricmc.net/v2/versions/loader/$version/$loader/server/jar"
+        val url = "$metaUrl/versions/loader/$version/$loader/server/jar"
         return DownloadInfo(url, null, "fabric-$version-loader-$loader.jar")
     }
+
+    @Serializable
+    private data class FabricGameVersion(val version: String, val stable: Boolean)
 
     @Serializable
     private data class FabricLoaderEntry(val loader: FabricLoader)
 
     @Serializable
     private data class FabricLoader(val version: String)
-
-    @Serializable
-    private data class VanillaManifest(val versions: List<VanillaVersionEntry>)
-
-    @Serializable
-    private data class VanillaVersionEntry(val id: String, val type: String, val url: String)
 }

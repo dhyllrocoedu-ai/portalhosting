@@ -52,7 +52,6 @@ fun HomeScreen(
     onOpenLogs: () -> Unit = {},
     onOpenPerformance: () -> Unit = {},
     onSelectServer: (String) -> Unit,
-    onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
     tunnelUrl: String = "",
     tunnelState: TunnelState? = null,
@@ -63,7 +62,8 @@ fun HomeScreen(
     tunnelAvailable: Boolean = true,
     serverDir: File? = null,
     activeServer: ServerConfig? = null,
-    repository: ServerRepository
+    repository: ServerRepository,
+    onOpenDrawer: () -> Unit
 ) {
     val activeServer = activeServer ?: serverConfigs.find { it.id == activeServerId }
     val maxPlayers = remember(serverDir) { readMaxPlayers(serverDir) }
@@ -84,13 +84,16 @@ fun HomeScreen(
             .fillMaxSize()
             .padding(horizontal = 20.dp)
     ) {
-        // ─── Header ────────────────────────────────────────
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onOpenDrawer) {
+                Icon(Icons.Default.Menu, contentDescription = "Open menu")
+            }
+            Spacer(Modifier.width(4.dp))
             GrassIcon(size = 28.dp)
             Spacer(Modifier.width(10.dp))
             Text("PortalHost", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -98,12 +101,8 @@ fun HomeScreen(
             IconButton(onClick = {}) {
                 Icon(Icons.Default.Notifications, contentDescription = "Notifications")
             }
-            IconButton(onClick = {}) {
-                Icon(Icons.Default.MoreVert, contentDescription = "More")
-            }
         }
 
-        // ─── Scrollable Content ────────────────────────────
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -120,17 +119,10 @@ fun HomeScreen(
                         Spacer(Modifier.height(16.dp))
                         Text("No servers yet", style = MaterialTheme.typography.titleLarge)
                         Spacer(Modifier.height(8.dp))
-                        Text("Create your first Minecraft server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(24.dp))
-                        Button(onClick = onCreateServer) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Create Server")
-                        }
+                        Text("Tap + to create a server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
-                // Server Overview Card (with controls integrated)
                 ServerCard(
                     activeServer = activeServer,
                     serverConfigs = serverConfigs,
@@ -138,14 +130,12 @@ fun HomeScreen(
                     statusColor = statusColor,
                     repository = repository,
                     onSelectServer = onSelectServer,
-                    onCreateServer = onCreateServer,
                     onDeleteServer = onDeleteServer,
                     onStart = onStart,
                     onStop = onStop,
                     onRestart = onRestart
                 )
 
-                // JDK install progress
                 if (jdkInstalling) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -177,7 +167,6 @@ fun HomeScreen(
                     }
                 }
 
-                // Error banner
                 serverState.error?.let { error ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -191,7 +180,6 @@ fun HomeScreen(
                     }
                 }
 
-                // Tunnel
                 if (tunnelAvailable) {
                     TunnelCard(
                         tunnelState = tunnelState,
@@ -200,7 +188,6 @@ fun HomeScreen(
                     )
                 }
 
-                // Performance
                 PerformanceCard(
                     processStats = processStats,
                     serverState = serverState,
@@ -208,7 +195,6 @@ fun HomeScreen(
                     onOpenPerformance = onOpenPerformance
                 )
 
-                // Console
                 ConsoleCard(
                     consoleLines = consoleLines,
                     onOpenConsole = onOpenConsole,
@@ -217,7 +203,6 @@ fun HomeScreen(
                     isOnline = serverState.status == ServerStatus.ONLINE
                 )
 
-                // Activity
                 ActivityCard(activityLog = activityLog)
 
                 Spacer(Modifier.height(8.dp))

@@ -1,7 +1,17 @@
 package com.portalhost.app.ui.screens.create
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -10,8 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalhost.app.server.providers.BuildInfo
+import kotlin.math.ceil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +90,6 @@ fun StepChooseSource(
         if (createSource != null && createSource != CreateSource.PICK_FILE) {
             Spacer(Modifier.height(12.dp))
 
-            // Version picker
             if (versionsLoading) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -115,31 +127,12 @@ fun StepChooseSource(
                     Text("Refresh")
                 }
             } else if (!downloading && jarName.isBlank()) {
-                // Version dropdown
-                var versionExpanded by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedTextField(
-                        value = if (mcVersion.isNotBlank()) mcVersion else "Select version",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Minecraft Version") },
-                        trailingIcon = {
-                            IconButton(onClick = { versionExpanded = true }) {
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Select version")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    DropdownMenu(expanded = versionExpanded, onDismissRequest = { versionExpanded = false }) {
-                        availableVersions.forEach { v ->
-                            DropdownMenuItem(
-                                text = { Text(v) },
-                                onClick = { onVersionChange(v); versionExpanded = false }
-                            )
-                        }
-                    }
-                }
+                VersionGridPicker(
+                    selectedVersion = mcVersion,
+                    availableVersions = availableVersions,
+                    onVersionSelected = onVersionChange
+                )
+
                 if (mcVersion.isNotBlank()) {
                     Text("Selected: $mcVersion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
@@ -302,6 +295,174 @@ fun DownloadOptionCard(
                 Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
             } else {
                 Icon(Icons.Default.CloudDownload, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
+fun VersionGridPicker(
+    selectedVersion: String,
+    availableVersions: List<String>,
+    onVersionSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var currentPage by remember { mutableIntStateOf(0) }
+
+    val filteredVersions = remember(availableVersions, searchQuery) {
+        if (searchQuery.isBlank()) availableVersions
+        else availableVersions.filter { it.contains(searchQuery, ignoreCase = true) }
+    }
+
+    val pageSize = 10
+    val totalPages = remember(filteredVersions.size) { ceil(filteredVersions.size.toFloat() / pageSize).toInt().coerceAtLeast(1) }
+    val pagedVersions = remember(filteredVersions, currentPage) {
+        val start = currentPage * pageSize
+        val end = minOf(start + pageSize, filteredVersions.size)
+        if (start < filteredVersions.size) filteredVersions.subList(start, end) else emptyList()
+    }
+
+    // Reset page when search changes
+    LaunchedEffect(searchQuery) { currentPage = 0 }
+
+    Column {
+        OutlinedTextField(
+            value = if (selectedVersion.isNotBlank()) selectedVersion else "Select version",
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("Minecraft Version") },
+            trailingIcon = {
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                        contentDescription = if (expanded) "Collapse" else "Expand"
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth()
+                ) {
+                    // Search field
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it; currentPage = 0 },
+                        placeholder = { Text("Search versions...") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { /* no-op */ }),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    if (pagedVersions.isEmpty()) {
+                        Text(
+                            if (searchQuery.isNotBlank()) "No versions match \"$searchQuery\""
+                            else "No versions available",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp).fillMaxWidth()
+                        )
+                    } else {
+                        // 5-column grid using FlowRow
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            maxItemsInEachRow = 5
+                        ) {
+                            pagedVersions.forEach { version ->
+                                val isSelected = version == selectedVersion
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        onVersionSelected(version)
+                                        expanded = false
+                                        searchQuery = ""
+                                    },
+                                    label = {
+                                        Text(
+                                            version,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    modifier = Modifier.width(IntrinsicSize.Min),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Pagination
+                    if (filteredVersions.size > pageSize) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = { if (currentPage > 0) currentPage-- },
+                                enabled = currentPage > 0
+                            ) {
+                                Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(2.dp))
+                                Text("Prev")
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Page ${currentPage + 1} of $totalPages",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(8.dp))
+
+                            TextButton(
+                                onClick = { if (currentPage < totalPages - 1) currentPage++ },
+                                enabled = currentPage < totalPages - 1
+                            ) {
+                                Text("Next")
+                                Spacer(Modifier.width(2.dp))
+                                Icon(Icons.Default.ChevronRight, contentDescription = "Next", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    // Close button
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { expanded = false; searchQuery = "" }) {
+                            Text("Close", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
     }

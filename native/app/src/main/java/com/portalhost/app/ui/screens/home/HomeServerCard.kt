@@ -43,7 +43,6 @@ fun ServerCard(
     statusColor: Color,
     repository: ServerRepository,
     onSelectServer: (String) -> Unit,
-    onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit = {},
     onStart: () -> Unit,
     onStop: () -> Unit,
