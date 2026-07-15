@@ -32,3 +32,13 @@ yarn-error.*
 # generated APKs
 PortalHost.apk
 native/*.apk
+
+# Compose Multiplatform
+composeApp/build/
+composeApp/.gradle/
+build/
+.gradle/
+
+# IDE
+.idea/
+*.iml

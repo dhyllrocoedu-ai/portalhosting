@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.5.0--desktopv2 (2026-07-15)
+
+### Features
+- **Compose Multiplatform desktop app** — Full rewrite from Flutter to Kotlin Multiplatform + Compose Desktop
+- **Dashboard** — Server overview with quick actions, live stats, player list, activity timeline
+- **Server creation wizard** — 7 server types: Vanilla, Paper, Fabric, Forge, NeoForge, Folia, Purpur
+- **Server detail screen** — Tabbed interface with console, files, players, performance, logs, RCON
+- **Live console** — Real-time log streaming with command input
+- **File manager** — Breadcrumb navigation, sort by Name/Date/Size, rename, delete, inline text editor
+- **Player management** — Player list with Kick/Ban/OP command shortcuts
+- **Performance monitoring** — CPU/RAM/TPS charts
+- **Backup manager** — ZIP backup creation/restoration
+- **RCON client** — Remote command interface
+- **Process monitor** — CPU/RAM/TPS polling for running servers
+- **JDK auto-management** — Downloads Temurin JDKs from Adoptium (8/11/17/21)
+- **Server downloader** — Downloads server JARs from 7 providers
+- **Playit.gg tunnel integration** — Public access tunneling
+- **Koin dependency injection** — Modular DI across all components
+- **SQLDelight database** — Server config and state persistence
+- **Multiplatform logging** — Structured logging via kotlin-logging + Logback
+
 ## v2.8.5-native (2026-07-03)
 
 ### Improvements

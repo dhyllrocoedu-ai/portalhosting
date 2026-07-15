@@ -13,9 +13,6 @@ pluginManagement {
     }
     resolutionStrategy {
         eachPlugin {
-            if (requested.id.id == "com.squareup.sqldelight") {
-                useVersion("1.5.3")
-            }
             if (requested.id.id == "org.jetbrains.kotlin.multiplatform") {
                 useVersion("2.0.20")
             }
@@ -28,15 +25,15 @@ pluginManagement {
             if (requested.id.id == "org.jetbrains.kotlin.plugin.serialization") {
                 useVersion("2.0.20")
             }
-            if (requested.id.id == "org.jetbrains.compose.desktop") {
-                useVersion("1.5.14")
+            if (requested.id.id == "org.jetbrains.compose") {
+                useVersion("1.6.11")
             }
         }
     }
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
@@ -47,6 +44,5 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "PortalHost"
-include(":app")
-include(":composeApp")
-project(":composeApp").projectDir = file("../composeApp")
+
+include("composeApp")
