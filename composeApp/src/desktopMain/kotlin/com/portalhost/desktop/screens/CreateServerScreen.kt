@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,42 +17,64 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.portalhost.java.JdkManager
-import java.io.File
 import com.portalhost.model.ServerConfig
+import com.portalhost.model.ServerSource
 import com.portalhost.model.ServerType
 import com.portalhost.model.ServerVersion
 import com.portalhost.server.ServerDownloader
@@ -65,6 +86,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
+import java.io.File
+import kotlin.math.roundToInt
+
+enum class CreateSource {
+    PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE,
+    DOWNLOAD_NEOFORGE, DOWNLOAD_FOLIA, DOWNLOAD_PURPUR
+}
+
+fun CreateSource.toServerType(): ServerType? = when (this) {
+    CreateSource.DOWNLOAD_PAPER -> ServerType.PAPER
+    CreateSource.DOWNLOAD_VANILLA -> ServerType.VANILLA
+    CreateSource.DOWNLOAD_FABRIC -> ServerType.FABRIC
+    CreateSource.DOWNLOAD_FORGE -> ServerType.FORGE
+    CreateSource.DOWNLOAD_NEOFORGE -> ServerType.NEOFORGE
+    CreateSource.DOWNLOAD_FOLIA -> ServerType.FOLIA
+    CreateSource.DOWNLOAD_PURPUR -> ServerType.PURPUR
+    CreateSource.PICK_FILE -> null
+}
+
+fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
+    it == ServerType.PAPER || it == ServerType.FABRIC || it == ServerType.FORGE ||
+    it == ServerType.NEOFORGE
+} ?: false
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,456 +122,674 @@ fun CreateServerScreen() {
 
     val downloadProgress by serverDownloader.downloadProgress.collectAsState()
     val downloadStatus by serverDownloader.currentStatus.collectAsState()
-    
     val jdkInstallations by jdkManager.knownInstallations.collectAsState()
     val isJdkInstalling by jdkManager.isInstalling.collectAsState()
     val jdkInstallProgress by jdkManager.installProgress.collectAsState()
 
+    var currentStep by remember { mutableIntStateOf(0) }
+    val totalSteps = 6
+
+    var createSource by remember { mutableStateOf<CreateSource?>(null) }
+    var jarPath by remember { mutableStateOf<String?>(null) }
+    var jarName by remember { mutableStateOf("") }
     var serverName by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(ServerType.PAPER) }
-    var selectedVersion by remember { mutableStateOf<String?>(null) }
-    var selectedVersionBuild by remember { mutableStateOf<String?>(null) }
-    var selectedJavaVersion by remember { mutableStateOf(21) }
-    var memoryMin by remember { mutableStateOf(1024f) }
-    var memoryMax by remember { mutableStateOf(4096f) }
+    var mcVersion by remember { mutableStateOf("") }
+    var availableVersions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var versionsLoading by remember { mutableStateOf(false) }
+    var versionsError by remember { mutableStateOf<String?>(null) }
+    var selectedBuildId by remember { mutableStateOf("") }
+    var availableBuilds by remember { mutableStateOf<List<com.portalhost.model.ServerBuild>>(emptyList()) }
+    var buildsLoading by remember { mutableStateOf(false) }
+    var buildsError by remember { mutableStateOf<String?>(null) }
+    var minRam by remember { mutableFloatStateOf(1.0f) }
+    var maxRam by remember { mutableFloatStateOf(4.0f) }
     var port by remember { mutableStateOf("25565") }
-    var autoRestart by remember { mutableStateOf(false) }
-    var rconEnabled by remember { mutableStateOf(false) }
-    var rconPort by remember { mutableStateOf("25575") }
-    var isCreating by remember { mutableStateOf(false) }
+    var gamemode by remember { mutableStateOf("survival") }
+    var difficulty by remember { mutableStateOf("easy") }
+    var motd by remember { mutableStateOf("A Minecraft Server") }
+    var eulaAccepted by remember { mutableStateOf(false) }
+    var creating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var successMessage by remember { mutableStateOf<String?>(null) }
+    var selectedJavaVersion by remember { mutableStateOf(21) }
+    var retryTrigger by remember { mutableIntStateOf(0) }
 
-    var importJarPath by remember { mutableStateOf<String?>(null) }
-    var showImportDialog by remember { mutableStateOf(false) }
-    var typeExpanded by remember { mutableStateOf(false) }
-    var versionExpanded by remember { mutableStateOf(false) }
-    var javaVersionExpanded by remember { mutableStateOf(false) }
+    val serversDir = File(System.getProperty("user.home"), ".portalhost/servers")
+    val availableBytes = serversDir.parentFile?.let { it.usableSpace } ?: 0L
+    val requiredBytes = (maxRam * 1024 * 1024 * 1024).toLong() + 500_000_000L
 
-    val versions = remember { mutableStateOf<List<ServerVersion>>(emptyList()) }
-    val isLoadingVersions = remember { mutableStateOf(false) }
+    val gamemodes = listOf("survival", "creative", "adventure", "spectator")
+    val difficulties = listOf("peaceful", "easy", "normal", "hard")
+    val scrollState = rememberScrollState()
 
-    LaunchedEffect(selectedType) {
-        isLoadingVersions.value = true
-        selectedVersion = null
-        selectedVersionBuild = null
-        versions.value = emptyList()
-        val providers = providerRegistry.getProvidersForType(selectedType)
-        if (providers.isNotEmpty()) {
-            val result = providers.first().fetchVersions()
-            result.onSuccess { fetched ->
-                versions.value = fetched
-                if (fetched.isNotEmpty()) {
-                    selectedVersion = fetched.first().version
-                }
+    val provider: com.portalhost.server.providers.ServerProvider? = createSource?.toServerType()?.let {
+        providerRegistry.getProvidersForType(it).firstOrNull()
+    }
+
+    val downloadOptions = listOf(
+        Triple("Paper", "High-performance server software, recommended", Icons.Default.Description),
+        Triple("Vanilla", "Official Mojang server jar", Icons.Default.Cloud),
+        Triple("Fabric", "Lightweight mod loader", Icons.Default.Extension),
+        Triple("Forge", "Popular mod loader with extensive mod support", Icons.Default.Build),
+        Triple("NeoForge", "Next-generation Forge fork", Icons.Default.Build),
+        Triple("Folia", "Region-based multithreaded Paper fork", Icons.Default.Description),
+        Triple("Purpur", "Feature-rich Paper fork", Icons.Default.Description),
+    )
+
+    LaunchedEffect(createSource, retryTrigger) {
+        if (createSource != null && createSource != CreateSource.PICK_FILE) {
+            mcVersion = ""
+            selectedBuildId = ""
+            jarName = ""
+            jarPath = null
+            versionsLoading = true
+            versionsError = null
+            availableVersions = emptyList()
+            val prov = provider ?: return@LaunchedEffect
+            try {
+                val versions = prov.fetchVersions().getOrThrow()
+                availableVersions = versions.map { it.version }
+            } catch (e: Exception) {
+                versionsError = e.message ?: "Failed to fetch versions"
             }
-            result.onFailure {
-                errorMessage = "Failed to fetch versions: ${it.message}"
+            versionsLoading = false
+        }
+    }
+
+    LaunchedEffect(mcVersion, createSource) {
+        if (mcVersion.isNotBlank() && (createSource?.supportsBuilds() == true) && provider != null) {
+            buildsLoading = true
+            buildsError = null
+            try {
+                val builds = provider.fetchBuilds(mcVersion).getOrThrow()
+                availableBuilds = builds
+            } catch (e: Exception) {
+                buildsError = e.message ?: "Failed to load builds"
+                availableBuilds = emptyList()
+            }
+            buildsLoading = false
+        }
+    }
+
+    @Composable
+    fun StepIndicator(current: Int, total: Int) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            for (i in 0 until total) {
+                Surface(
+                    modifier = Modifier.weight(1f).height(4.dp),
+                    shape = RoundedCornerShape(2.dp),
+                    color = if (i <= current) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant
+                ) {}
             }
         }
-        isLoadingVersions.value = false
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Step ${current + 1} of $total",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 
-    // Set recommended Java version based on server type
-    LaunchedEffect(selectedType) {
-        selectedJavaVersion = jdkManager.getRecommendedJavaVersion(selectedType)
+    @Composable
+    fun StepChooseSource() {
+        Text("Server Software", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Choose a server jar source", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
+
+        downloadOptions.forEach { (title, subtitle, icon) ->
+            val enumVal = CreateSource.valueOf("DOWNLOAD_${title.uppercase().replace(" ", "_")}")
+            val selected = createSource == enumVal
+            Card(
+                onClick = { createSource = enumVal },
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(icon, contentDescription = null,
+                        tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(title, style = MaterialTheme.typography.titleMedium)
+                        Text(subtitle, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (selected) Icon(Icons.Default.CheckCircle, contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+        }
+
+        if (createSource != null && createSource != CreateSource.PICK_FILE) {
+            Spacer(Modifier.height(12.dp))
+            if (versionsLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Loading versions...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else if (versionsError != null) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text(versionsError!!, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                TextButton(onClick = { retryTrigger++ }) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Retry")
+                }
+            } else if (availableVersions.isNotEmpty()) {
+                var versionExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(expanded = versionExpanded, onExpandedChange = { versionExpanded = it }) {
+                    OutlinedTextField(
+                        value = mcVersion.ifBlank { "Select version" },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Minecraft Version") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = versionExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        singleLine = true
+                    )
+                    ExposedDropdownMenu(expanded = versionExpanded, onDismissRequest = { versionExpanded = false }) {
+                        availableVersions.forEach { v ->
+                            DropdownMenuItem(
+                                text = { Text(v) },
+                                onClick = { mcVersion = v; versionExpanded = false }
+                            )
+                        }
+                    }
+                }
+
+                if (createSource?.supportsBuilds() == true && mcVersion.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    if (buildsLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Loading builds...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else if (buildsError != null) {
+                        Text(buildsError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    } else if (availableBuilds.isNotEmpty()) {
+                        var buildExpanded by remember { mutableStateOf(false) }
+                        val selectedLabel = availableBuilds.find { it.id == selectedBuildId }?.let { b ->
+                            b.label
+                        } ?: "Latest"
+                        ExposedDropdownMenuBox(expanded = buildExpanded, onExpandedChange = { buildExpanded = it }) {
+                            OutlinedTextField(
+                                value = selectedLabel,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Build") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = buildExpanded) },
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                singleLine = true
+                            )
+                            ExposedDropdownMenu(expanded = buildExpanded, onDismissRequest = { buildExpanded = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Latest") },
+                                    onClick = { selectedBuildId = ""; buildExpanded = false }
+                                )
+                                availableBuilds.take(100).forEach { b ->
+                                    DropdownMenuItem(
+                                        text = { Text(b.label) },
+                                        onClick = { selectedBuildId = b.id; buildExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        Card(
+            onClick = { createSource = CreateSource.PICK_FILE },
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (createSource == CreateSource.PICK_FILE)
+                    MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Archive, contentDescription = null,
+                    tint = if (createSource == CreateSource.PICK_FILE) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Pick a JAR file", style = MaterialTheme.typography.titleMedium)
+                    Text(if (jarName.isNotBlank() && createSource == CreateSource.PICK_FILE) jarName else "Browse your computer",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Default.FolderOpen, contentDescription = null)
+            }
+        }
+
+        val cs = createSource
+        if (cs != null && cs != CreateSource.PICK_FILE && mcVersion.isNotBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Text("Selected: ${cs.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }} — $mcVersion",
+                color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+        }
     }
 
-    // Refresh JDK list on screen enter
-    LaunchedEffect(Unit) {
-        jdkManager.refresh()
+    @Composable
+    fun StepServerName() {
+        Text("Server Name", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Give your server a memorable name", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
+        OutlinedTextField(
+            value = serverName,
+            onValueChange = { serverName = it },
+            label = { Text("Server Name") },
+            placeholder = { Text("My Survival Server") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+        )
+    }
+
+    @Composable
+    fun StepRamConfig() {
+        Text("Memory (RAM)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Allocate memory for your server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        val javaVersion = selectedJavaVersion.toString()
+        val hasJdk = jdkInstallations.any { it.version == selectedJavaVersion }
+
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Java $javaVersion", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(8.dp))
+            if (hasJdk) {
+                Text("✓ Installed", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text("Not installed", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        if (!hasJdk && !isJdkInstalling) {
+            Spacer(Modifier.height(4.dp))
+            Button(onClick = {
+                scope.launch {
+                    jdkManager.installJdk(selectedJavaVersion).onFailure {
+                        errorMessage = "Failed to install JDK: ${it.message}"
+                    }
+                }
+            }) { Text("Install Java $javaVersion") }
+        }
+        if (isJdkInstalling) {
+            Spacer(Modifier.height(4.dp))
+            LinearProgressIndicator(progress = { jdkInstallProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
+            Text("Installing Java ${selectedJavaVersion}... ${(jdkInstallProgress * 100).toInt()}%",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Text("Minimum RAM: ${"%.1f".format(minRam)} GB", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(4.dp))
+        Slider(
+            value = minRam,
+            onValueChange = { v -> minRam = (v / 0.1f).roundToInt() * 0.1f },
+            valueRange = 0.5f..maxRam,
+            steps = ((maxRam - 0.5f) / 0.1f).roundToInt(),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Maximum RAM: ${"%.1f".format(maxRam)} GB", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(4.dp))
+        Slider(
+            value = maxRam,
+            onValueChange = { v -> maxRam = (v / 0.1f).roundToInt() * 0.1f },
+            valueRange = 0.5f..16f,
+            steps = 154,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Allocated: ${"%.1f".format(minRam)} GB – ${"%.1f".format(maxRam)} GB",
+                    style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+
+    @Composable
+    fun StepProperties() {
+        Text("Server Properties", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Configure basic server settings", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
+
+        OutlinedTextField(
+            value = port,
+            onValueChange = { port = it.filter { c -> c.isDigit() }.take(5) },
+            label = { Text("Port") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            leadingIcon = { Icon(Icons.Default.Lan, contentDescription = null) }
+        )
+
+        Spacer(Modifier.height(12.dp))
+        Text("Gamemode", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            gamemodes.forEach { gm ->
+                FilterChip(
+                    selected = gamemode == gm,
+                    onClick = { gamemode = gm },
+                    label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text("Difficulty", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            difficulties.forEach { diff ->
+                FilterChip(
+                    selected = difficulty == diff,
+                    onClick = { difficulty = diff },
+                    label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = motd,
+            onValueChange = { motd = it.take(60) },
+            label = { Text("MOTD (Message of the Day)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
+        )
+    }
+
+    @Composable
+    fun StepStorageCheck() {
+        Text("Storage Check", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Ensure enough space is available", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
+
+        val sufficient = availableBytes >= requiredBytes
+        val availableFormatted = formatBytes(availableBytes)
+        val requiredFormatted = formatBytes(requiredBytes)
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (sufficient) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (sufficient) Icons.Default.CheckCircle else Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = if (sufficient) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (sufficient) "Sufficient storage" else "Insufficient storage",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (sufficient) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.error
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Text("Available", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(availableFormatted, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Text("Required (JAR + world + swap)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(requiredFormatted, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("RAM: ${formatBytes((maxRam * 1024 * 1024 * 1024).toLong())}", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.width(16.dp))
+                Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("JAR + overhead: 500 MB", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+
+    @Composable
+    fun StepEula() {
+        Text("EULA Agreement", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text("Minecraft End User License Agreement", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(24.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "By checking the box below, you agree to the Minecraft End User License Agreement (EULA).\n\n" +
+                    "• You may run the server for personal or private use\n" +
+                    "• You may not distribute or sell the server software\n" +
+                    "• You must comply with Mojang's EULA at https://aka.ms/MinecraftEULA\n\n" +
+                    "The eula.txt file will be created with eula=true.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = eulaAccepted, onCheckedChange = { eulaAccepted = it })
+            Spacer(Modifier.width(8.dp))
+            Text("I agree to the Minecraft EULA", style = MaterialTheme.typography.bodyMedium)
+        }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Create New Server", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(24.dp))
-
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                OutlinedTextField(
-                    value = serverName,
-                    onValueChange = { serverName = it },
-                    label = { Text("Server Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("My Awesome Server") },
-                )
-
+                Text("Create New Server", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
+                StepIndicator(current = currentStep, total = totalSteps)
                 Spacer(Modifier.height(16.dp))
 
-                ExposedDropdownMenuBox(
-                    expanded = typeExpanded,
-                    onExpandedChange = { typeExpanded = it },
-                ) {
-                    OutlinedTextField(
-                        value = selectedType.name,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Server Type") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                    )
-                    ExposedDropdownMenu(expanded = typeExpanded, onDismissRequest = { typeExpanded = false }) {
-                        ServerType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.name) },
-                                onClick = {
-                                    selectedType = type
-                                    typeExpanded = false
-                                },
-                            )
+                when (currentStep) {
+                    0 -> StepChooseSource()
+                    1 -> StepServerName()
+                    2 -> StepRamConfig()
+                    3 -> StepProperties()
+                    4 -> StepStorageCheck()
+                    5 -> StepEula()
+                }
+
+                errorMessage?.let { msg ->
+                    Spacer(Modifier.height(12.dp))
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(8.dp))
+                            Text(msg, color = MaterialTheme.colorScheme.onErrorContainer)
                         }
                     }
                 }
 
+                Spacer(Modifier.weight(1f))
                 Spacer(Modifier.height(16.dp))
 
-                if (isLoadingVersions.value) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Loading versions...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                } else if (versions.value.isNotEmpty()) {
-                    ExposedDropdownMenuBox(
-                        expanded = versionExpanded,
-                        onExpandedChange = { versionExpanded = it },
-                    ) {
-                        OutlinedTextField(
-                            value = selectedVersion ?: "Select version",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Version") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = versionExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        )
-                        ExposedDropdownMenu(expanded = versionExpanded, onDismissRequest = { versionExpanded = false }) {
-                            versions.value.forEach { ver ->
-                                DropdownMenuItem(
-                                    text = { Text("${ver.version} ${if (!ver.stable) "(snapshot)" else ""}") },
-                                    onClick = {
-                                        selectedVersion = ver.version
-                                        versionExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                // Import JAR option
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                Text("Or import a local server JAR", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = importJarPath?.let { File(it).name } ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Selected JAR") },
-                        placeholder = { Text("No file selected") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                    )
-                    Button(onClick = { showImportDialog = true }) {
-                        Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Browse")
+                    if (currentStep > 0) {
+                        OutlinedButton(
+                            onClick = { currentStep--; errorMessage = null },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Back") }
                     }
-                    if (importJarPath != null) {
-                        TextButton(onClick = { importJarPath = null }) {
-                            Text("Clear")
-                        }
-                    }
-                }
-                if (importJarPath != null) {
-                    Text("A local JAR will be used instead of downloading.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
 
-                // JDK Version Selector
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ExposedDropdownMenuBox(
-                        expanded = javaVersionExpanded,
-                        onExpandedChange = { javaVersionExpanded = it },
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        OutlinedTextField(
-                            value = "Java ${selectedJavaVersion}",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Java Version") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = javaVersionExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        )
-                        ExposedDropdownMenu(expanded = javaVersionExpanded, onDismissRequest = { javaVersionExpanded = false }) {
-                            listOf(8, 11, 17, 21).forEach { version ->
-                                val isInstalled = jdkInstallations.any { it.version == version }
-                                DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Text("Java $version ${if (version == 21) "(LTS)" else if (version == 17) "(LTS)" else ""}")
-                                            if (isInstalled) {
-                                                Text("✓ Installed", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                                            }
-                                        }
-                                    },
-                                    onClick = {
-                                        selectedJavaVersion = version
-                                        javaVersionExpanded = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                    // Install JDK Button
-                    if (jdkInstallations.none { it.version == selectedJavaVersion }) {
+                    if (currentStep < totalSteps - 1) {
                         Button(
                             onClick = {
-                                scope.launch {
-                                    val result = jdkManager.installJdk(selectedJavaVersion)
-                                    result.onFailure {
-                                        errorMessage = "Failed to install JDK $selectedJavaVersion: ${it.message}"
+                                when (currentStep) {
+                                    0 -> {
+                                        if (createSource == CreateSource.PICK_FILE && jarPath == null) {
+                                            scope.launch {
+                                                val files = pickFile("Select Server JAR", "JAR files" to listOf("jar"))
+                                                if (files.isNotEmpty()) {
+                                                    jarPath = files.first().absolutePath
+                                                    jarName = files.first().name
+                                                    toastManager.success("Selected: ${files.first().name}")
+                                                }
+                                            }
+                                            return@Button
+                                        }
+                                        if (createSource == null) {
+                                            errorMessage = "Please select a server source"
+                                            return@Button
+                                        }
+                                        if (createSource != CreateSource.PICK_FILE && mcVersion.isBlank()) {
+                                            errorMessage = "Please select a Minecraft version"
+                                            return@Button
+                                        }
+                                        currentStep++
                                     }
+                                    else -> currentStep++
+                                }
+                                errorMessage = null
+                            },
+                            enabled = when (currentStep) {
+                                1 -> serverName.isNotBlank()
+                                4 -> availableBytes >= requiredBytes
+                                else -> true
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                when {
+                                    currentStep == 0 && createSource == CreateSource.PICK_FILE -> "Browse File"
+                                    currentStep == 0 && createSource != null -> "Next"
+                                    else -> "Next"
+                                }
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                if (!eulaAccepted) {
+                                    errorMessage = "You must accept the EULA to create a server"
+                                    return@Button
+                                }
+                                creating = true
+                                errorMessage = null
+                                scope.launch {
+                                    val serverTypeLabel = when (createSource) {
+                                        CreateSource.DOWNLOAD_PAPER -> "paper"
+                                        CreateSource.DOWNLOAD_VANILLA -> "vanilla"
+                                        CreateSource.DOWNLOAD_FABRIC -> "fabric"
+                                        CreateSource.DOWNLOAD_FORGE -> "forge"
+                                        CreateSource.DOWNLOAD_NEOFORGE -> "neoforge"
+                                        CreateSource.DOWNLOAD_FOLIA -> "folia"
+                                        CreateSource.DOWNLOAD_PURPUR -> "purpur"
+                                        else -> "custom"
+                                    }
+                                    val config = ServerConfig(
+                                        name = serverName.ifBlank { "My Server" },
+                                        version = mcVersion.ifBlank { "latest" },
+                                        buildId = selectedBuildId,
+                                        serverType = createSource?.toServerType() ?: ServerType.PAPER,
+                                        source = when (createSource) {
+                                            CreateSource.DOWNLOAD_PAPER -> ServerSource.PAPERMC
+                                            CreateSource.DOWNLOAD_VANILLA -> ServerSource.OFFICIAL
+                                            CreateSource.DOWNLOAD_FABRIC -> ServerSource.FABRICMC
+                                            CreateSource.DOWNLOAD_FORGE -> ServerSource.FORGE
+                                            CreateSource.DOWNLOAD_NEOFORGE -> ServerSource.NEOFORGE
+                                            CreateSource.DOWNLOAD_FOLIA -> ServerSource.FOLIA
+                                            CreateSource.DOWNLOAD_PURPUR -> ServerSource.PURPUR
+                                            else -> ServerSource.PAPERMC
+                                        },
+                                        javaVersion = selectedJavaVersion,
+                                        memoryMin = (minRam * 1024).toInt(),
+                                        memoryMax = (maxRam * 1024).toInt(),
+                                        port = port.toIntOrNull() ?: 25565,
+                                        autoRestart = true,
+                                        rconEnabled = false,
+                                        rconPort = 25575,
+                                    )
+
+                                    if (jarPath != null) {
+                                        val targetDir = File(System.getProperty("user.home"), ".portalhost/servers")
+                                        targetDir.mkdirs()
+                                        val targetFile = File(targetDir, "${config.id}.jar")
+                                        withContext(Dispatchers.IO) {
+                                            File(jarPath!!).copyTo(targetFile, overwrite = true)
+                                        }
+                                        serverManager.registerImportedServer(config, targetFile)
+                                        toastManager.success("Server \"${config.name}\" imported!")
+                                    } else {
+                                        serverManager.createServer(config).onFailure {
+                                            errorMessage = it.message ?: "Failed to create server"
+                                            creating = false
+                                            return@launch
+                                        }
+                                        toastManager.success("Server \"${config.name}\" created!")
+                                    }
+                                    creating = false
+                                    serverName = ""
+                                    createSource = null
+                                    currentStep = 0
                                 }
                             },
-                            enabled = !isJdkInstalling,
+                            enabled = eulaAccepted && !creating && !isJdkInstalling,
+                            modifier = Modifier.weight(1f).height(48.dp)
                         ) {
-                            if (isJdkInstalling) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                                Spacer(Modifier.width(4.dp))
+                            if (creating) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                             } else {
-                                Icon(Icons.Filled.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Create Server")
                             }
-                            Text(if (isJdkInstalling) "Installing..." else "Install")
                         }
                     }
-                }
-
-                if (isJdkInstalling) {
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(progress = { jdkInstallProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
-                    Text("Downloading and installing Java ${selectedJavaVersion}... ${(jdkInstallProgress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                Spacer(Modifier.height(24.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
-
-                Text("Memory", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                Text("Minimum: ${memoryMin.toInt()} MB", style = MaterialTheme.typography.bodySmall)
-                Slider(value = memoryMin, onValueChange = { memoryMin = it }, valueRange = 256f..16384f, steps = 63, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(4.dp))
-                Text("Maximum: ${memoryMax.toInt()} MB", style = MaterialTheme.typography.bodySmall)
-                Slider(value = memoryMax, onValueChange = { memoryMax = it }, valueRange = 256f..16384f, steps = 63, modifier = Modifier.fillMaxWidth())
-
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = port,
-                    onValueChange = { port = it.filter { c -> c.isDigit() } },
-                    label = { Text("Port") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth().widthIn(max = 200.dp),
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Auto-restart on crash")
-                    Switch(checked = autoRestart, onCheckedChange = { autoRestart = it })
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Enable RCON")
-                    Switch(checked = rconEnabled, onCheckedChange = { rconEnabled = it })
-                }
-
-                if (rconEnabled) {
-                    OutlinedTextField(
-                        value = rconPort,
-                        onValueChange = { rconPort = it.filter { c -> c.isDigit() } },
-                        label = { Text("RCON Port") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth().widthIn(max = 200.dp),
-                    )
-                }
-
-                Spacer(Modifier.height(24.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
-
-                if (downloadProgress > 0 && downloadProgress < 1.0) {
-                    LinearProgressIndicator(progress = { downloadProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(4.dp))
-                    Text(downloadStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                }
-
-                if (isJdkInstalling) {
-                    LinearProgressIndicator(progress = { jdkInstallProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
-                    Text("Installing Java ${selectedJavaVersion}... ${(jdkInstallProgress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                }
-
-                if (errorMessage != null) {
-                    Text(errorMessage!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(8.dp))
-                    TextButton(onClick = { errorMessage = null }) { Text("Dismiss") }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                if (successMessage != null) {
-                    Text(successMessage!!, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(8.dp))
-                    TextButton(onClick = { successMessage = null }) { Text("Dismiss") }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                Button(
-                    onClick = {
-                        if (serverName.isBlank()) {
-                            errorMessage = "Server name is required"
-                            return@Button
-                        }
-                        if (selectedVersion == null) {
-                            errorMessage = "Please select a version"
-                            return@Button
-                        }
-                        isCreating = true
-                        errorMessage = null
-                        successMessage = null
-                        scope.launch {
-                            val localJar = importJarPath?.let { File(it) }
-                            if (localJar != null && !localJar.exists()) {
-                                errorMessage = "Selected JAR file not found: ${localJar.name}"
-                                isCreating = false
-                                return@launch
-                            }
-
-                            val config = ServerConfig(
-                                name = serverName.trim(),
-                                version = localJar?.name ?: selectedVersion!!,
-                                serverType = selectedType,
-                                source = when (selectedType) {
-                                    ServerType.VANILLA -> com.portalhost.model.ServerSource.OFFICIAL
-                                    ServerType.PAPER -> com.portalhost.model.ServerSource.PAPERMC
-                                    ServerType.FABRIC -> com.portalhost.model.ServerSource.FABRICMC
-                                    ServerType.FORGE -> com.portalhost.model.ServerSource.FORGE
-                                    ServerType.NEOFORGE -> com.portalhost.model.ServerSource.NEOFORGE
-                                    ServerType.PURPUR -> com.portalhost.model.ServerSource.PURPUR
-                                    ServerType.FOLIA -> com.portalhost.model.ServerSource.FOLIA
-                                },
-                                javaVersion = selectedJavaVersion,
-                                memoryMin = memoryMin.toInt(),
-                                memoryMax = memoryMax.toInt(),
-                                port = port.toIntOrNull() ?: 25565,
-                                autoRestart = autoRestart,
-                                rconEnabled = rconEnabled,
-                                rconPort = rconPort.toIntOrNull() ?: 25575,
-                            )
-
-                            if (localJar != null) {
-                                val targetDir = java.io.File(System.getProperty("user.dir"), "servers")
-                                targetDir.mkdirs()
-                                val targetFile = java.io.File(targetDir, "${config.id}.jar")
-                                withContext(Dispatchers.IO) {
-                                    localJar.copyTo(targetFile, overwrite = true)
-                                }
-                                serverManager.registerImportedServer(config, targetFile)
-                                successMessage = "Server \"${config.name}\" imported successfully!"
-                                importJarPath = null
-                                serverName = ""
-                                isCreating = false
-                            } else {
-                                val result = serverManager.createServer(config)
-                                result.onSuccess {
-                                    successMessage = "Server \"${config.name}\" created successfully!"
-                                    serverName = ""
-                                    isCreating = false
-                                }
-                                result.onFailure {
-                                    errorMessage = "Failed to create server: ${it.message}"
-                                    isCreating = false
-                                }
-                            }
-                        }
-                    },
-                    enabled = !isCreating && serverName.isNotBlank() && selectedVersion != null && !isJdkInstalling,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                ) {
-                    if (isCreating) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        Spacer(Modifier.width(8.dp))
-                    } else {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Text("Create Server")
                 }
             }
         }
     }
+}
 
-    // Import JAR dialog
-    if (showImportDialog) {
-        AlertDialog(
-            onDismissRequest = { showImportDialog = false },
-            title = { Text("Import Server JAR") },
-            text = { Text("Select a Minecraft server JAR file (.jar) from your local filesystem.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        val files = pickFile(
-                            title = "Select Server JAR",
-                            extensionFilter = "JAR files" to listOf("jar"),
-                        )
-                        if (files.isNotEmpty()) {
-                            importJarPath = files.first().absolutePath
-                            toastManager.success("Selected: ${files.first().name}")
-                        }
-                        showImportDialog = false
-                    }
-                }) { Text("Browse") }
-            },
-            dismissButton = { TextButton(onClick = { showImportDialog = false }) { Text("Cancel") } },
-        )
+private fun formatBytes(bytes: Long): String {
+    return when {
+        bytes >= 1_073_741_824 -> "%.1f GB".format(bytes / 1_073_741_824.0)
+        bytes >= 1_048_576 -> "%.0f MB".format(bytes / 1_048_576.0)
+        bytes >= 1024 -> "%.0f KB".format(bytes / 1024.0)
+        else -> "$bytes B"
     }
 }

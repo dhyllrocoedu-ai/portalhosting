@@ -37,10 +37,11 @@ class NeoForgeProvider : ServerProvider {
             val url = URL("$baseUrl/$version/maven-metadata.xml")
             val response = url.readText()
             val builds = parseMavenMetadataBuilds(response)
+                .filter { it.contains(version) && it.length > version.length }
                 .map { build ->
                     ServerBuild(
                         id = build,
-                        url = "$baseUrl/$version/neoforge-$version-$build.jar",
+                        url = "$baseUrl/$build/neoforge-$build-installer.jar",
                         sha256 = null,
                         size = 0
                     )

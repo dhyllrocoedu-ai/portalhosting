@@ -28,7 +28,6 @@ class FoliaProvider : ServerProvider {
         val project_id: String,
         val version_groups: List<VersionGroup>,
         val versions: List<String>,
-        val builds: Map<String, PaperBuild>,
     )
     
     @Serializable
@@ -39,7 +38,15 @@ class FoliaProvider : ServerProvider {
     )
     
     @Serializable
-    data class PaperBuild(
+    data class FoliaBuildsResponse(
+        val project_name: String,
+        val project_id: String,
+        val version: String,
+        val builds: List<FoliaBuildEntry>,
+    )
+    
+    @Serializable
+    data class FoliaBuildEntry(
         val build: Int,
         val download: BuildDownload,
         val time: String,
@@ -84,9 +91,9 @@ class FoliaProvider : ServerProvider {
         try {
             val url = URL("$apiBase/versions/$version/builds")
             val response = url.readText()
-            val foliaResponse = json.decodeFromString<FoliaVersionsResponse>(response)
+            val foliaResponse = json.decodeFromString<FoliaBuildsResponse>(response)
             
-            Result.success(foliaResponse.builds.values
+            Result.success(foliaResponse.builds
                 .filter { it.channel == "default" }
                 .map { build ->
                     ServerBuild(

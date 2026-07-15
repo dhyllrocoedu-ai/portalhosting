@@ -27,7 +27,7 @@ class FabricProvider : ServerProvider {
     )
     
     @Serializable
-    data class FabricLoader(
+    data class FabricLoaderEntry(
         val loader: Loader,
     )
     
@@ -38,8 +38,9 @@ class FabricProvider : ServerProvider {
     )
     
     @Serializable
-    data class FabricInstaller(
+    data class FabricInstallerEntry(
         val maven: String,
+        val version: String,
         val url: String,
     )
 
@@ -61,19 +62,21 @@ class FabricProvider : ServerProvider {
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
-            // Get latest stable loader
             val loaderUrl = URL("$metaUrl/versions/loader/$version")
             val loaderResponse = loaderUrl.readText()
-            val loader = json.decodeFromString<FabricLoader>(loaderResponse)
+            val loaders = json.decodeFromString<List<FabricLoaderEntry>>(loaderResponse)
+            val latestLoader = loaders.firstOrNull()
+                ?: return@withContext Result.failure(Exception("No loader found for $version"))
             
-            // Get installer
             val installerUrl = URL("$metaUrl/versions/installer")
             val installerResponse = installerUrl.readText()
-            val installer = json.decodeFromString<FabricInstaller>(installerResponse)
+            val installers = json.decodeFromString<List<FabricInstallerEntry>>(installerResponse)
+            val latestInstaller = installers.firstOrNull()
+                ?: return@withContext Result.failure(Exception("No installer found"))
             
             Result.success(listOf(ServerBuild(
-                id = "fabric-${loader.loader.version}",
-                url = installer.url,
+                id = "fabric-${latestLoader.loader.version}",
+                url = latestInstaller.url,
                 sha256 = null,
                 size = 0
             )))

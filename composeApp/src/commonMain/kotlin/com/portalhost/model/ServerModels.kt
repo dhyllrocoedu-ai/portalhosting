@@ -8,6 +8,7 @@ data class ServerConfig(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val version: String,
+    val buildId: String = "",
     val serverType: ServerType,
     val source: ServerSource,
     val javaVersion: Int = 21,
@@ -76,6 +77,7 @@ data class ServerVersion(
 data class ServerBuild(
     val id: String,
     val url: String,
+    val label: String = id,
     val sha256: String? = null,
     val size: Long? = null,
 )

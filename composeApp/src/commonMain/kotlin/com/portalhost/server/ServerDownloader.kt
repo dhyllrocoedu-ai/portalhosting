@@ -53,8 +53,11 @@ class ServerDownloader(
                 if (builds.isEmpty()) {
                     Result.failure(Exception("No builds found for version ${config.version}"))
                 } else {
-                    // Use latest build
-                    val build = builds.first()
+                    val build = if (config.buildId.isNotBlank()) {
+                        builds.find { it.id == config.buildId } ?: builds.first()
+                    } else {
+                        builds.first()
+                    }
                     downloadBuild(provider, build, config)
                 }
             },
