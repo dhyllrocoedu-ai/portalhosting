@@ -88,6 +88,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlin.math.ceil
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.java.JdkManager
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerSource
@@ -134,6 +135,7 @@ fun CreateServerScreen() {
     val serverDownloader = koinInject<ServerDownloader>()
     val providerRegistry = koinInject<ServerProviderRegistry>()
     val jdkManager = koinInject<JdkManager>()
+    val fileSystem = koinInject<FileSystem>()
     val scope = rememberCoroutineScope()
     val toastManager = koinInject<ToastManager>()
 
@@ -170,7 +172,7 @@ fun CreateServerScreen() {
     var selectedJavaVersion by remember { mutableStateOf(21) }
     var retryTrigger by remember { mutableIntStateOf(0) }
 
-    val serversDir = File(System.getProperty("user.home"), ".portalhost/servers")
+    val serversDir = fileSystem.getServersDirBlocking()
     val availableBytes = serversDir.parentFile?.let { it.usableSpace } ?: 0L
     val requiredBytes = (maxRam * 1024 * 1024 * 1024).toLong() + 500_000_000L
 
@@ -747,7 +749,7 @@ fun CreateServerScreen() {
                                     )
 
                                     if (jarPath != null) {
-                                        val targetDir = File(System.getProperty("user.home"), ".portalhost/servers")
+                                        val targetDir = fileSystem.getServersDirBlocking()
                                         targetDir.mkdirs()
                                         val targetFile = File(targetDir, "${config.id}.jar")
                                         withContext(Dispatchers.IO) {

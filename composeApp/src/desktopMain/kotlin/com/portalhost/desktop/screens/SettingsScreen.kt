@@ -50,13 +50,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelStatus
+import com.portalhost.util.pickDirectory
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,6 +117,40 @@ fun SettingsScreen() {
             }
             Spacer(Modifier.height(12.dp))
             SettingToggle("Auto-check updates", autoCheckUpdates) { preferences.autoCheckUpdates.value = it }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Data Directory", style = MaterialTheme.typography.bodyMedium)
+                    val displayPath = preferences.dataDirectory.value.takeIf { it.isNotBlank() }
+                        ?: System.getProperty("user.home") + File.separator + ".portalhost"
+                    Text(
+                        displayPath,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Button(onClick = {
+                    val chosen = pickDirectory(title = "Select Data Directory")
+                    if (chosen != null) {
+                        preferences.dataDirectory.value = chosen.absolutePath
+                        System.setProperty("portalhost.data.dir", chosen.absolutePath)
+                    }
+                }) {
+                    Text("Change")
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "All application data (database, servers, JDKs, tunnels) will be stored here. Restart required.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         Spacer(Modifier.height(16.dp))

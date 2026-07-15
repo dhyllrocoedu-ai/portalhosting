@@ -1,5 +1,6 @@
 package com.portalhost.java
 
+import com.portalhost.filesystem.resolveAppDataDir
 import com.portalhost.model.JavaInstallation
 import com.portalhost.model.ServerType
 import kotlinx.coroutines.Dispatchers
@@ -258,7 +259,7 @@ class JdkManager {
     }
     
     private fun getJdkInstallDir(version: Int): File {
-        return File(System.getProperty("user.home"), ".portalhost/jdks/jdk-$version")
+        return File(resolveAppDataDir(), "jdks/jdk-$version")
     }
     
     private fun extractArchive(archiveFile: File, destinationDir: File) {

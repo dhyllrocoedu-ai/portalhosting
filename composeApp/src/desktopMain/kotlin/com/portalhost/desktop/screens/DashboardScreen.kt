@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.model.ServerStatus
 import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
@@ -62,6 +63,7 @@ fun DashboardScreen(
     onNavigateToCreate: () -> Unit = {},
 ) {
     val serverManager = koinInject<ServerManager>()
+    val fileSystem = koinInject<FileSystem>()
     val activityLog = koinInject<ActivityLog>()
     val servers by serverManager.servers.collectAsState()
     val serverStates by serverManager.serverStates.collectAsState()
@@ -86,7 +88,7 @@ fun DashboardScreen(
 
     fun openServersFolder() {
         try {
-            val folder = File("servers").absoluteFile
+            val folder = fileSystem.getServersDirBlocking()
             if (folder.exists()) {
                 java.awt.Desktop.getDesktop().open(folder)
             }
@@ -288,7 +290,7 @@ private fun QuickActionButton(icon: ImageVector, label: String, onClick: () -> U
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp),
+            .height(72.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -297,7 +299,13 @@ private fun QuickActionButton(icon: ImageVector, label: String, onClick: () -> U
         ) {
             Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
             Spacer(Modifier.height(4.dp))
-            Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

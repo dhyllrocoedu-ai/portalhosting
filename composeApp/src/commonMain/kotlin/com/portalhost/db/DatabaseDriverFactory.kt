@@ -9,15 +9,19 @@ import java.sql.DriverManager
 
 private val logger = KotlinLogging.logger {}
 
-class DatabaseDriverFactory {
+class DatabaseDriverFactory(private val customDataDir: String? = null) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun createDatabase(): DatabaseRepository? {
         return try {
-            val home = System.getProperty("user.home") ?: "."
-            val dbDir = File(home, ".portalhost")
-            dbDir.mkdirs()
-            val dbFile = File(dbDir, "portalhost.db")
+            val dataDir = if (!customDataDir.isNullOrBlank()) {
+                File(customDataDir)
+            } else {
+                val home = System.getProperty("user.home") ?: "."
+                File(home, ".portalhost")
+            }
+            dataDir.mkdirs()
+            val dbFile = File(dataDir, "portalhost.db")
 
             // Try multiple ways to load the SQLite JDBC driver
             try {
@@ -27,7 +31,11 @@ class DatabaseDriverFactory {
             }
 
             val connection = DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}")
-            connection.createStatement().execute(PortalHostDatabase.schema)
+            val statement = connection.createStatement()
+            PortalHostDatabase.schema.split(";").map { it.trim() }.filter { it.isNotBlank() }.forEach { sql ->
+                statement.executeUpdate(sql)
+            }
+            statement.close()
             logger.info { "Database initialized at ${dbFile.absolutePath}" }
             DatabaseRepository(connection, json)
         } catch (e: Exception) {

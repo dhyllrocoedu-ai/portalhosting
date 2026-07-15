@@ -22,6 +22,7 @@ class Preferences {
     var showAdvancedSettings: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("showAdvancedSettings", false))
     var logLevel: MutableStateFlow<String> = MutableStateFlow(settings.getString("logLevel", "INFO"))
     var tunnelUrl: MutableStateFlow<String> = MutableStateFlow(settings.getString("tunnelUrl", ""))
+    var dataDirectory: MutableStateFlow<String> = MutableStateFlow(settings.getString("dataDirectory", ""))
 
     fun resetToDefaults() {
         settings.putString("theme", "system")
@@ -52,5 +53,7 @@ class Preferences {
         showAdvancedSettings.value = false
         settings.putString("logLevel", "INFO")
         logLevel.value = "INFO"
+        settings.putString("dataDirectory", "")
+        dataDirectory.value = ""
     }
 }

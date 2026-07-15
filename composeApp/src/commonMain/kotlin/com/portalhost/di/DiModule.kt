@@ -4,6 +4,7 @@ import com.portalhost.db.DatabaseDriverFactory
 import com.portalhost.db.DatabaseRepository
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.log.LogRepository
+import com.portalhost.preferences.Preferences
 import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerDownloader
 import com.portalhost.server.ServerManager
@@ -41,9 +42,12 @@ fun commonModule() = module {
     single { ForgeProvider() }
     single { NeoForgeProvider() }
 
-    single { FileSystem() }
+    single { FileSystem(preferences = getOrNull()) }
 
-    single { DatabaseDriverFactory().createDatabase() }
+    single {
+        val customDir = getOrNull<Preferences>()?.dataDirectory?.value?.takeIf { it.isNotBlank() }
+        DatabaseDriverFactory(customDataDir = customDir).createDatabase()
+    }
 
     single { ServerDownloader(registry = get(), serversDir = get<FileSystem>().getServersDirBlocking()) }
 

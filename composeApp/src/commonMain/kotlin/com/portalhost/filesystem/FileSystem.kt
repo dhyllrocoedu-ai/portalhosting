@@ -1,5 +1,6 @@
 package com.portalhost.filesystem
 
+import com.portalhost.preferences.Preferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -8,27 +9,42 @@ import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-class FileSystem {
+fun resolveAppDataDir(): File {
+    val custom = System.getProperty("portalhost.data.dir")?.takeIf { it.isNotBlank() }
+    if (custom != null) {
+        return File(custom).also { it.mkdirs() }
+    }
+    val home = System.getProperty("user.home") ?: "."
+    return File(home, ".portalhost").also { it.mkdirs() }
+}
+
+class FileSystem(private val preferences: Preferences? = null) {
+    private fun resolveDataDir(): File {
+        val custom = preferences?.dataDirectory?.value?.takeIf { it.isNotBlank() }
+        if (custom != null) {
+            return File(custom).also { it.mkdirs() }
+        }
+        return resolveAppDataDir()
+    }
+
     suspend fun getAppDir(): File {
-        val home = System.getProperty("user.home") ?: "."
-        return File(home, ".portalhost").also { it.mkdirs() }
+        return resolveDataDir()
     }
 
     suspend fun getServersDir(): File {
-        return File(getAppDir(), "servers").also { it.mkdirs() }
+        return File(resolveDataDir(), "servers").also { it.mkdirs() }
     }
 
     fun getServersDirBlocking(): File {
-        val home = System.getProperty("user.home") ?: "."
-        return File(File(home, ".portalhost"), "servers").also { it.mkdirs() }
+        return File(resolveDataDir(), "servers").also { it.mkdirs() }
     }
 
     suspend fun getBackupsDir(): File {
-        return File(getAppDir(), "backups").also { it.mkdirs() }
+        return File(resolveDataDir(), "backups").also { it.mkdirs() }
     }
 
     suspend fun getTempDir(): File {
-        return File(getAppDir(), "temp").also { it.mkdirs() }
+        return File(resolveDataDir(), "temp").also { it.mkdirs() }
     }
 
     suspend fun readFile(file: File): String? = withContext(Dispatchers.IO) {
