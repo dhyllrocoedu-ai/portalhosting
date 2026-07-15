@@ -25,7 +25,6 @@ fun setupLogging(logRepository: LogRepository) {
     DesktopLogAppender.logRepository = logRepository
     val context = LoggerFactory.getILoggerFactory() as LoggerContext
     val root = context.getLogger(Logger.ROOT_LOGGER_NAME)
-    root.level = Level.INFO
 
     val appender = DesktopLogAppender()
     appender.context = context

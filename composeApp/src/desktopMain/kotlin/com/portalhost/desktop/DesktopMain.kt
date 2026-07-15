@@ -271,11 +271,21 @@ fun DesktopApp() {
     }
 }
 
-fun main() = singleWindowApplication(
-    title = "Portal Host",
-    state = WindowState(width = 1200.dp, height = 800.dp),
-) {
-    initKoin(desktopModule())
-    setupLogging(org.koin.core.context.GlobalContext.get().get<com.portalhost.log.LogRepository>())
-    DesktopApp()
+fun main() {
+    try {
+        initKoin(desktopModule())
+        val logRepo = org.koin.core.context.GlobalContext.get().get<com.portalhost.log.LogRepository>()
+        setupLogging(logRepo)
+        org.slf4j.LoggerFactory.getLogger("PortalHost").info("Application starting")
+    } catch (e: Throwable) {
+        System.err.println("FATAL: Failed to initialize application: ${e.message}")
+        e.printStackTrace(System.err)
+        return
+    }
+    singleWindowApplication(
+        title = "Portal Host",
+        state = WindowState(width = 1200.dp, height = 800.dp),
+    ) {
+        DesktopApp()
+    }
 }
