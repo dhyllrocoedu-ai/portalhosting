@@ -1,6 +1,7 @@
 package com.portalhost.server
 
 import com.portalhost.db.DatabaseRepository
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.java.JdkManager
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerState
@@ -27,11 +28,12 @@ private val logger = KotlinLogging.logger {}
 class ServerManager(
     private val downloader: ServerDownloader,
     private val processManager: ProcessManager,
-    private val serversDir: File,
+    private val fileSystem: FileSystem,
     private val scope: CoroutineScope,
     private val database: DatabaseRepository,
     private val jdkManager: JdkManager,
 ) {
+    private val serversDir: File get() = fileSystem.getServersDirBlocking()
 
     private val _servers = MutableStateFlow<Map<String, ServerConfig>>(emptyMap())
     val servers: StateFlow<Map<String, ServerConfig>> = _servers

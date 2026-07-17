@@ -31,6 +31,10 @@ class FileSystem(private val preferences: Preferences? = null) {
         return resolveDataDir()
     }
 
+    fun getAppDirBlocking(): File {
+        return resolveDataDir()
+    }
+
     suspend fun getServersDir(): File {
         return File(resolveDataDir(), "servers").also { it.mkdirs() }
     }

@@ -3,6 +3,7 @@ package com.portalhost.server
 import com.portalhost.model.ServerBuild
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerType
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.server.providers.ServerProvider
 import com.portalhost.server.providers.ServerProviderRegistry
 import com.portalhost.server.providers.ServerProviderRegistryInstance
@@ -18,7 +19,7 @@ import kotlin.Result
 
 class ServerDownloader(
     private val registry: ServerProviderRegistry = ServerProviderRegistryInstance.instance,
-    private val serversDir: File,
+    private val fileSystem: FileSystem,
 ) {
     
     private val _downloadProgress = MutableStateFlow<Double>(0.0)
@@ -70,7 +71,7 @@ class ServerDownloader(
         build: ServerBuild,
         config: ServerConfig,
     ): Result<File> = withContext(Dispatchers.IO) {
-        val serverFile = File(serversDir, "${config.id}.jar")
+        val serverFile = File(fileSystem.getServersDirBlocking(), "${config.id}.jar")
         _currentStatus.value = "Downloading ${build.id}..."
         _downloadProgress.value = 0.0
         

@@ -49,13 +49,13 @@ fun commonModule() = module {
         DatabaseDriverFactory(customDataDir = customDir).createDatabase()
     }
 
-    single { ServerDownloader(registry = get(), serversDir = get<FileSystem>().getServersDirBlocking()) }
+    single { ServerDownloader(registry = get(), fileSystem = get()) }
 
     single {
         ServerManager(
             downloader = get(),
             processManager = get(),
-            serversDir = get<FileSystem>().getServersDirBlocking(),
+            fileSystem = get(),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             database = get(),
             jdkManager = get(),

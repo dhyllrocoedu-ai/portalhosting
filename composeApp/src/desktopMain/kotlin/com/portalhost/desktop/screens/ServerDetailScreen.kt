@@ -92,7 +92,7 @@ fun ServerDetailScreen(
 
     val database = koinInject<DatabaseRepository>()
     val backupManager = remember(config) {
-        config?.let { BackupManager(File("servers/$serverId"), serverId, database) }
+        config?.let { BackupManager(File(serverManager.getServerJar(serverId).parentFile, serverId), serverId, database) }
     }
     val backupEntries by backupManager?.backups?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
     var showDeleteDialog by remember { mutableStateOf(false) }

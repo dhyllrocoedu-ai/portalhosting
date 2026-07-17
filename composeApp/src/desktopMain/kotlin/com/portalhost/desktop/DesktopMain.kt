@@ -73,6 +73,7 @@ fun DesktopApp() {
 
     val preferences = koinInject<Preferences>()
     val toastManager = koinInject<ToastManager>()
+    val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
     val themePref by preferences.theme.collectAsState()
 
     val isDark = when (themePref) {
@@ -167,8 +168,7 @@ fun DesktopApp() {
                                 when (keyEvent.key) {
                                     Key.O -> {
                                         try {
-                                            val folder = File("servers").absoluteFile
-                                            if (!folder.exists()) folder.mkdirs()
+                                            val folder = fileSystem.getServersDirBlocking()
                                             java.awt.Desktop.getDesktop().open(folder)
                                             true
                                         } catch (_: Exception) {

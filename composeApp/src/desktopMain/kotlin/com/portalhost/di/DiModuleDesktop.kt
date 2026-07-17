@@ -11,6 +11,6 @@ fun desktopModule() = module {
     single<FileSystem> { FileSystem(preferences = get()) }
     single<ProcessManager> { ProcessManager() }
     single<Preferences> { Preferences() }
-    single<JdkManager> { JdkManager() }
-    single<TunnelManager> { TunnelManager() }
+    single<JdkManager> { JdkManager(fileSystem = get()) }
+    single<TunnelManager> { TunnelManager(fileSystem = get()) }
 }

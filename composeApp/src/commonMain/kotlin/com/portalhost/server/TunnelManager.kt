@@ -1,6 +1,6 @@
 package com.portalhost.server
 
-import com.portalhost.filesystem.resolveAppDataDir
+import com.portalhost.filesystem.FileSystem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,8 +41,8 @@ data class TunnelState(
     val lastOutput: String = ""
 )
 
-class TunnelManager {
-    private val playitDir: File get() = File(resolveAppDataDir(), "playit")
+class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesystem.FileSystem()) {
+    private val playitDir: File get() = File(fileSystem.getAppDirBlocking(), "playit")
     private val configFile: File get() = File(playitDir, "playit.toml")
     private val daemonBinary: File get() = File(playitDir, "playitd")
 
