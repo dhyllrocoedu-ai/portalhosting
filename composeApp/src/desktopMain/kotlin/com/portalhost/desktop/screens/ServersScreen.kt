@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Dashboard
@@ -40,6 +42,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -83,13 +87,29 @@ private fun serverTypeInfo(type: com.portalhost.model.ServerType): ServerTypeInf
     com.portalhost.model.ServerType.VANILLA -> ServerTypeInfo("Vanilla", Color(0xFF9E9E9E))
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ServersScreen(onNavigateToDetail: (String) -> Unit = {}) {
     val serverManager = koinInject<ServerManager>()
     val servers by serverManager.servers.collectAsState()
     val serverStates by serverManager.serverStates.collectAsState()
     var serverToDelete by remember { mutableStateOf<String?>(null) }
+    var selectedFilter by remember { mutableStateOf("All") }
+    var searchQuery by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    val filters = listOf("All", "Online", "Offline")
+
+    val filteredServers = servers.entries.filter { (id, config) ->
+        val matchesStatus = when (selectedFilter) {
+            "Online" -> serverStates[id]?.status == ServerStatus.RUNNING || serverStates[id]?.status == ServerStatus.STARTING
+            "Offline" -> serverStates[id]?.status == null || serverStates[id]?.status == ServerStatus.STOPPED || serverStates[id]?.status == ServerStatus.CRASHED || serverStates[id]?.status == ServerStatus.STOPPING
+            else -> true
+        }
+        val matchesSearch = searchQuery.isBlank() || config.name.contains(searchQuery, ignoreCase = true)
+        matchesStatus && matchesSearch
+    }
 
     serverToDelete?.let { id ->
         val config = servers[id]
@@ -121,18 +141,17 @@ fun ServersScreen(onNavigateToDetail: (String) -> Unit = {}) {
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                item {
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Servers (${servers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Servers (${servers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row {
+                        IconButton(onClick = { showSearch = !showSearch }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
                         FilledTonalButton(
                             onClick = { onNavigateToDetail("") },
                             shape = RoundedCornerShape(12.dp)
@@ -142,22 +161,66 @@ fun ServersScreen(onNavigateToDetail: (String) -> Unit = {}) {
                             Text("Create Server")
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
                 }
 
-                items(servers.entries.toList(), key = { it.key }) { (id, config) ->
-                    ServerListItem(
-                        server = config,
-                        state = serverStates[id],
-                        onClick = { onNavigateToDetail(id) },
-                        onDelete = { serverToDelete = id },
+                if (showSearch) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search servers...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear")
+                                }
+                            }
+                        },
                     )
                 }
 
-                item {
-                    Spacer(Modifier.height(4.dp))
-                    CreateServerCard(onClick = { onNavigateToDetail("") })
-                    Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    filters.forEach { filter ->
+                        FilterChip(
+                            selected = selectedFilter == filter,
+                            onClick = { selectedFilter = filter },
+                            label = { Text(filter, fontSize = 12.sp) },
+                        )
+                    }
+                }
+
+                if (filteredServers.isEmpty()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (searchQuery.isNotBlank()) "No servers matching \"$searchQuery\""
+                            else "No ${selectedFilter.lowercase()} servers",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredServers, key = { (id, _) -> id }) { (id, config) ->
+                            ServerListItem(
+                                server = config,
+                                state = serverStates[id],
+                                onClick = { onNavigateToDetail(id) },
+                                onDelete = { serverToDelete = id },
+                            )
+                        }
+
+                        item {
+                            Spacer(Modifier.height(4.dp))
+                            CreateServerCard(onClick = { onNavigateToDetail("") })
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
                 }
             }
         }

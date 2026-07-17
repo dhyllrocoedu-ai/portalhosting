@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PlayArrow
@@ -98,6 +99,7 @@ import java.io.File
 
 @Composable
 fun DashboardScreen(
+    onNavigateToConsole: (String) -> Unit = {},
     onNavigateToServer: (String) -> Unit = {},
     onNavigateToCreate: () -> Unit = {},
 ) {
@@ -261,7 +263,7 @@ fun DashboardScreen(
 
                 ConsoleCard(
                     consoleLines = activeConsole,
-                    onOpenConsole = { selectedServerId?.let { onNavigateToServer(it) } },
+                    onOpenConsole = { selectedServerId?.let { onNavigateToConsole(it) } },
                     onCommand = { cmd ->
                         scope.launch {
                             selectedServerId?.let { id ->
@@ -741,16 +743,35 @@ private fun ActivityCard(activities: List<ActivityEntry>) {
 }
 
 @Composable
+private fun activityIconAndColor(action: String, defaultTint: Color): Pair<ImageVector, Color> {
+    val lower = action.lowercase()
+    return when {
+        lower.contains("start") || lower.contains("launch") || lower.contains("join") ->
+            Icons.Default.CheckCircle to Color(0xFF4CAF50)
+        lower.contains("error") || lower.contains("crash") || lower.contains("fail") ->
+            Icons.Default.Error to Color(0xFFF44336)
+        lower.contains("warn") || lower.contains("warning") ->
+            Icons.Default.Warning to Color(0xFFFFC107)
+        lower.contains("leave") || lower.contains("quit") || lower.contains("disconnect") ->
+            Icons.Default.PersonRemove to Color(0xFFFF9800)
+        lower.contains("player") || lower.contains("chat") ->
+            Icons.Default.Person to Color(0xFF2196F3)
+        else -> Icons.Default.Info to defaultTint
+    }
+}
+
+@Composable
 private fun ActivityRow(entry: ActivityEntry) {
+    val (icon, color) = activityIconAndColor(entry.action, MaterialTheme.colorScheme.onSurfaceVariant)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Default.Info,
+            imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+            tint = color
         )
         Spacer(Modifier.width(8.dp))
         Text(
@@ -773,12 +794,14 @@ private fun formatRam(bytes: Long): String = when {
 
 private fun consoleLineColor(line: String): Color {
     return when {
-        line.contains(" ERROR ") || line.contains("FATAL") || line.contains("exception", ignoreCase = true) -> Color(0xFFF44336)
-        line.contains(" WARN ") -> Color(0xFFFFC107)
-        line.contains(" INFO ") || line.contains("[User Authenticator #") -> Color(0xFF4CAF50)
-        line.contains("joined the game") -> Color(0xFF4CAF50)
-        line.contains("left the game") -> Color(0xFFFF9800)
+        line.contains(" ERROR ") || line.contains("FATAL") || line.contains("exception", ignoreCase = true) -> Color(0xFFFF5555)
+        line.contains(" WARN ") -> Color(0xFFFFAA00)
+        line.contains(" INFO ") || line.contains("[User Authenticator #") -> Color(0xFFE0E0E0)
+        line.contains("joined the game") -> Color(0xFF55FF55)
+        line.contains("left the game") -> Color(0xFFFFFF55)
+        line.contains("<") && line.contains(">") -> Color(0xFFAA55FF)
+        line.contains("DEBUG") || line.contains("TRACE") -> Color(0xFF888888)
         line.matches(Regex("""^\s*\[\d+:\d+:\d+\]\[.*\].*""")) -> Color(0xFFB0BEC5)
-        else -> Color(0xFFE0E0E0)
+        else -> Color(0xFFCCCCCC)
     }
 }

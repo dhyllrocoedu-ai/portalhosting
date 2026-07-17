@@ -6,11 +6,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+enum class ActivityType { SERVER_START, SERVER_STOP, SERVER_CRASH, PLAYER_JOIN, PLAYER_LEAVE, INFO }
+
 data class ActivityEntry(
     val id: Long,
     val serverId: String,
     val serverName: String,
     val action: String,
+    val type: ActivityType = ActivityType.INFO,
     val timestamp: Long = System.currentTimeMillis(),
 ) {
     val formattedTime: String get() =

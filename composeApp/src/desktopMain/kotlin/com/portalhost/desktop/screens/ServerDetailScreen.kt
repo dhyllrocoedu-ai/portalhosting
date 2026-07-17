@@ -20,12 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Games
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -44,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
@@ -175,7 +177,7 @@ fun ServerDetailScreen(
             }
         }
 
-        val tabs = listOf("Properties", "Console", "Files", "Players", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
+        val tabs = listOf("Properties", "Files", "Players", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
         ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -188,17 +190,16 @@ fun ServerDetailScreen(
 
         when (selectedTab) {
             0 -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
-            1 -> ServerConsoleScreen(serverId = serverId)
-            2 -> ServerFilesScreen(serverId = serverId)
-            3 -> PlayerManagementScreen(serverId = serverId)
-            4 -> WorldsTab(serverId = serverId)
-            5 -> PluginsTab(serverId = serverId)
-            6 -> ModsTab(serverId = serverId)
-            7 -> DatapacksTab(serverId = serverId)
-            8 -> BackupsTab(serverId = serverId, backupManager = backupManager)
-            9 -> PerformanceScreen(serverId = serverId)
-            10 -> LogViewerScreen(serverId = serverId)
-            11 -> RconScreen(serverId = serverId)
+            1 -> ServerFilesScreen(serverId = serverId)
+            2 -> PlayerManagementScreen(serverId = serverId)
+            3 -> WorldsTab(serverId = serverId)
+            4 -> PluginsTab(serverId = serverId)
+            5 -> ModsTab(serverId = serverId)
+            6 -> DatapacksTab(serverId = serverId)
+            7 -> BackupsTab(serverId = serverId, backupManager = backupManager)
+            8 -> PerformanceScreen(serverId = serverId)
+            9 -> LogViewerScreen(serverId = serverId)
+            10 -> RconScreen(serverId = serverId)
         }
     }
 }
@@ -231,16 +232,16 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
     var gamemode by remember(config) { mutableStateOf(config.properties["gamemode"] ?: "survival") }
     var difficulty by remember(config) { mutableStateOf(config.properties["difficulty"] ?: "easy") }
     var motd by remember(config) { mutableStateOf(config.properties["motd"] ?: "A Minecraft Server") }
-    var pvp by remember(config) { mutableStateOf(config.properties["pvp"] ?: "true") }
-    var onlineMode by remember(config) { mutableStateOf(config.properties["online-mode"] ?: "true") }
-    var whitelist by remember(config) { mutableStateOf(config.properties["white-list"] ?: "false") }
+    var pvp by remember(config) { mutableStateOf(config.properties["pvp"]?.toBooleanStrictOrNull() ?: true) }
+    var onlineMode by remember(config) { mutableStateOf(config.properties["online-mode"]?.toBooleanStrictOrNull() ?: true) }
+    var whitelist by remember(config) { mutableStateOf(config.properties["white-list"]?.toBooleanStrictOrNull() ?: false) }
     var spawnProtection by remember(config) { mutableStateOf(config.properties["spawn-protection"] ?: "16") }
     var rconEnabled by remember(config) { mutableStateOf(config.rconEnabled) }
     var rconPort by remember(config) { mutableStateOf(config.rconPort.toString()) }
     var autoRestart by remember(config) { mutableStateOf(config.autoRestart) }
     var savedMessage by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -265,14 +266,21 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                     OutlinedTextField(value = difficulty, onValueChange = { difficulty = it }, label = { Text("Difficulty") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = pvp, onValueChange = { pvp = it }, label = { Text("PvP") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = onlineMode, onValueChange = { onlineMode = it }, label = { Text("Online Mode") }, singleLine = true, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = spawnProtection, onValueChange = { spawnProtection = it.filter { c -> c.isDigit() } }, label = { Text("Spawn Protection") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("PvP", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = pvp, onCheckedChange = { pvp = it })
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = whitelist, onValueChange = { whitelist = it }, label = { Text("Whitelist") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = spawnProtection, onValueChange = { spawnProtection = it.filter { c -> c.isDigit() } }, label = { Text("Spawn Protection") }, singleLine = true, modifier = Modifier.weight(1f))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Online Mode", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = onlineMode, onCheckedChange = { onlineMode = it })
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Whitelist", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = whitelist, onCheckedChange = { whitelist = it })
                 }
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
@@ -307,9 +315,9 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                                     "gamemode" to gamemode,
                                     "difficulty" to difficulty,
                                     "motd" to motd,
-                                    "pvp" to pvp,
-                                    "online-mode" to onlineMode,
-                                    "white-list" to whitelist,
+                                    "pvp" to pvp.toString(),
+                                    "online-mode" to onlineMode.toString(),
+                                    "white-list" to whitelist.toString(),
                                     "spawn-protection" to spawnProtection,
                                 ),
                                 rconEnabled = rconEnabled,
@@ -380,9 +388,9 @@ private fun WorldsTab(serverId: String) {
         } ?: emptyList()
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Worlds", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text("Worlds (${worlds.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = { showImportDialog = true }) {
                 Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
@@ -403,7 +411,7 @@ private fun WorldsTab(serverId: String) {
                             modifier = Modifier.padding(12.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.Games, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(world.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
@@ -483,8 +491,8 @@ private fun PluginsTab(serverId: String) {
         plugins = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Plugins", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Text("Plugins (${plugins.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(12.dp))
         if (plugins.isEmpty()) {
             Text("No plugins installed", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -505,6 +513,9 @@ private fun PluginsTab(serverId: String) {
                                 Text(plugin.name.removeSuffix(".jar"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text(formatSize(plugin), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            IconButton(onClick = { plugin.delete() }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                            }
                         }
                     }
                 }
@@ -522,8 +533,8 @@ private fun ModsTab(serverId: String) {
         mods = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Mods", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Text("Mods (${mods.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(12.dp))
         if (mods.isEmpty()) {
             Text("No mods installed", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -538,11 +549,14 @@ private fun ModsTab(serverId: String) {
                             modifier = Modifier.padding(12.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.GridView, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Build, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(mod.name.removeSuffix(".jar"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text(formatSize(mod), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { mod.delete() }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -561,8 +575,8 @@ private fun DatapacksTab(serverId: String) {
         datapacks = if (dir.exists()) dir.listFiles()?.filter { it.isDirectory || it.name.endsWith(".zip") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Datapacks", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(12.dp))
         if (datapacks.isEmpty()) {
             Text("No datapacks installed", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -577,11 +591,14 @@ private fun DatapacksTab(serverId: String) {
                             modifier = Modifier.padding(12.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.Description, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(dp.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text(formatSize(dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { dp.deleteRecursively() }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -616,9 +633,9 @@ private fun BackupsTab(serverId: String, backupManager: BackupManager?) {
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Backups", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text("Backups (${backups.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = backupName, onValueChange = { backupName = it }, placeholder = { Text("Backup name") }, singleLine = true, modifier = Modifier.width(200.dp))
                 Button(

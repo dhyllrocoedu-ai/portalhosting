@@ -18,35 +18,38 @@ class PurpurProvider : ServerProvider {
     override val id = "purpur"
     override val name = "Purpur"
     override val supportedTypes = setOf(ServerType.PURPUR)
-    
+
     private val apiBase = "https://api.purpurmc.org/v2/purpur"
     private val json = Json { ignoreUnknownKeys = true }
 
     @Serializable
-    data class PurpurVersionsResponse(
+    private data class PurpurRootResponse(
+        val project: String,
+        val metadata: PurpurMetadata? = null,
         val versions: List<String>,
     )
-    
+
     @Serializable
-    data class PurpurBuildsResponse(
-        val builds: List<PurpurBuild>,
+    private data class PurpurMetadata(val current: String? = null)
+
+    @Serializable
+    private data class PurpurBuildsWrapper(
+        val builds: PurpurBuildList,
     )
-    
+
     @Serializable
-    data class PurpurBuild(
-        val build: Int,
-        val download: String,
-        val sha256: String,
-        val time: String,
+    private data class PurpurBuildList(
+        val latest: String,
+        val all: List<String>,
     )
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$apiBase/versions")
+            val url = URL("$apiBase")
             val response = url.readTextWithTimeout()
-            val versionsResponse = json.decodeFromString<PurpurVersionsResponse>(response)
-            
-            Result.success(versionsResponse.versions
+            val root = json.decodeFromString<PurpurRootResponse>(response)
+
+            Result.success(root.versions
                 .map { ServerVersion(it, true, null) }
                 .sortedByDescending { it.version }
             )
@@ -57,16 +60,16 @@ class PurpurProvider : ServerProvider {
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$apiBase/versions/$version/builds")
+            val url = URL("$apiBase/$version")
             val response = url.readTextWithTimeout()
-            val buildsResponse = json.decodeFromString<PurpurBuildsResponse>(response)
-            
-            Result.success(buildsResponse.builds
-                .map { build ->
+            val wrapper = json.decodeFromString<PurpurBuildsWrapper>(response)
+
+            Result.success(wrapper.builds.all
+                .map { buildNum ->
                     ServerBuild(
-                        id = build.build.toString(),
-                        url = "$apiBase/versions/$version/builds/${build.build}/downloads/${build.download}",
-                        sha256 = build.sha256,
+                        id = buildNum,
+                        url = "$apiBase/$version/$buildNum/download",
+                        sha256 = null,
                         size = 0
                     )
                 }
@@ -89,7 +92,6 @@ class PurpurProvider : ServerProvider {
                     input.copyTo(output)
                 }
             }
-            // Verify SHA256 if provided
             build.sha256?.let { expectedSha ->
                 val actualSha = calculateSha256(destination)
                 if (actualSha != expectedSha) {

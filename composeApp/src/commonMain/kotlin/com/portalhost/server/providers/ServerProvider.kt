@@ -18,11 +18,16 @@ interface ServerProvider {
     suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File>
 }
 
-fun URL.readTextWithTimeout(connectTimeoutMs: Int = 10000, readTimeoutMs: Int = 30000): String {
+fun URL.readTextWithTimeout(
+    connectTimeoutMs: Int = 10000,
+    readTimeoutMs: Int = 30000,
+    headers: Map<String, String> = emptyMap()
+): String {
     val conn = openConnection() as HttpURLConnection
     conn.connectTimeout = connectTimeoutMs
     conn.readTimeout = readTimeoutMs
     conn.instanceFollowRedirects = true
+    headers.forEach { (key, value) -> conn.setRequestProperty(key, value) }
     try {
         val responseCode = conn.responseCode
         if (responseCode !in 200..299) {

@@ -46,6 +46,7 @@ import androidx.compose.ui.window.singleWindowApplication
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
+import com.portalhost.desktop.screens.ServerConsoleScreen
 import com.portalhost.desktop.screens.ServerDetailScreen
 import com.portalhost.desktop.screens.ServersScreen
 import com.portalhost.desktop.screens.SettingsScreen
@@ -62,6 +63,7 @@ sealed class Screen {
     object Home : Screen()
     object Servers : Screen()
     data class ServerDetail(val serverId: String) : Screen()
+    data class Console(val serverId: String) : Screen()
     object Create : Screen()
     object Settings : Screen()
 }
@@ -89,7 +91,7 @@ fun DesktopApp() {
 
     val selectedTab = when (currentScreen) {
         Screen.Home -> 0
-        Screen.Servers, is Screen.ServerDetail, Screen.Create -> 1
+        Screen.Servers, is Screen.ServerDetail, is Screen.Console, Screen.Create -> 1
         Screen.Settings -> 2
     }
 
@@ -97,6 +99,7 @@ fun DesktopApp() {
         Screen.Home -> "Home"
         Screen.Servers -> "Servers"
         is Screen.ServerDetail -> "Server Details"
+        is Screen.Console -> "Console"
         Screen.Create -> "New Server"
         Screen.Settings -> "Settings"
     }
@@ -116,6 +119,7 @@ fun DesktopApp() {
                             IconButton(onClick = {
                                 currentScreen = when (currentScreen) {
                                     is Screen.ServerDetail -> Screen.Servers
+                                    is Screen.Console -> Screen.Home
                                     else -> Screen.Servers
                                 }
                             }) {
@@ -191,6 +195,9 @@ fun DesktopApp() {
                         ToastHost()
                         when (currentScreen) {
                             Screen.Home -> DashboardScreen(
+                                onNavigateToConsole = { serverId ->
+                                    currentScreen = Screen.Console(serverId)
+                                },
                                 onNavigateToServer = { serverId ->
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
@@ -204,6 +211,10 @@ fun DesktopApp() {
                             is Screen.ServerDetail -> ServerDetailScreen(
                                 serverId = (currentScreen as Screen.ServerDetail).serverId,
                                 onBack = { currentScreen = Screen.Servers },
+                            )
+                            is Screen.Console -> ServerConsoleScreen(
+                                serverId = (currentScreen as Screen.Console).serverId,
+                                onBack = { currentScreen = Screen.Home },
                             )
                             Screen.Create -> CreateServerScreen(
                                 onServerCreated = { serverId ->

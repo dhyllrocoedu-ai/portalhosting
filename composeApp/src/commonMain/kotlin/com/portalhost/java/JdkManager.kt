@@ -252,35 +252,58 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     }
     
     private fun downloadFileWithProgress(url: String, destination: File) {
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.connectTimeout = 15000
-        conn.readTimeout = 60000
-        conn.instanceFollowRedirects = true
+        var currentUrl = url
+        var redirectCount = 0
+        val maxRedirects = 5
         
-        val responseCode = conn.responseCode
-        if (responseCode !in 200..299) {
-            throw Exception("Download failed with HTTP $responseCode: $url")
-        }
-        
-        val contentLength = conn.contentLengthLong
-        var downloaded = 0L
-        
-        FileOutputStream(destination).use { output ->
-            conn.inputStream.use { input ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloaded += bytesRead
-                    if (contentLength > 0) {
-                        installProgress.value = 0.05 + 0.45 * (downloaded.toDouble() / contentLength)
+        while (true) {
+            val conn = URL(currentUrl).openConnection() as HttpURLConnection
+            conn.connectTimeout = 15000
+            conn.readTimeout = 60000
+            conn.instanceFollowRedirects = false
+            
+            val responseCode = conn.responseCode
+            when {
+                responseCode in 200..299 -> {
+                    val contentLength = conn.contentLengthLong
+                    var downloaded = 0L
+                    
+                    FileOutputStream(destination).use { output ->
+                        conn.inputStream.use { input ->
+                            val buffer = ByteArray(8192)
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                downloaded += bytesRead
+                                if (contentLength > 0) {
+                                    installProgress.value = 0.05 + 0.45 * (downloaded.toDouble() / contentLength)
+                                }
+                            }
+                        }
                     }
+                    
+                    if (contentLength > 0 && downloaded != contentLength) {
+                        throw Exception("Download incomplete: expected $contentLength bytes, got $downloaded")
+                    }
+                    return
+                }
+                responseCode in 300..399 -> {
+                    if (++redirectCount > maxRedirects) {
+                        throw Exception("Too many redirects for $url")
+                    }
+                    val location = conn.getHeaderField("Location")
+                    if (location.isNullOrBlank()) {
+                        throw Exception("Redirect with no Location header for $url")
+                    }
+                    val redirectUrl = URL(URL(currentUrl), location).toExternalForm()
+                    currentUrl = redirectUrl
+                }
+                else -> {
+                    throw Exception("Download failed with HTTP $responseCode: $url")
                 }
             }
-        }
-        
-        if (contentLength > 0 && downloaded != contentLength) {
-            throw Exception("Download incomplete: expected $contentLength bytes, got $downloaded")
+            
+            conn.disconnect()
         }
     }
     

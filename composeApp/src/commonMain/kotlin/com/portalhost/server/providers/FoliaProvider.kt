@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.Result
@@ -18,65 +19,51 @@ class FoliaProvider : ServerProvider {
     override val id = "folia"
     override val name = "Folia"
     override val supportedTypes = setOf(ServerType.FOLIA)
-    
-    private val apiBase = "https://api.papermc.io/v2/projects/folia"
+
+    private val apiBase = "https://fill.papermc.io/v3/projects/folia"
     private val json = Json { ignoreUnknownKeys = true }
 
+    companion object {
+        private const val USER_AGENT = "PortalHost/5.1.0 (https://github.com/portalhost/portalhost)"
+    }
+
     @Serializable
-    data class FoliaVersionsResponse(
-        val project_name: String,
-        val project_id: String,
-        val version_groups: List<VersionGroup>,
-        val versions: List<String>,
+    private data class FoliaProjectV3(
+        val project: FoliaProjectInfo,
+        val versions: Map<String, List<String>>
     )
-    
+
     @Serializable
-    data class VersionGroup(
-        val name: String,
-        val versions: List<String>,
-        val promoted: Boolean,
-    )
-    
+    private data class FoliaProjectInfo(val id: String, val name: String)
+
     @Serializable
-    data class FoliaBuildsResponse(
-        val project_name: String,
-        val project_id: String,
-        val version: String,
-        val builds: List<FoliaBuildEntry>,
-    )
-    
-    @Serializable
-    data class FoliaBuildEntry(
-        val build: Int,
-        val download: BuildDownload,
+    private data class FoliaBuildEntryV3(
+        val id: Int,
         val time: String,
         val channel: String,
+        val downloads: Map<String, FoliaDownloadV3>
     )
-    
+
     @Serializable
-    data class BuildDownload(
-        val application: BuildApplication,
-        val sha256: String,
-    )
-    
-    @Serializable
-    data class BuildApplication(
+    private data class FoliaDownloadV3(
         val name: String,
-        val sha256: String,
+        val checksums: Map<String, String>? = null,
+        val size: Long? = null,
+        val url: String
     )
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = withContext(Dispatchers.IO) {
         try {
             val url = URL(apiBase)
-            val response = url.readTextWithTimeout()
-            val foliaResponse = json.decodeFromString<FoliaVersionsResponse>(response)
-            
-            Result.success(foliaResponse.versions
+            val response = url.readTextWithTimeout(headers = mapOf("User-Agent" to USER_AGENT))
+            val foliaResponse = json.decodeFromString<FoliaProjectV3>(response)
+
+            Result.success(foliaResponse.versions.values.flatten()
+                .filter { !it.contains("-") }
                 .map { version ->
                     ServerVersion(
                         version = version,
-                        stable = foliaResponse.version_groups
-                            .firstOrNull { vg -> version in vg.versions }?.promoted ?: false,
+                        stable = true,
                         releaseDate = null
                     )
                 }
@@ -90,17 +77,18 @@ class FoliaProvider : ServerProvider {
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$apiBase/versions/$version/builds")
-            val response = url.readTextWithTimeout()
-            val foliaResponse = json.decodeFromString<FoliaBuildsResponse>(response)
-            
-            Result.success(foliaResponse.builds
-                .filter { it.channel == "default" }
+            val response = url.readTextWithTimeout(headers = mapOf("User-Agent" to USER_AGENT))
+            val buildsResponse = json.decodeFromString<List<FoliaBuildEntryV3>>(response)
+
+            Result.success(buildsResponse
+                .filter { it.channel == "STABLE" }
                 .map { build ->
+                    val download = build.downloads["server:default"]!!
                     ServerBuild(
-                        id = build.build.toString(),
-                        url = "$apiBase/versions/$version/builds/${build.build}/downloads/${build.download.application.name}",
-                        sha256 = build.download.sha256,
-                        size = 0
+                        id = build.id.toString(),
+                        url = download.url,
+                        sha256 = download.checksums?.get("sha256"),
+                        size = download.size ?: 0
                     )
                 }
                 .sortedByDescending { it.id.toIntOrNull() ?: 0 }
@@ -114,21 +102,22 @@ class FoliaProvider : ServerProvider {
         try {
             destination.parentFile?.mkdirs()
             val url = URL(build.url)
-            val connection = url.openConnection() as java.net.HttpURLConnection
+            val connection = url.openConnection() as HttpURLConnection
+            connection.setRequestProperty("User-Agent", USER_AGENT)
             connection.connectTimeout = 30000
             connection.readTimeout = 300000
-            
+
             if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
                 return@withContext Result.failure(Exception("Download failed: ${connection.responseCode}"))
             }
-            
+
             connection.inputStream.use { input ->
                 FileOutputStream(destination).use { output ->
                     input.copyTo(output)
                 }
             }
             connection.disconnect()
-            
+
             build.sha256?.let { expectedSha ->
                 val actualSha = calculateSha256(destination)
                 if (actualSha != expectedSha) {
@@ -136,7 +125,7 @@ class FoliaProvider : ServerProvider {
                     return@withContext Result.failure(Exception("SHA256 mismatch: expected $expectedSha, got $actualSha"))
                 }
             }
-            
+
             Result.success(destination)
         } catch (e: Exception) {
             destination.delete()
