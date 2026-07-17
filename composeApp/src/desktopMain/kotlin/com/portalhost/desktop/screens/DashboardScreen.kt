@@ -1,5 +1,7 @@
 package com.portalhost.desktop.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,6 +26,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Speed
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -75,6 +80,9 @@ fun DashboardScreen(
     val serverStates by serverManager.serverStates.collectAsState()
     val tunnelState by tunnelManager.state.collectAsState()
     val scope = rememberCoroutineScope()
+
+    var selectedServerId by remember { mutableStateOf<String?>(null) }
+    var showServerDropdown by remember { mutableStateOf(false) }
 
     var storageInfo by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -124,7 +132,60 @@ fun DashboardScreen(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
     ) {
         Text("Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Quick Access", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { showServerDropdown = !showServerDropdown },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (selectedServerId != null && servers.containsKey(selectedServerId)) {
+                        val cfg = servers[selectedServerId]!!
+                        val st = serverStates[selectedServerId]
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(cfg.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("${cfg.serverType.name} - ${st?.status?.name ?: "Stopped"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        Text("Select a server...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                    }
+                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null)
+                }
+                if (showServerDropdown) {
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider()
+                    servers.forEach { (id, config) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                selectedServerId = id
+                                showServerDropdown = false
+                                onNavigateToServer(id)
+                            }.padding(vertical = 8.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val color = when (serverStates[id]?.status) {
+                                ServerStatus.RUNNING -> Color(0xFF4CAF50)
+                                ServerStatus.STARTING -> Color(0xFFFFC107)
+                                ServerStatus.CRASHED -> Color(0xFFF44336)
+                                else -> Color(0xFF9E9E9E)
+                            }
+                            Box(modifier = Modifier.size(8.dp).background(color, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Text(config.name, modifier = Modifier.weight(1f))
+                            Text(config.serverType.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),

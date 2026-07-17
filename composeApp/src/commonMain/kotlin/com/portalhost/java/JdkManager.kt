@@ -139,7 +139,9 @@ class JdkManager {
             val destinationDir = getJdkInstallDir(version)
             destinationDir.mkdirs()
             
-            val archiveFile = File(destinationDir, "jdk-${version}.tar.gz")
+            val isWindows = System.getProperty("os.name").lowercase().contains("win")
+            val archiveExt = if (isWindows) "zip" else "tar.gz"
+            val archiveFile = File(destinationDir, "jdk-${version}.$archiveExt")
             val downloadUrlObj = URL(downloadUrl)
             
             downloadUrlObj.openStream().use { input ->

@@ -20,17 +20,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.filled.Analytics
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Games
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
@@ -50,7 +45,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -85,12 +80,6 @@ import java.util.zip.ZipFile
 @Composable
 fun ServerDetailScreen(
     serverId: String,
-    onNavigateToConsole: (String) -> Unit = {},
-    onNavigateToFiles: (String) -> Unit = {},
-    onNavigateToPlayers: (String) -> Unit = {},
-    onNavigateToPerformance: (String) -> Unit = {},
-    onNavigateToLogs: (String) -> Unit = {},
-    onNavigateToRcon: (String) -> Unit = {},
     onBack: () -> Unit = {},
 ) {
     val serverManager = koinInject<ServerManager>()
@@ -177,13 +166,6 @@ fun ServerDetailScreen(
                         Spacer(Modifier.width(4.dp))
                         Text("Restart")
                     }
-                    Spacer(Modifier.weight(1f))
-                    ActionIconButton(Icons.Filled.Terminal, "Console") { onNavigateToConsole(serverId) }
-                    ActionIconButton(Icons.Filled.Folder, "Files") { onNavigateToFiles(serverId) }
-                    ActionIconButton(Icons.Filled.People, "Players") { onNavigateToPlayers(serverId) }
-                    ActionIconButton(Icons.Filled.Analytics, "Performance") { onNavigateToPerformance(serverId) }
-                    ActionIconButton(Icons.AutoMirrored.Filled.Article, "Logs") { onNavigateToLogs(serverId) }
-                    ActionIconButton(Icons.Filled.Public, "RCON") { onNavigateToRcon(serverId) }
                     OutlinedButton(onClick = { showDeleteDialog = true }, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                         Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
@@ -193,8 +175,8 @@ fun ServerDetailScreen(
             }
         }
 
-        val tabs = listOf("Properties", "Worlds", "Plugins", "Mods", "Datapacks", "Backups")
-        TabRow(selectedTabIndex = selectedTab) {
+        val tabs = listOf("Properties", "Console", "Files", "Players", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
+        ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
             tabs.forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
@@ -205,22 +187,18 @@ fun ServerDetailScreen(
         }
 
         when (selectedTab) {
-            0 -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId)
-            1 -> WorldsTab(serverId = serverId)
-            2 -> PluginsTab(serverId = serverId)
-            3 -> ModsTab(serverId = serverId)
-            4 -> DatapacksTab(serverId = serverId)
-            5 -> BackupsTab(serverId = serverId, backupManager = backupManager)
-        }
-    }
-}
-
-@Composable
-private fun ActionIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp))
-            Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            0 -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
+            1 -> ServerConsoleScreen(serverId = serverId)
+            2 -> ServerFilesScreen(serverId = serverId)
+            3 -> PlayerManagementScreen(serverId = serverId)
+            4 -> WorldsTab(serverId = serverId)
+            5 -> PluginsTab(serverId = serverId)
+            6 -> ModsTab(serverId = serverId)
+            7 -> DatapacksTab(serverId = serverId)
+            8 -> BackupsTab(serverId = serverId, backupManager = backupManager)
+            9 -> PerformanceScreen(serverId = serverId)
+            10 -> LogViewerScreen(serverId = serverId)
+            11 -> RconScreen(serverId = serverId)
         }
     }
 }
@@ -243,7 +221,7 @@ private fun StatusBadgeDetail(status: ServerStatus) {
 }
 
 @Composable
-private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.ServerState?, serverManager: ServerManager, serverId: String) {
+private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.ServerState?, serverManager: ServerManager, serverId: String, onDeleteRequest: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val database = koinInject<DatabaseRepository>()
     var name by remember(config) { mutableStateOf(config.name) }
@@ -367,6 +345,15 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                 Text("Danger Zone", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
                 Spacer(Modifier.height(8.dp))
                 Text("These actions are irreversible.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = onDeleteRequest,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Delete This Server")
+                }
             }
         }
 
