@@ -1,0 +1,14 @@
+-dontwarn jakarta.**
+-dontwarn android.**
+-dontwarn org.codehaus.**
+-dontwarn org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-dontwarn org.openjsse.**
+-dontwarn okhttp3.internal.platform.**
+-dontwarn ch.qos.logback.core.net.**
+-dontwarn ch.qos.logback.classic.**
+-dontwarn ch.qos.logback.core.joran.**
+-dontwarn ch.qos.logback.core.boolex.**
+-dontwarn ch.qos.logback.core.status.**
+-dontwarn com.portalhost.process.ProcessManager
+-dontwarn com.portalhost.server.ProcessMonitor

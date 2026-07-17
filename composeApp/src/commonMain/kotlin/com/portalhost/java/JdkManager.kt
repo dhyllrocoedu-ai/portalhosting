@@ -77,6 +77,7 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
         }
         
         val userHome = System.getProperty("user.home") ?: "."
+        val appJdkDir = File(fileSystem.getAppDirBlocking(), "jdks").absolutePath
         val searchPaths = listOf(
             "/usr/lib/jvm",
             "/Library/Java/JavaVirtualMachines",
@@ -85,6 +86,7 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             "C:\\Program Files\\Microsoft",
             "C:\\Program Files\\Amazon Corretto",
             "$userHome/.sdkman/candidates/java",
+            appJdkDir,
             "$userHome/.portalhost/jdks",
         )
         
