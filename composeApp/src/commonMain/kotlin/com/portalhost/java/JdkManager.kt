@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipFile
 
@@ -22,7 +23,38 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     private val knownJdks = mutableMapOf<Int, String>()
     
     init {
+        loadKnownJdks()
         kotlinx.coroutines.runBlocking { refresh() }
+    }
+    
+    private fun knownJdksFile(): File {
+        return File(fileSystem.getAppDirBlocking(), "jdks/known_jdks.properties")
+    }
+    
+    private fun loadKnownJdks() {
+        try {
+            val file = knownJdksFile()
+            if (file.exists()) {
+                file.readLines().forEach { line ->
+                    val idx = line.indexOf('=')
+                    if (idx > 0) {
+                        val key = line.substring(0, idx).trim().toIntOrNull()
+                        val value = line.substring(idx + 1).trim()
+                        if (key != null && value.isNotBlank()) {
+                            knownJdks[key] = value
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) { }
+    }
+    
+    private fun saveKnownJdks() {
+        try {
+            val file = knownJdksFile()
+            file.parentFile?.mkdirs()
+            file.writeText(knownJdks.entries.joinToString("\n") { "${it.key}=${it.value}" })
+        } catch (_: Exception) { }
     }
     
     suspend fun detectInstalled(): List<JavaInstallation> = withContext(Dispatchers.IO) {
@@ -44,16 +76,21 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             }
         }
         
+        val userHome = System.getProperty("user.home") ?: "."
         val searchPaths = listOf(
             "/usr/lib/jvm",
             "/Library/Java/JavaVirtualMachines",
             "C:\\Program Files\\Java",
             "C:\\Program Files\\Eclipse Adoptium",
-            System.getProperty("user.home") + "/.sdkman/candidates/java",
+            "C:\\Program Files\\Microsoft",
+            "C:\\Program Files\\Amazon Corretto",
+            "$userHome/.sdkman/candidates/java",
+            "$userHome/.portalhost/jdks",
         )
         
         for (basePath in searchPaths) {
             val dir = File(basePath)
+            if (!dir.isDirectory) continue
             val files: Array<File>? = dir.listFiles()
             files?.forEach { file ->
                 if (file.isDirectory) {
@@ -81,6 +118,7 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     suspend fun refresh(): List<JavaInstallation> = withContext(Dispatchers.IO) {
         val installations = detectInstalled()
         _knownInstallations.value = installations
+        saveKnownJdks()
         installations
     }
     
@@ -89,12 +127,23 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     }
     
     fun getJavaExecutable(version: Int): File? {
-        return knownJdks[version]?.let { path ->
-            File(path, javaExeName()).takeIf { it.exists() }
-        } ?: run {
-            val installed = kotlinx.coroutines.runBlocking { detectInstalled() }
-            installed.firstOrNull { it.version == version }?.let { File(it.path, javaExeName()) }
+        knownJdks[version]?.let { path ->
+            val exe = File(path, javaExeName())
+            if (exe.exists()) return exe
         }
+        val installed = kotlinx.coroutines.runBlocking { detectInstalled() }
+        installed.firstOrNull { it.version >= version }?.let { return File(it.path, javaExeName()) }
+        val systemJava = checkSystemJava(version)
+        if (systemJava != null) return systemJava
+        return null
+    }
+    
+    fun checkSystemJava(requiredVersion: Int): File? {
+        return try {
+            val javaExe = if (isWindows()) File("java.exe") else File("java")
+            val version = getJavaVersion(javaExe)
+            if (version >= requiredVersion) javaExe else null
+        } catch (_: Exception) { null }
     }
     
     private fun javaExeName(): String {
@@ -143,32 +192,38 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             isInstalling.value = true
             installProgress.value = 0.0
             
-            val downloadUrl = getDownloadUrl(version)
             val destinationDir = getJdkInstallDir(version)
             destinationDir.mkdirs()
+            val tempDir = File(fileSystem.getAppDirBlocking(), "temp/jdk-install-$version")
+            tempDir.mkdirs()
             
+            cleanupDirectory(destinationDir)
+            
+            val downloadUrl = getDownloadUrl(version)
             val archiveExt = if (isWindows()) "zip" else "tar.gz"
-            val archiveFile = File(destinationDir, "jdk-${version}.$archiveExt")
-            val downloadUrlObj = URL(downloadUrl)
+            val archiveFile = File(tempDir, "jdk-${version}.$archiveExt")
             
-            downloadUrlObj.openStream().use { input ->
-                FileOutputStream(archiveFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
+            installProgress.value = 0.05
+            downloadFileWithProgress(downloadUrl, archiveFile)
             
             installProgress.value = 0.5
+            validateArchive(archiveFile)
             
             extractArchive(archiveFile, destinationDir)
             
-            val extractedDir: File? = destinationDir.listFiles()?.firstOrNull { it.isDirectory }
-            val extractedDirNonNull = extractedDir ?: throw Exception("JDK extraction failed")
+            installProgress.value = 0.8
             
-            val javaHome = extractedDirNonNull.absolutePath
+            val extractedDir = findJdkDir(destinationDir) ?: throw Exception("JDK extraction failed")
+            val javaHome = extractedDir.absolutePath
             val javaExe = File(javaHome, javaExeName())
             
             if (!javaExe.exists()) {
                 throw Exception("Java executable not found after extraction")
+            }
+            
+            val versionCheck = getJavaVersion(javaExe)
+            if (versionCheck != version) {
+                throw Exception("Extracted JDK reports Java $versionCheck, expected $version")
             }
             
             val installation = JavaInstallation(
@@ -181,6 +236,9 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             knownJdks[version] = javaHome
             refresh()
             
+            archiveFile.delete()
+            cleanupDirectory(tempDir)
+            
             installProgress.value = 1.0
             isInstalling.value = false
             
@@ -188,6 +246,80 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
         } catch (e: Exception) {
             isInstalling.value = false
             Result.failure(e)
+        }
+    }
+    
+    private fun downloadFileWithProgress(url: String, destination: File) {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 15000
+        conn.readTimeout = 60000
+        conn.instanceFollowRedirects = true
+        
+        val responseCode = conn.responseCode
+        if (responseCode !in 200..299) {
+            throw Exception("Download failed with HTTP $responseCode: $url")
+        }
+        
+        val contentLength = conn.contentLengthLong
+        var downloaded = 0L
+        
+        FileOutputStream(destination).use { output ->
+            conn.inputStream.use { input ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    output.write(buffer, 0, bytesRead)
+                    downloaded += bytesRead
+                    if (contentLength > 0) {
+                        installProgress.value = 0.05 + 0.45 * (downloaded.toDouble() / contentLength)
+                    }
+                }
+            }
+        }
+        
+        if (contentLength > 0 && downloaded != contentLength) {
+            throw Exception("Download incomplete: expected $contentLength bytes, got $downloaded")
+        }
+    }
+    
+    private fun validateArchive(archiveFile: File) {
+        if (!archiveFile.exists() || archiveFile.length() == 0L) {
+            throw Exception("Downloaded archive is empty")
+        }
+        val magicBytes = ByteArray(4)
+        archiveFile.inputStream().use { it.read(magicBytes) }
+        val valid = when {
+            archiveFile.name.endsWith(".zip") -> magicBytes[0] == 0x50.toByte() && magicBytes[1] == 0x4B.toByte() && magicBytes[2] == 0x03.toByte() && magicBytes[3] == 0x04.toByte()
+            archiveFile.name.endsWith(".tar.gz") -> magicBytes[0] == 0x1F.toByte() && magicBytes[1] == 0x8B.toByte()
+            else -> true
+        }
+        if (!valid) {
+            archiveFile.delete()
+            throw Exception("Downloaded file is not a valid archive")
+        }
+    }
+    
+    private fun findJdkDir(dir: File): File? {
+        val javaExeName = javaExeName()
+        dir.listFiles()?.forEach { child ->
+            if (child.isDirectory) {
+                if (File(child, javaExeName()).exists()) {
+                    return child
+                }
+                val nested = findJdkDir(child)
+                if (nested != null) return nested
+            }
+        }
+        return null
+    }
+    
+    private fun cleanupDirectory(dir: File) {
+        if (!dir.exists()) return
+        dir.listFiles()?.forEach { child ->
+            if (child.isDirectory) {
+                cleanupDirectory(child)
+            }
+            child.delete()
         }
     }
     
@@ -262,19 +394,30 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     
     private fun extractArchive(archiveFile: File, destinationDir: File) {
         if (archiveFile.name.endsWith(".tar.gz")) {
-            val exitCode = ProcessBuilder("tar", "-xzf", archiveFile.absolutePath, "-C", destinationDir.absolutePath)
+            val process = ProcessBuilder("tar", "-xzf", archiveFile.absolutePath, "-C", destinationDir.absolutePath)
                 .directory(destinationDir)
+                .redirectErrorStream(true)
                 .start()
-                .waitFor()
-            if (exitCode != 0) throw Exception("tar extraction failed with exit code $exitCode")
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                val stderr = try { process.inputStream.bufferedReader().readText() } catch (_: Exception) { "" }
+                throw Exception("tar extraction failed with exit code $exitCode: $stderr")
+            }
         } else if (archiveFile.extension == "zip") {
             if (isWindows()) {
                 val psCommand = "Expand-Archive -Path '${archiveFile.absolutePath}' -DestinationPath '${destinationDir.absolutePath}' -Force"
-                val psProcess = ProcessBuilder("powershell", "-Command", psCommand)
+                val psProcess = ProcessBuilder("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand)
                     .directory(destinationDir)
+                    .redirectErrorStream(true)
                     .start()
                 val exitCode = psProcess.waitFor()
-                if (exitCode != 0) throw Exception("Expand-Archive failed with exit code $exitCode")
+                if (exitCode != 0) {
+                    val stderr = try { psProcess.inputStream.bufferedReader().readText() } catch (_: Exception) { "" }
+                    val retryCode = extractZipFallback(archiveFile, destinationDir)
+                    if (retryCode != 0) {
+                        throw Exception("Expand-Archive failed with exit code $exitCode: $stderr")
+                    }
+                }
             } else {
                 ZipFile(archiveFile).use { zipFile ->
                     val entries = zipFile.entries()
@@ -291,6 +434,24 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
                 }
             }
         }
-        archiveFile.delete()
+    }
+    
+    private fun extractZipFallback(archiveFile: File, destinationDir: File): Int {
+        return try {
+            ZipFile(archiveFile).use { zipFile ->
+                val entries = zipFile.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    val outFile = File(destinationDir, entry.name)
+                    if (entry.isDirectory) {
+                        outFile.mkdirs()
+                    } else {
+                        outFile.parentFile?.mkdirs()
+                        zipFile.getInputStream(entry).copyTo(FileOutputStream(outFile))
+                    }
+                }
+            }
+            0
+        } catch (_: Exception) { 1 }
     }
 }

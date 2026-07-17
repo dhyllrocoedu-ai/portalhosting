@@ -17,7 +17,7 @@ import kotlin.coroutines.coroutineContext
 class PaperProvider : ServerProvider {
     override val id = "paper"
     override val name = "Paper"
-    override val supportedTypes = setOf(ServerType.PAPER, ServerType.FOLIA)
+    override val supportedTypes = setOf(ServerType.PAPER)
     
     private val baseUrl = "https://api.papermc.io/v2/projects/paper"
     private val json = Json { ignoreUnknownKeys = true }
@@ -32,18 +32,15 @@ class PaperProvider : ServerProvider {
     }
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = coroutineContext.runCatching {
-        val url = URL("$baseUrl/versions/$version")
+        val url = URL("$baseUrl/versions/$version/builds")
         val response = url.readTextWithTimeout()
-        val versionInfo = json.decodeFromString<PaperVersion>(response)
-        versionInfo.builds.map { build ->
-            val buildUrl = URL("$baseUrl/versions/$version/builds/$build")
-            val buildResponse = try { buildUrl.readTextWithTimeout() } catch (_: Exception) { null }
-            val buildInfo = buildResponse?.let { json.decodeFromString<PaperBuildResponse>(it) }
-            val download = buildInfo?.downloads?.get("application")
-            val jarName = download?.name ?: "paper-$version-$build.jar"
+        val buildsResponse = json.decodeFromString<PaperBuildsResponse>(response)
+        buildsResponse.builds.map { build ->
+            val download = build.downloads?.get("application")
+            val jarName = download?.name ?: "paper-$version-${build.build}.jar"
             ServerBuild(
-                id = build.toString(),
-                url = "$baseUrl/versions/$version/builds/$build/downloads/$jarName",
+                id = build.build.toString(),
+                url = "$baseUrl/versions/$version/builds/${build.build}/downloads/$jarName",
                 sha256 = download?.sha256,
                 size = 0
             )
@@ -87,9 +84,14 @@ class PaperProvider : ServerProvider {
     @Serializable
     private data class PaperProject(val project_name: String, val versions: List<String>)
     @Serializable
-    private data class PaperVersion(val project_name: String, val version: String, val builds: List<Int>)
+    private data class PaperBuildsResponse(
+        val project_id: String,
+        val project_name: String,
+        val version: String,
+        val builds: List<PaperBuildEntry>
+    )
     @Serializable
-    private data class PaperBuildResponse(
+    private data class PaperBuildEntry(
         val build: Int,
         val downloads: Map<String, PaperDownloadEntry>? = null
     )

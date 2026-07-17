@@ -4,6 +4,7 @@ import com.portalhost.model.ServerType
 import com.portalhost.model.ServerVersion
 import com.portalhost.model.ServerBuild
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -22,5 +23,16 @@ fun URL.readTextWithTimeout(connectTimeoutMs: Int = 10000, readTimeoutMs: Int = 
     conn.connectTimeout = connectTimeoutMs
     conn.readTimeout = readTimeoutMs
     conn.instanceFollowRedirects = true
-    return conn.inputStream.bufferedReader().readText()
+    try {
+        val responseCode = conn.responseCode
+        if (responseCode !in 200..299) {
+            val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+            throw IOException("HTTP $responseCode ${conn.responseMessage} for $this${
+                if (errorBody.isNotBlank()) ": $errorBody" else ""
+            }")
+        }
+        return conn.inputStream.bufferedReader().readText()
+    } finally {
+        conn.disconnect()
+    }
 }

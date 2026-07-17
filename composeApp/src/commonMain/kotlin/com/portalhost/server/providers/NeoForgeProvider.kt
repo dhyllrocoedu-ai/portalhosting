@@ -22,11 +22,25 @@ class NeoForgeProvider : ServerProvider {
         return try {
             val url = URL("$baseUrl/maven-metadata.xml")
             val response = url.readTextWithTimeout()
-            val versions = parseMavenMetadata(response)
-                .filter { it.startsWith("1.") }
+            val allVersions = parseMavenMetadata(response)
+            val mcVersions = mutableSetOf<String>()
+            for (v in allVersions) {
+                when {
+                    Regex("""1\.\d+(\.\d+)?-.+""").matches(v) -> {
+                        mcVersions.add(v.substringBefore('-'))
+                    }
+                    else -> {
+                        val match = Regex("""^(\d+)\.(\d+)""").find(v)
+                        if (match != null) {
+                            mcVersions.add("1.${match.groupValues[1]}")
+                        }
+                    }
+                }
+            }
+            Result.success(mcVersions
                 .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
-                .reversed()
-            Result.success(versions)
+                .sortedByDescending { it.version }
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -34,10 +48,16 @@ class NeoForgeProvider : ServerProvider {
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> {
         return try {
-            val url = URL("$baseUrl/$version/maven-metadata.xml")
+            val url = URL("$baseUrl/maven-metadata.xml")
             val response = url.readTextWithTimeout()
-            val builds = parseMavenMetadataBuilds(response)
-                .filter { it.contains(version) && it.length > version.length }
+            val allVersions = parseMavenMetadataBuilds(response)
+            val neoPrefix = version.removePrefix("1.")
+            val matchingBuilds = allVersions.filter { v ->
+                v.startsWith("$version-") ||
+                    (neoPrefix.isNotEmpty() && neoPrefix.all { it.isDigit() || it == '.' } &&
+                        v.startsWith(neoPrefix + "."))
+            }
+            Result.success(matchingBuilds
                 .map { build ->
                     ServerBuild(
                         id = build,
@@ -47,7 +67,7 @@ class NeoForgeProvider : ServerProvider {
                     )
                 }
                 .reversed()
-            Result.success(builds)
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }

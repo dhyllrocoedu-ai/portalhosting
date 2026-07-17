@@ -104,66 +104,76 @@ class ServerManager(
     }
 
     private suspend fun startServerInternal(serverId: String): Result<Unit> = withContext(Dispatchers.IO) {
-        val currentState = _serverStates.value[serverId]
-        if (currentState != null && (currentState.status == ServerStatus.RUNNING || currentState.status == ServerStatus.STARTING)) {
-            logger.warn { "Server $serverId is already ${currentState.status}, ignoring start request" }
-            return@withContext Result.failure(Exception("Server is already ${currentState.status.name.lowercase()}"))
-        }
-
-        val config = _servers.value[serverId] ?: return@withContext Result.failure(Exception("Server not found: $serverId"))
-        logger.info { "Starting server: ${config.name} ($serverId)" }
-
-        _serverStates.update { current ->
-            current + (serverId to (current[serverId]?.copy(
-                status = ServerStatus.STARTING
-            ) ?: ServerState(id = serverId, status = ServerStatus.STARTING)))
-        }
-
-        val jarFile = File(serversDir, "${config.id}.jar")
-        if (!jarFile.exists()) {
-            logger.warn { "Server JAR not found for ${config.name}: $jarFile" }
-            return@withContext Result.failure(Exception("Server JAR not found"))
-        }
-
-        writeEula()
-
-        val processResult = processManager.startProcess(
-            command = buildJavaCommand(config),
-            workingDir = serversDir,
-            environment = buildEnvironment(config),
-        )
-
-        val processHandle = processResult.getOrThrow()
-        activeProcesses[serverId] = processHandle
-
-        _consoleOutputs.update { it + (serverId to emptyList()) }
-        scope.launch {
-            processManager.getOutput(processHandle).collect { line ->
-                _consoleOutputs.update { output ->
-                    val current = (output[serverId] ?: emptyList()).toMutableList()
-                    current.add(line)
-                    output + (serverId to current)
-                }
-                database.insertConsoleLog(serverId, line)
+        try {
+            val currentState = _serverStates.value[serverId]
+            if (currentState != null && (currentState.status == ServerStatus.RUNNING || currentState.status == ServerStatus.STARTING)) {
+                logger.warn { "Server $serverId is already ${currentState.status}, ignoring start request" }
+                return@withContext Result.failure(Exception("Server is already ${currentState.status.name.lowercase()}"))
             }
-        }
 
-        scope.launch {
-            monitorProcess(serverId, processHandle)
-        }
+            val config = _servers.value[serverId] ?: return@withContext Result.failure(Exception("Server not found: $serverId"))
+            logger.info { "Starting server: ${config.name} ($serverId)" }
 
-        val newState = ServerState(
-            id = serverId,
-            status = ServerStatus.RUNNING,
-            pid = processHandle.pid
-        )
-        database.updateServerState(serverId, newState)
-        _serverStates.update { current ->
-            current + (serverId to newState)
-        }
-        logger.info { "Server started: ${config.name} (PID ${processHandle.pid})" }
+            _serverStates.update { current ->
+                current + (serverId to (current[serverId]?.copy(
+                    status = ServerStatus.STARTING
+                ) ?: ServerState(id = serverId, status = ServerStatus.STARTING)))
+            }
 
-        Result.success(Unit)
+            val jarFile = File(serversDir, "${config.id}.jar")
+            if (!jarFile.exists()) {
+                logger.warn { "Server JAR not found for ${config.name}: $jarFile" }
+                return@withContext Result.failure(Exception("Server JAR not found"))
+            }
+
+            writeEula()
+
+            val processResult = processManager.startProcess(
+                command = buildJavaCommand(config),
+                workingDir = serversDir,
+                environment = buildEnvironment(config),
+            )
+
+            val processHandle = processResult.getOrThrow()
+            activeProcesses[serverId] = processHandle
+
+            _consoleOutputs.update { it + (serverId to emptyList()) }
+            scope.launch {
+                processManager.getOutput(processHandle).collect { line ->
+                    _consoleOutputs.update { output ->
+                        val current = (output[serverId] ?: emptyList()).toMutableList()
+                        current.add(line)
+                        output + (serverId to current)
+                    }
+                    database.insertConsoleLog(serverId, line)
+                }
+            }
+
+            scope.launch {
+                monitorProcess(serverId, processHandle)
+            }
+
+            val newState = ServerState(
+                id = serverId,
+                status = ServerStatus.RUNNING,
+                pid = processHandle.pid
+            )
+            database.updateServerState(serverId, newState)
+            _serverStates.update { current ->
+                current + (serverId to newState)
+            }
+            logger.info { "Server started: ${config.name} (PID ${processHandle.pid})" }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to start server $serverId" }
+            _serverStates.update { current ->
+                current + (serverId to (current[serverId]?.copy(
+                    status = ServerStatus.CRASHED
+                ) ?: ServerState(id = serverId, status = ServerStatus.CRASHED)))
+            }
+            Result.failure(e)
+        }
     }
 
     suspend fun stopServer(serverId: String): Result<Unit> = getLock(serverId).withLock {
@@ -239,20 +249,28 @@ class ServerManager(
 
     private fun buildJavaCommand(config: ServerConfig): List<String> {
         val javaExe = jdkManager.getJavaExecutable(config.javaVersion)
-            ?: return listOf(
-                "java",
+        return if (javaExe != null) {
+            listOf(
+                javaExe.absolutePath,
                 "-Xms${config.memoryMin}M",
                 "-Xmx${config.memoryMax}M",
                 "-jar", "${config.id}.jar",
                 "nogui"
             )
-        return listOf(
-            javaExe.absolutePath,
-            "-Xms${config.memoryMin}M",
-            "-Xmx${config.memoryMax}M",
-            "-jar", "${config.id}.jar",
-            "nogui"
-        )
+        } else {
+            val systemJava = jdkManager.checkSystemJava(config.javaVersion)
+            if (systemJava != null) {
+                listOf(
+                    systemJava.absolutePath,
+                    "-Xms${config.memoryMin}M",
+                    "-Xmx${config.memoryMax}M",
+                    "-jar", "${config.id}.jar",
+                    "nogui"
+                )
+            } else {
+                error("Java ${config.javaVersion} or later is required but not found. Please install JDK ${config.javaVersion} and restart, or use the built-in JDK installer.")
+            }
+        }
     }
 
     fun getServerJar(serverId: String): File {
