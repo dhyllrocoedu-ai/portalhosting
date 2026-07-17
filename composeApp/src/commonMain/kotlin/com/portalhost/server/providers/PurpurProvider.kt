@@ -43,7 +43,7 @@ class PurpurProvider : ServerProvider {
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$apiBase/versions")
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val versionsResponse = json.decodeFromString<PurpurVersionsResponse>(response)
             
             Result.success(versionsResponse.versions
@@ -58,7 +58,7 @@ class PurpurProvider : ServerProvider {
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$apiBase/versions/$version/builds")
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val buildsResponse = json.decodeFromString<PurpurBuildsResponse>(response)
             
             Result.success(buildsResponse.builds
@@ -81,7 +81,10 @@ class PurpurProvider : ServerProvider {
         try {
             destination.parentFile?.mkdirs()
             val url = URL(build.url)
-            url.openStream().use { input ->
+            val conn = url.openConnection()
+            conn.connectTimeout = 30000
+            conn.readTimeout = 300000
+            conn.getInputStream().use { input ->
                 FileOutputStream(destination).use { output ->
                     input.copyTo(output)
                 }

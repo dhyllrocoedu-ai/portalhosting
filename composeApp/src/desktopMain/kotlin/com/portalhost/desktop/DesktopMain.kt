@@ -106,7 +106,7 @@ fun DesktopApp() {
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val showFab = currentScreen is Screen.Dashboard || currentScreen is Screen.Servers
+    val showFab = currentScreen is Screen.Servers
 
     fun navigateTo(screen: Screen) {
         currentScreen = screen

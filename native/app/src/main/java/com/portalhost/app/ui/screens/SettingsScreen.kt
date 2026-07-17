@@ -30,6 +30,7 @@ fun SettingsScreen(
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
     jdkProgress: Float = 0f,
+    jdkError: String? = null,
     onReinstallJava: () -> Unit,
     onUninstallJava: () -> Unit,
     onFixupJava: () -> Unit,
@@ -159,6 +160,9 @@ fun SettingsScreen(
                                 Text("Installed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                             } else {
                                 Text("Not installed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            }
+                            if (jdkError != null) {
+                                Text(jdkError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             }
                             Spacer(Modifier.height(2.dp))
                             Text(javaPath, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

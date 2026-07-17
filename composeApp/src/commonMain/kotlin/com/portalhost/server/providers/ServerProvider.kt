@@ -4,6 +4,8 @@ import com.portalhost.model.ServerType
 import com.portalhost.model.ServerVersion
 import com.portalhost.model.ServerBuild
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 interface ServerProvider {
     val id: String
@@ -13,4 +15,12 @@ interface ServerProvider {
     suspend fun fetchVersions(): Result<List<ServerVersion>>
     suspend fun fetchBuilds(version: String): Result<List<ServerBuild>>
     suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File>
+}
+
+fun URL.readTextWithTimeout(connectTimeoutMs: Int = 10000, readTimeoutMs: Int = 30000): String {
+    val conn = openConnection() as HttpURLConnection
+    conn.connectTimeout = connectTimeoutMs
+    conn.readTimeout = readTimeoutMs
+    conn.instanceFollowRedirects = true
+    return conn.inputStream.bufferedReader().readText()
 }

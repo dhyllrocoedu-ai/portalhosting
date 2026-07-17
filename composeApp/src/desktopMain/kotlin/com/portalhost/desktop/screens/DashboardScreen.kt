@@ -3,6 +3,7 @@ package com.portalhost.desktop.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,8 +54,12 @@ import com.portalhost.filesystem.FileSystem
 import com.portalhost.model.ServerStatus
 import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
+import com.portalhost.server.TunnelManager
+import com.portalhost.server.TunnelStatus
 import org.koin.compose.koinInject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
@@ -65,10 +70,24 @@ fun DashboardScreen(
     val serverManager = koinInject<ServerManager>()
     val fileSystem = koinInject<FileSystem>()
     val activityLog = koinInject<ActivityLog>()
+    val tunnelManager = koinInject<TunnelManager>()
     val servers by serverManager.servers.collectAsState()
     val serverStates by serverManager.serverStates.collectAsState()
-    val activities by activityLog.activities.collectAsState()
+    val tunnelState by tunnelManager.state.collectAsState()
     val scope = rememberCoroutineScope()
+
+    var storageInfo by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        storageInfo = withContext(Dispatchers.IO) {
+            val dir = fileSystem.getAppDir()
+            val total = dir.totalSpace
+            val free = dir.freeSpace
+            val used = total - free
+            val usedGb = used.toDouble() / (1024 * 1024 * 1024)
+            val totalGb = total.toDouble() / (1024 * 1024 * 1024)
+            "%.1f GB / %.1f GB used".format(usedGb, totalGb)
+        }
+    }
 
     val runningCount = serverStates.count { it.value.status == ServerStatus.RUNNING }
     val stoppedCount = serverStates.count { it.value.status == ServerStatus.STOPPED }
@@ -216,7 +235,44 @@ fun DashboardScreen(
                         Text("Tunnels", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("No active tunnels", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    val statusLabel = when (tunnelState.status) {
+                        TunnelStatus.IDLE -> "Not Connected"
+                        TunnelStatus.DOWNLOADING -> "Downloading..."
+                        TunnelStatus.CLAIM_REQUIRED -> "Claim Required"
+                        TunnelStatus.CONNECTING -> "Connecting..."
+                        TunnelStatus.CONNECTED -> "Connected"
+                        TunnelStatus.ERROR -> "Error"
+                    }
+                    Text(statusLabel, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    if (tunnelState.status == TunnelStatus.CONNECTED && tunnelState.tunnels.isNotEmpty()) {
+                        tunnelState.tunnels.forEach { t ->
+                            Text(t.publicAddress, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (tunnelState.status == TunnelStatus.ERROR && tunnelState.error != null) {
+                        Text(tunnelState.error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            if (tunnelState.status == TunnelStatus.CONNECTED) {
+                                tunnelManager.stop()
+                            } else {
+                                scope.launch { tunnelManager.start(25565) }
+                            }
+                        },
+                        enabled = tunnelState.status != TunnelStatus.DOWNLOADING && tunnelState.status != TunnelStatus.CONNECTING,
+                        modifier = Modifier.height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            when (tunnelState.status) {
+                                TunnelStatus.CONNECTED -> "Disconnect"
+                                else -> "Connect"
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
 
@@ -231,7 +287,7 @@ fun DashboardScreen(
                         Text("Storage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("Calculating...", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    Text(storageInfo ?: "Calculating...", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

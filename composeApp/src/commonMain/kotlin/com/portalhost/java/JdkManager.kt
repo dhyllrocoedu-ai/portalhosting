@@ -223,9 +223,12 @@ class JdkManager {
     private fun getDownloadUrl(version: Int): String {
         val os = System.getProperty("os.name").lowercase()
         val arch = System.getProperty("os.arch").lowercase()
-        val isWindows = os.contains("win")
-        val isMac = os.contains("mac")
-        val isLinux = os.contains("linux") || os.contains("nix") || os.contains("nux")
+
+        val osStr = when {
+            os.contains("win") -> "windows"
+            os.contains("mac") -> "mac"
+            else -> "linux"
+        }
 
         val archStr = when (arch) {
             "x86_64", "amd64" -> "x64"
@@ -233,29 +236,15 @@ class JdkManager {
             else -> "x64"
         }
 
-        return when (version) {
-            21 -> when {
-                isWindows -> "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.3%2B9/OpenJDK21U-jdk_${archStr}_windows_hotspot_21.0.3_9.zip"
-                isMac -> "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.3%2B9/OpenJDK21U-jdk_${archStr}_mac_hotspot_21.0.3_9.tar.gz"
-                else -> "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.3%2B9/OpenJDK21U-jdk_${archStr}_linux_hotspot_21.0.3_9.tar.gz"
-            }
-            17 -> when {
-                isWindows -> "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jdk_${archStr}_windows_hotspot_17.0.11_9.zip"
-                isMac -> "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jdk_${archStr}_mac_hotspot_17.0.11_9.tar.gz"
-                else -> "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.11%2B9/OpenJDK17U-jdk_${archStr}_linux_hotspot_17.0.11_9.tar.gz"
-            }
-            11 -> when {
-                isWindows -> "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.23%2B9/OpenJDK11U-jdk_${archStr}_windows_hotspot_11.0.23_9.zip"
-                isMac -> "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.23%2B9/OpenJDK11U-jdk_${archStr}_mac_hotspot_11.0.23_9.tar.gz"
-                else -> "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.23%2B9/OpenJDK11U-jdk_${archStr}_linux_hotspot_11.0.23_9.tar.gz"
-            }
-            8 -> when {
-                isWindows -> "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u412-b08/OpenJDK8U-jdk_${archStr}_windows_hotspot_8u412b08.zip"
-                isMac -> "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u412-b08/OpenJDK8U-jdk_${archStr}_mac_hotspot_8u412b08.tar.gz"
-                else -> "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u412-b08/OpenJDK8U-jdk_${archStr}_linux_hotspot_8u412b08.tar.gz"
-            }
+        val versionStr = when (version) {
+            8 -> "8"
+            11 -> "11"
+            17 -> "17"
+            21 -> "21"
             else -> throw IllegalArgumentException("Unsupported Java version: $version")
         }
+
+        return "https://api.adoptium.net/v3/binary/latest/$versionStr/ga/$osStr/$archStr/jdk/hotspot/normal/eclipse"
     }
     
     private fun getJdkInstallDir(version: Int): File {

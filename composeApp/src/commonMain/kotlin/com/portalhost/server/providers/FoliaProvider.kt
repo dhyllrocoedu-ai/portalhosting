@@ -68,7 +68,7 @@ class FoliaProvider : ServerProvider {
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = withContext(Dispatchers.IO) {
         try {
             val url = URL(apiBase)
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val foliaResponse = json.decodeFromString<FoliaVersionsResponse>(response)
             
             Result.success(foliaResponse.versions
@@ -90,7 +90,7 @@ class FoliaProvider : ServerProvider {
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$apiBase/versions/$version/builds")
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val foliaResponse = json.decodeFromString<FoliaBuildsResponse>(response)
             
             Result.success(foliaResponse.builds

@@ -24,7 +24,7 @@ class PaperProvider : ServerProvider {
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = coroutineContext.runCatching {
         val url = URL("$baseUrl")
-        val response = url.readText()
+        val response = url.readTextWithTimeout()
         val project = json.decodeFromString<PaperProject>(response)
         project.versions.filter { it.startsWith("1.") }
             .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
@@ -33,13 +33,18 @@ class PaperProvider : ServerProvider {
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = coroutineContext.runCatching {
         val url = URL("$baseUrl/versions/$version")
-        val response = url.readText()
+        val response = url.readTextWithTimeout()
         val versionInfo = json.decodeFromString<PaperVersion>(response)
         versionInfo.builds.map { build ->
+            val buildUrl = URL("$baseUrl/versions/$version/builds/$build")
+            val buildResponse = try { buildUrl.readTextWithTimeout() } catch (_: Exception) { null }
+            val buildInfo = buildResponse?.let { json.decodeFromString<PaperBuildResponse>(it) }
+            val download = buildInfo?.downloads?.get("application")
+            val jarName = download?.name ?: "paper-$version-$build.jar"
             ServerBuild(
                 id = build.toString(),
-                url = "$baseUrl/versions/$version/builds/$build/downloads/paper-$version-$build.jar",
-                sha256 = null, // Paper doesn't provide SHA256 in API
+                url = "$baseUrl/versions/$version/builds/$build/downloads/$jarName",
+                sha256 = download?.sha256,
                 size = 0
             )
         }.reversed()
@@ -48,7 +53,10 @@ class PaperProvider : ServerProvider {
     override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = coroutineContext.runCatching {
         destination.parentFile?.mkdirs()
         val url = URL(build.url)
-        url.openStream().use { input ->
+        val conn = url.openConnection()
+        conn.connectTimeout = 30000
+        conn.readTimeout = 300000
+        conn.getInputStream().use { input ->
             FileOutputStream(destination).use { output ->
                 input.copyTo(output)
             }
@@ -80,4 +88,14 @@ class PaperProvider : ServerProvider {
     private data class PaperProject(val project_name: String, val versions: List<String>)
     @Serializable
     private data class PaperVersion(val project_name: String, val version: String, val builds: List<Int>)
+    @Serializable
+    private data class PaperBuildResponse(
+        val build: Int,
+        val downloads: Map<String, PaperDownloadEntry>? = null
+    )
+    @Serializable
+    private data class PaperDownloadEntry(
+        val name: String,
+        val sha256: String? = null
+    )
 }

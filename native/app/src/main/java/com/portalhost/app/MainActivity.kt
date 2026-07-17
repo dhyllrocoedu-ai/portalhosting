@@ -122,6 +122,7 @@ private fun AppEntry(
     var jdkInstalled by remember { mutableStateOf(javaRuntimeManager.isInstalled) }
     var jdkInstalling by remember { mutableStateOf(false) }
     var jdkProgress by remember { mutableStateOf(0f) }
+    var jdkError by remember { mutableStateOf<String?>(null) }
 
     // TunnelManager for playit.gg testing
     val tunnelManager = remember { TunnelManager(context) }
@@ -147,7 +148,8 @@ private fun AppEntry(
             if (result.isSuccess) {
                 Log.i(TAG, "JDK installed successfully")
             } else {
-                Log.e(TAG, "JDK install failed: ${result.exceptionOrNull()?.message}")
+                jdkError = result.exceptionOrNull()?.message ?: "Unknown error"
+                Log.e(TAG, "JDK install failed: $jdkError")
             }
         }
     }
@@ -156,6 +158,7 @@ private fun AppEntry(
         javaRuntimeManager.uninstall()
         jdkInstalled = false
         jdkProgress = 0f
+        jdkError = null
         scope.launch {
             jdkInstalling = true
             val result = javaRuntimeManager.install { progress ->
@@ -163,6 +166,9 @@ private fun AppEntry(
             }
             jdkInstalling = false
             jdkInstalled = result.isSuccess
+            if (!result.isSuccess) {
+                jdkError = result.exceptionOrNull()?.message ?: "Unknown error"
+            }
         }
     }
 
@@ -198,6 +204,7 @@ private fun AppEntry(
         jdkInstalled = jdkInstalled,
         jdkInstalling = jdkInstalling,
         jdkProgress = jdkProgress,
+        jdkError = jdkError,
         javaPath = javaRuntimeManager.resolveJavaPath(),
         onReinstallJava = onReinstallJava,
         onUninstallJava = onUninstallJava,

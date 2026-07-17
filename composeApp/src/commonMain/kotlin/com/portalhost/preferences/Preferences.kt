@@ -2,58 +2,88 @@ package com.portalhost.preferences
 
 import com.russhwolf.settings.PreferencesSettings
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.util.prefs.Preferences
 
 class Preferences {
     private val settings = PreferencesSettings(Preferences.userRoot().node("com/portalhost"))
 
-    var theme: MutableStateFlow<String> = MutableStateFlow(settings.getString("theme", "system"))
-    var language: MutableStateFlow<String> = MutableStateFlow(settings.getString("language", "en"))
-    var autoCheckUpdates: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("autoCheckUpdates", true))
-    var showConsoleColors: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("showConsoleColors", true))
-    var maxConsoleLines: MutableStateFlow<Int> = MutableStateFlow(settings.getInt("maxConsoleLines", 5000))
-    var defaultMemoryMin: MutableStateFlow<Int> = MutableStateFlow(settings.getInt("defaultMemoryMin", 1024))
-    var defaultMemoryMax: MutableStateFlow<Int> = MutableStateFlow(settings.getInt("defaultMemoryMax", 4096))
-    var autoBackupEnabled: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("autoBackupEnabled", false))
-    var backupIntervalHours: MutableStateFlow<Int> = MutableStateFlow(settings.getInt("backupIntervalHours", 6))
-    var rconEnabledByDefault: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("rconEnabledByDefault", false))
-    var serverAutoRestart: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("serverAutoRestart", false))
-    var confirmServerDelete: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("confirmServerDelete", true))
-    var showAdvancedSettings: MutableStateFlow<Boolean> = MutableStateFlow(settings.getBoolean("showAdvancedSettings", false))
-    var logLevel: MutableStateFlow<String> = MutableStateFlow(settings.getString("logLevel", "INFO"))
-    var tunnelUrl: MutableStateFlow<String> = MutableStateFlow(settings.getString("tunnelUrl", ""))
-    var dataDirectory: MutableStateFlow<String> = MutableStateFlow(settings.getString("dataDirectory", ""))
+    var theme: MutableStateFlow<String> = stringPref("theme", "system")
+    var language: MutableStateFlow<String> = stringPref("language", "en")
+    var autoCheckUpdates: MutableStateFlow<Boolean> = boolPref("autoCheckUpdates", true)
+    var showConsoleColors: MutableStateFlow<Boolean> = boolPref("showConsoleColors", true)
+    var maxConsoleLines: MutableStateFlow<Int> = intPref("maxConsoleLines", 5000)
+    var defaultMemoryMin: MutableStateFlow<Int> = intPref("defaultMemoryMin", 1024)
+    var defaultMemoryMax: MutableStateFlow<Int> = intPref("defaultMemoryMax", 4096)
+    var autoBackupEnabled: MutableStateFlow<Boolean> = boolPref("autoBackupEnabled", false)
+    var backupIntervalHours: MutableStateFlow<Int> = intPref("backupIntervalHours", 6)
+    var rconEnabledByDefault: MutableStateFlow<Boolean> = boolPref("rconEnabledByDefault", false)
+    var serverAutoRestart: MutableStateFlow<Boolean> = boolPref("serverAutoRestart", false)
+    var confirmServerDelete: MutableStateFlow<Boolean> = boolPref("confirmServerDelete", true)
+    var showAdvancedSettings: MutableStateFlow<Boolean> = boolPref("showAdvancedSettings", false)
+    var logLevel: MutableStateFlow<String> = stringPref("logLevel", "INFO")
+    var tunnelUrl: MutableStateFlow<String> = stringPref("tunnelUrl", "")
+    var dataDirectory: MutableStateFlow<String> = stringPref("dataDirectory", "")
 
     fun resetToDefaults() {
-        settings.putString("theme", "system")
         theme.value = "system"
-        settings.putString("language", "en")
         language.value = "en"
-        settings.putBoolean("autoCheckUpdates", true)
         autoCheckUpdates.value = true
-        settings.putBoolean("showConsoleColors", true)
         showConsoleColors.value = true
-        settings.putInt("maxConsoleLines", 5000)
         maxConsoleLines.value = 5000
-        settings.putInt("defaultMemoryMin", 1024)
         defaultMemoryMin.value = 1024
-        settings.putInt("defaultMemoryMax", 4096)
         defaultMemoryMax.value = 4096
-        settings.putBoolean("autoBackupEnabled", false)
         autoBackupEnabled.value = false
-        settings.putInt("backupIntervalHours", 6)
         backupIntervalHours.value = 6
-        settings.putBoolean("rconEnabledByDefault", false)
         rconEnabledByDefault.value = false
-        settings.putBoolean("serverAutoRestart", false)
         serverAutoRestart.value = false
-        settings.putBoolean("confirmServerDelete", true)
         confirmServerDelete.value = true
-        settings.putBoolean("showAdvancedSettings", false)
         showAdvancedSettings.value = false
-        settings.putString("logLevel", "INFO")
         logLevel.value = "INFO"
-        settings.putString("dataDirectory", "")
         dataDirectory.value = ""
+    }
+
+    private fun stringPref(key: String, default: String): MutableStateFlow<String> {
+        val flow = MutableStateFlow(settings.getString(key, default))
+        return PersistedFlow(flow) { settings.putString(key, it) }
+    }
+
+    private fun intPref(key: String, default: Int): MutableStateFlow<Int> {
+        val flow = MutableStateFlow(settings.getInt(key, default))
+        return PersistedFlow(flow) { settings.putInt(key, it) }
+    }
+
+    private fun boolPref(key: String, default: Boolean): MutableStateFlow<Boolean> {
+        val flow = MutableStateFlow(settings.getBoolean(key, default))
+        return PersistedFlow(flow) { settings.putBoolean(key, it) }
+    }
+}
+
+private class PersistedFlow<T>(
+    private val flow: MutableStateFlow<T>,
+    private val onSet: (T) -> Unit
+) : MutableStateFlow<T> by flow {
+    override var value: T
+        get() = flow.value
+        set(v) {
+            flow.value = v
+            onSet(v)
+        }
+
+    override suspend fun emit(value: T) {
+        flow.emit(value)
+        onSet(value)
+    }
+
+    override fun tryEmit(value: T): Boolean {
+        val result = flow.tryEmit(value)
+        if (result) onSet(value)
+        return result
+    }
+
+    override fun compareAndSet(expect: T, update: T): Boolean {
+        val result = flow.compareAndSet(expect, update)
+        if (result) onSet(update)
+        return result
     }
 }

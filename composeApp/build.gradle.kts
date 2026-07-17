@@ -54,7 +54,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "4.5.0"
+            packageVersion = "5.0.0"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             modules("java.sql", "java.naming", "java.management", "java.net.http")

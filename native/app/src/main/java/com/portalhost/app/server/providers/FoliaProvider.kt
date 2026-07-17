@@ -8,21 +8,21 @@ import okhttp3.Request
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-class PaperProvider(
+class FoliaProvider(
     private val client: OkHttpClient,
     private val json: Json
 ) : ServerProvider {
-    override val type = ServerType.PAPER
+    override val type = ServerType.FOLIA
     override val supportsBuilds = true
-    private val TAG = "PaperProvider"
-    private val baseUrl = "https://api.papermc.io/v2/projects/paper"
+    private val TAG = "FoliaProvider"
+    private val baseUrl = "https://api.papermc.io/v2/projects/folia"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
         try {
             val url = "$baseUrl"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperVersionsResponse>(body)
+            val response = json.decodeFromString<FoliaVersionsResponse>(body)
             response.versions
                 .filter { it.matches(Regex("^\\d+(\\.\\d+)*$")) }
                 .distinct()
@@ -38,8 +38,9 @@ class PaperProvider(
             val url = "$baseUrl/versions/$version/builds"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperBuildsResponse>(body)
+            val response = json.decodeFromString<FoliaBuildsResponse>(body)
             response.builds
+                .filter { it.channel == "default" }
                 .sortedByDescending { it.build }
                 .map { BuildInfo("#${it.build}", it.build.toString()) }
         } catch (e: Exception) {
@@ -57,7 +58,7 @@ class PaperProvider(
             }
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext null
-            val response = json.decodeFromString<PaperBuildResponse>(body)
+            val response = json.decodeFromString<FoliaBuildResponse>(body)
 
             val app = response.downloads?.get("application") ?: return@withContext null
             val jarName = app.name
@@ -71,18 +72,18 @@ class PaperProvider(
     }
 
     @Serializable
-    private data class PaperVersionsResponse(val versions: List<String>)
+    private data class FoliaVersionsResponse(val versions: List<String>)
     @Serializable
-    private data class PaperBuildsResponse(val builds: List<PaperBuildEntry>)
+    private data class FoliaBuildsResponse(val builds: List<FoliaBuildEntry>)
     @Serializable
-    private data class PaperBuildEntry(val build: Int)
+    private data class FoliaBuildEntry(val build: Int, val channel: String)
     @Serializable
-    private data class PaperBuildResponse(
+    private data class FoliaBuildResponse(
         val build: Int,
-        val downloads: Map<String, PaperDownloadEntry>? = null
+        val downloads: Map<String, FoliaDownloadEntry>? = null
     )
     @Serializable
-    private data class PaperDownloadEntry(
+    private data class FoliaDownloadEntry(
         val name: String,
         val sha256: String? = null
     )

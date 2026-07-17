@@ -61,7 +61,7 @@ class VanillaProvider : ServerProvider {
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = withContext(Dispatchers.IO) {
         try {
-            val manifest = URL(manifestUrl).readText()
+            val manifest = URL(manifestUrl).readTextWithTimeout()
             val versionManifest = json.decodeFromString<VersionManifest>(manifest)
             
             val versions = versionManifest.versions
@@ -82,13 +82,13 @@ class VanillaProvider : ServerProvider {
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
-            val manifest = URL(manifestUrl).readText()
+            val manifest = URL(manifestUrl).readTextWithTimeout()
             val versionManifest = json.decodeFromString<VersionManifest>(manifest)
             
             val versionEntry = versionManifest.versions.firstOrNull { it.id == version }
                 ?: return@withContext Result.failure(Exception("Version $version not found"))
             
-            val detailsJson = URL(versionEntry.url).readText()
+            val detailsJson = URL(versionEntry.url).readTextWithTimeout()
             val details = json.decodeFromString<VersionDetails>(detailsJson)
             
             val serverDownload = details.downloads.server
@@ -109,7 +109,10 @@ class VanillaProvider : ServerProvider {
         try {
             destination.parentFile?.mkdirs()
             val url = URL(build.url)
-            url.openStream().use { input ->
+            val conn = url.openConnection()
+            conn.connectTimeout = 30000
+            conn.readTimeout = 300000
+            conn.getInputStream().use { input ->
                 FileOutputStream(destination).use { output ->
                     input.copyTo(output)
                 }

@@ -21,7 +21,7 @@ class ForgeProvider : ServerProvider {
     override suspend fun fetchVersions(): Result<List<ServerVersion>> {
         return try {
             val url = URL("$baseUrl/maven-metadata.xml")
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val versions = parseMavenMetadata(response)
                 .filter { it.startsWith("1.") }
                 .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
@@ -35,7 +35,7 @@ class ForgeProvider : ServerProvider {
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> {
         return try {
             val url = URL("$baseUrl/$version/maven-metadata.xml")
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val builds = parseMavenMetadataBuilds(response)
                 .filter { it.contains(version) && it.length > version.length }
                 .map { build ->
@@ -56,7 +56,10 @@ class ForgeProvider : ServerProvider {
     override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = runCatching {
         destination.parentFile?.mkdirs()
         val url = URL(build.url)
-        url.openStream().use { input ->
+        val conn = url.openConnection()
+        conn.connectTimeout = 30000
+        conn.readTimeout = 300000
+        conn.getInputStream().use { input ->
             FileOutputStream(destination).use { output ->
                 input.copyTo(output)
             }

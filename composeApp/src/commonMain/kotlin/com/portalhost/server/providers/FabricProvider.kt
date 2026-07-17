@@ -47,7 +47,7 @@ class FabricProvider : ServerProvider {
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = withContext(Dispatchers.IO) {
         try {
             val url = URL("$metaUrl/versions/game")
-            val response = url.readText()
+            val response = url.readTextWithTimeout()
             val versions = json.decodeFromString<List<FabricVersion>>(response)
             
             Result.success(versions
@@ -63,23 +63,18 @@ class FabricProvider : ServerProvider {
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = withContext(Dispatchers.IO) {
         try {
             val loaderUrl = URL("$metaUrl/versions/loader/$version")
-            val loaderResponse = loaderUrl.readText()
+            val loaderResponse = loaderUrl.readTextWithTimeout()
             val loaders = json.decodeFromString<List<FabricLoaderEntry>>(loaderResponse)
-            val latestLoader = loaders.firstOrNull()
-                ?: return@withContext Result.failure(Exception("No loader found for $version"))
             
-            val installerUrl = URL("$metaUrl/versions/installer")
-            val installerResponse = installerUrl.readText()
-            val installers = json.decodeFromString<List<FabricInstallerEntry>>(installerResponse)
-            val latestInstaller = installers.firstOrNull()
-                ?: return@withContext Result.failure(Exception("No installer found"))
-            
-            Result.success(listOf(ServerBuild(
-                id = "fabric-${latestLoader.loader.version}",
-                url = latestInstaller.url,
-                sha256 = null,
-                size = 0
-            )))
+            Result.success(loaders.map { entry ->
+                val loaderVer = entry.loader.version
+                ServerBuild(
+                    id = "fabric-$loaderVer",
+                    url = "$metaUrl/versions/loader/$version/$loaderVer/server/jar",
+                    sha256 = null,
+                    size = 0
+                )
+            })
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -89,7 +84,10 @@ class FabricProvider : ServerProvider {
         try {
             destination.parentFile?.mkdirs()
             val url = URL(build.url)
-            url.openStream().use { input ->
+            val conn = url.openConnection()
+            conn.connectTimeout = 30000
+            conn.readTimeout = 300000
+            conn.getInputStream().use { input ->
                 FileOutputStream(destination).use { output ->
                     input.copyTo(output)
                 }

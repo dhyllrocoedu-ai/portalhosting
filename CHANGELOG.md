@@ -1,5 +1,46 @@
 # Changelog
 
+## v5.0.0--desktopv2 (2026-07-17)
+
+### Features
+- **Dashboard storage card** — Live used/total GB from app data directory
+- **Dashboard TunnelCard** — Live playit.gg tunnel status with Connect/Disconnect button (Not Connected, Downloading, Claim Required, Connecting, Connected, Error)
+- **Desktop JDK Install button** — Install/Reinstall JDK 21 from Settings with progress bar
+- **Playit.gg tunnel auto-download** — Automatically downloads tunnel binary from GitHub releases if missing
+- **Claim URL flow** — Detects claim URLs from tunnel output and opens in browser
+- **NeoForge, Folia, Purpur server providers** — Added support for all 3 server types in desktop app
+
+### Improvements
+- **Settings persistence** — Rewrote Preferences with auto-save delegate, removed UI-level hacky `putString` calls
+- **Data directory configuration** — Properly persists data directory across restarts
+- **Adoptium JDK auto-download** — Replaced hardcoded Temurin release URLs with dynamic Adoptium API endpoint (always gets latest GA build, no more manual version tracking)
+- **Server provider timeouts** — Added `readTextWithTimeout()` helper (10s connect / 30s read), applied to all 7 providers
+- **Server provider SHA256** — Desktop PaperProvider now fetches SHA256 from build response
+- **FAB visibility** — FAB now shows only on Servers screen (not Dashboard)
+
+### Bug Fixes
+- **Android PaperProvider URL** — Fixed from `fill.papermc.io/v3/` to `api.papermc.io/v2/projects/paper`
+- **Desktop FabricProvider URL** — Changed from installer JAR to server JAR URL
+- **Android ForgeProvider URL** — Changed from `universal.jar` to `installer.jar`
+- **Server provider timeouts** — Added connection-level timeouts (30s / 300s) to all `downloadBuild()` methods
+- **All provider `readText()` calls** — Replaced with `readTextWithTimeout()` for Folia and Purpur providers
+
+## v4.0.0--mobilev2 (2026-07-17)
+
+### Features
+- **NeoForge, Folia, Purpur providers** — Added all 3 server types to Android Create Source wizard with download option cards, version/build pickers, and server JAR downloads
+- **JDK error display** — Install failures now shown in red text in Settings Java Runtime card
+- **JDK install progress StateFlow** — Added public `installProgress: StateFlow<Float>` to JavaRuntimeManager
+
+### Improvements
+- **Adoptium JDK source** — Replaced self-hosted GitHub Releases tarball with dynamic Adoptium API endpoint (no manual asset upload needed, always gets latest JDK 21 GA build)
+- **Simplified JDK extraction** — Uses `tar -xzf` directly (removed XZ decompression, no more Termux .deb parsing)
+- **Simplified fixupLibraries()** — No-op since Adoptium JDK doesn't need Termux system library provisioning
+
+### Bug Fixes
+- **PaperProvider URL** — Fixed from `fill.papermc.io/v3/` to `api.papermc.io/v2/projects/paper`
+- **ForgeProvider URL** — Fixed from `universal.jar` to `installer.jar`
+
 ## v4.5.0--desktopv2 (2026-07-15)
 
 ### Features

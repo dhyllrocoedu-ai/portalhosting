@@ -30,11 +30,12 @@ data class TunnelInfo(
 )
 
 enum class TunnelStatus {
-    IDLE, CONNECTING, CONNECTED, ERROR
+    IDLE, DOWNLOADING, CLAIM_REQUIRED, CONNECTING, CONNECTED, ERROR
 }
 
 data class TunnelState(
     val status: TunnelStatus = TunnelStatus.IDLE,
+    val claimUrl: String? = null,
     val tunnels: List<TunnelInfo> = emptyList(),
     val error: String? = null,
     val lastOutput: String = ""
@@ -74,6 +75,40 @@ class TunnelManager {
         } catch (_: Exception) {}
     }
 
+    suspend fun downloadBinary(): Result<Unit> {
+        _state.value = _state.value.copy(status = TunnelStatus.DOWNLOADING)
+        return try {
+            val os = System.getProperty("os.name").lowercase()
+            val arch = System.getProperty("os.arch").lowercase()
+            val isWindows = os.contains("win")
+            val is64 = arch.contains("64") || arch.contains("amd")
+            val suffix = when {
+                isWindows -> if (is64) "windows-x86_64.exe" else "windows-x86_32.exe"
+                os.contains("mac") -> if (arch.contains("aarch64")) "darwin-arm64" else "darwin-amd64"
+                else -> if (is64) "linux-amd64" else "linux-386"
+            }
+            val downloadUrl = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-$suffix"
+            logger.info { "Downloading playit agent from $downloadUrl" }
+
+            playitDir.mkdirs()
+            val conn = URL(downloadUrl).openConnection()
+            conn.connectTimeout = 30000
+            conn.readTimeout = 120000
+            conn.connect()
+            val input = conn.getInputStream()
+            daemonBinary.outputStream().use { output -> input.copyTo(output) }
+            daemonBinary.setExecutable(true)
+
+            logger.info { "Downloaded playit agent (${daemonBinary.length()} bytes)" }
+            _state.value = _state.value.copy(status = TunnelStatus.IDLE)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to download playit agent" }
+            _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = "Download failed: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     fun setSecretKey(key: String) {
         secretKey = key
         try {
@@ -90,8 +125,9 @@ class TunnelManager {
         currentServerPort = serverPort
 
         if (!daemonBinary.exists()) {
-            logger.warn { "playitd binary not found at ${daemonBinary.absolutePath}" }
-            return Result.failure(Exception("playitd binary not found at ${daemonBinary.absolutePath}"))
+            logger.info { "playit agent not found, downloading..." }
+            val downloadResult = downloadBinary()
+            if (downloadResult.isFailure) return downloadResult
         }
 
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
@@ -162,6 +198,17 @@ mappings = [$mapping]
     }
 
     private fun parseLine(text: String, serverPort: Int) {
+        val claimMatch = Regex("""https://playit\.gg/claim/[\w-]+""").find(text)
+        if (claimMatch != null && secretKey == null) {
+            val url = claimMatch.value
+            logger.info { "Claim URL detected: $url" }
+            _state.value = _state.value.copy(
+                status = TunnelStatus.CLAIM_REQUIRED,
+                claimUrl = url
+            )
+            return
+        }
+
         val tunnelMatch = Regex("""([\w.-]+\.(?:playit\.gg|ply\.gg|at\.ply\.gg|joinmc\.link)):(\d+)""").find(text)
         if (tunnelMatch != null) {
             val host = tunnelMatch.groupValues[1]

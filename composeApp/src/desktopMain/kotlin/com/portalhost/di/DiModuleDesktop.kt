@@ -8,7 +8,7 @@ import com.portalhost.server.TunnelManager
 import org.koin.dsl.module
 
 fun desktopModule() = module {
-    single<FileSystem> { FileSystem() }
+    single<FileSystem> { FileSystem(preferences = get()) }
     single<ProcessManager> { ProcessManager() }
     single<Preferences> { Preferences() }
     single<JdkManager> { JdkManager() }

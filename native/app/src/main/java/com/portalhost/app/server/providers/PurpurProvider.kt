@@ -8,25 +8,22 @@ import okhttp3.Request
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-class PaperProvider(
+class PurpurProvider(
     private val client: OkHttpClient,
     private val json: Json
 ) : ServerProvider {
-    override val type = ServerType.PAPER
+    override val type = ServerType.PURPUR
     override val supportsBuilds = true
-    private val TAG = "PaperProvider"
-    private val baseUrl = "https://api.papermc.io/v2/projects/paper"
+    private val TAG = "PurpurProvider"
+    private val baseUrl = "https://api.purpurmc.org/v2/purpur"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
         try {
-            val url = "$baseUrl"
+            val url = "$baseUrl/versions"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperVersionsResponse>(body)
-            response.versions
-                .filter { it.matches(Regex("^\\d+(\\.\\d+)*$")) }
-                .distinct()
-                .sortedByDescending { it }
+            val response = json.decodeFromString<PurpurVersionsResponse>(body)
+            response.versions.sortedByDescending { it }
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
             emptyList()
@@ -38,7 +35,7 @@ class PaperProvider(
             val url = "$baseUrl/versions/$version/builds"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
-            val response = json.decodeFromString<PaperBuildsResponse>(body)
+            val response = json.decodeFromString<PurpurBuildsResponse>(body)
             response.builds
                 .sortedByDescending { it.build }
                 .map { BuildInfo("#${it.build}", it.build.toString()) }
@@ -50,19 +47,18 @@ class PaperProvider(
 
     override suspend fun getDownloadInfo(version: String, buildId: String): DownloadInfo? = withContext(Dispatchers.IO) {
         try {
-            val url = if (buildId.isBlank()) {
-                "$baseUrl/versions/$version/builds/latest"
-            } else {
-                "$baseUrl/versions/$version/builds/$buildId"
+            val buildNumber = buildId.ifBlank {
+                val builds = getBuildInfos(version)
+                builds.firstOrNull()?.id ?: return@withContext null
             }
+            val url = "$baseUrl/versions/$version/builds/$buildNumber"
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().body?.string() ?: return@withContext null
-            val response = json.decodeFromString<PaperBuildResponse>(body)
+            val response = json.decodeFromString<PurpurBuildResponse>(body)
 
-            val app = response.downloads?.get("application") ?: return@withContext null
-            val jarName = app.name
-            val sha256 = app.sha256
-            val downloadUrl = "$baseUrl/versions/$version/builds/${response.build}/downloads/$jarName"
+            val jarName = response.download
+            val sha256 = response.sha256
+            val downloadUrl = "$baseUrl/versions/$version/builds/$buildNumber/downloads/$jarName"
             DownloadInfo(downloadUrl, sha256, jarName)
         } catch (e: Exception) {
             Log.e(TAG, "getDownloadInfo: ${e.message}")
@@ -71,19 +67,15 @@ class PaperProvider(
     }
 
     @Serializable
-    private data class PaperVersionsResponse(val versions: List<String>)
+    private data class PurpurVersionsResponse(val versions: List<String>)
     @Serializable
-    private data class PaperBuildsResponse(val builds: List<PaperBuildEntry>)
+    private data class PurpurBuildsResponse(val builds: List<PurpurBuildEntry>)
     @Serializable
-    private data class PaperBuildEntry(val build: Int)
+    private data class PurpurBuildEntry(val build: Int, val download: String, val sha256: String)
     @Serializable
-    private data class PaperBuildResponse(
+    private data class PurpurBuildResponse(
         val build: Int,
-        val downloads: Map<String, PaperDownloadEntry>? = null
-    )
-    @Serializable
-    private data class PaperDownloadEntry(
-        val name: String,
+        val download: String,
         val sha256: String? = null
     )
 }

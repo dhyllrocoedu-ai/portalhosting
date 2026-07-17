@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -108,7 +109,6 @@ fun SettingsScreen() {
                             text = { Text(t.replaceFirstChar { it.uppercase() }) },
                             onClick = {
                                 preferences.theme.value = t
-                                com.russhwolf.settings.PreferencesSettings(java.util.prefs.Preferences.userRoot().node("com/portalhost")).putString("theme", t)
                                 themeExpanded = false
                             },
                         )
@@ -228,74 +228,96 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
-                    Text("Status: ${tunnelState.status.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    val statusLabel = when (tunnelState.status) {
+                        TunnelStatus.IDLE -> "Not Connected"
+                        TunnelStatus.DOWNLOADING -> "Downloading..."
+                        TunnelStatus.CLAIM_REQUIRED -> "Claim Required"
+                        TunnelStatus.CONNECTING -> "Connecting..."
+                        TunnelStatus.CONNECTED -> "Connected"
+                        TunnelStatus.ERROR -> "Error"
+                    }
+                    Text("Status: $statusLabel", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     if (tunnelState.status == TunnelStatus.CONNECTED) {
                         tunnelState.tunnels.forEach { tunnel ->
                             Text("Tunnel: ${tunnel.publicAddress} (port ${tunnel.localPort})", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         }
+                    }
+                    if (tunnelState.status == TunnelStatus.CLAIM_REQUIRED && tunnelState.claimUrl != null) {
+                        Text("Claim URL: ${tunnelState.claimUrl}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 Text(tunnelState.error ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(8.dp))
 
-            // Secret key / connect
-            if (tunnelState.status == TunnelStatus.IDLE || tunnelState.status == TunnelStatus.ERROR) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    OutlinedTextField(
-                        value = tunnelManager.getSecretKey() ?: "",
-                        onValueChange = { tunnelManager.setSecretKey(it) },
-                        label = { Text("Secret Key (optional)") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Button(
-                        onClick = {
-                            scope.launch { tunnelManager.start(25565) }
-                        },
-                        enabled = tunnelState.status != TunnelStatus.CONNECTING,
+            // Actions based on status
+            when (tunnelState.status) {
+                TunnelStatus.IDLE, TunnelStatus.ERROR -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        if (tunnelState.status == TunnelStatus.CONNECTING) {
-                            Text("Connecting...")
-                        } else {
+                        OutlinedTextField(
+                            value = tunnelManager.getSecretKey() ?: "",
+                            onValueChange = { tunnelManager.setSecretKey(it) },
+                            label = { Text("Secret Key (optional)") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Button(
+                            onClick = { scope.launch { tunnelManager.start(25565) } },
+                            enabled = tunnelState.status != TunnelStatus.CONNECTING,
+                        ) {
                             Text("Start Tunnel")
                         }
                     }
                 }
-            } else if (tunnelState.status == TunnelStatus.CONNECTED || tunnelState.status == TunnelStatus.CONNECTING) {
-                Button(
-                    onClick = { tunnelManager.stop() },
-                    enabled = tunnelState.status != TunnelStatus.CONNECTING,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
-                ) {
-                    Text("Stop Tunnel")
+                TunnelStatus.DOWNLOADING -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Downloading playit agent...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                TunnelStatus.CLAIM_REQUIRED -> {
+                    if (tunnelState.claimUrl != null) {
+                        Button(
+                            onClick = { java.awt.Desktop.getDesktop().browse(java.net.URI(tunnelState.claimUrl)) },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                        ) {
+                            Text("Open Claim URL")
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Claim your tunnel in the browser, then reconnect.",
+                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = { tunnelManager.stop() },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+                TunnelStatus.CONNECTING, TunnelStatus.CONNECTED -> {
+                    Button(
+                        onClick = { tunnelManager.stop() },
+                        enabled = tunnelState.status != TunnelStatus.CONNECTING,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
+                    ) {
+                        Text("Stop Tunnel")
+                    }
                 }
             }
 
             Spacer(Modifier.height(12.dp))
 
             // Secret key management
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (tunnelManager.getSecretKey() != null) {
-                    Button(
-                        onClick = {
-                            tunnelManager.resetKey()
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    ) {
-                        Text("Reset Secret Key")
-                    }
+            if (tunnelManager.getSecretKey() != null) {
+                Button(
+                    onClick = { tunnelManager.resetKey() },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Reset Secret Key")
                 }
             }
-
-            Spacer(Modifier.height(12.dp))
-            Text("Download playitd from https://playit.gg/download and place it in ~/.portalhost/playit/", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         Spacer(Modifier.height(16.dp))
@@ -328,6 +350,28 @@ fun SettingsScreen() {
                     }
                 }
             }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (installations.isEmpty()) {
+                    Button(
+                        onClick = { scope.launch { jdkManager.installJdk(21) } },
+                        enabled = !isInstalling,
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Install Java 21")
+                    }
+                } else {
+                    Button(
+                        onClick = { scope.launch { jdkManager.installJdk(21) } },
+                        enabled = !isInstalling,
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Reinstall Java 21")
+                    }
+                }
+            }
             if (isInstalling) {
                 Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(progress = { installProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
@@ -356,7 +400,6 @@ fun SettingsScreen() {
                             text = { Text(level) },
                             onClick = {
                                 preferences.logLevel.value = level
-                                com.russhwolf.settings.PreferencesSettings(java.util.prefs.Preferences.userRoot().node("com/portalhost")).putString("logLevel", level)
                                 logLevelExpanded = false
                             },
                         )

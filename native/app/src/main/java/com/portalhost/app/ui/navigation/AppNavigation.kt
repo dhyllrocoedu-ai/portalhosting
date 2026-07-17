@@ -224,6 +224,7 @@ fun AppNavigation(
                     jdkInstalled = appState.jdkInstalled,
                     jdkInstalling = appState.jdkInstalling,
                     jdkProgress = appState.jdkProgress,
+                    jdkError = appState.jdkError,
                     onReinstallJava = appState.onReinstallJava,
                     onUninstallJava = appState.onUninstallJava,
                     onFixupJava = appState.onFixupJava,
