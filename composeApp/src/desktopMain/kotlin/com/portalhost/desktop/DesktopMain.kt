@@ -205,7 +205,11 @@ fun DesktopApp() {
                                 serverId = (currentScreen as Screen.ServerDetail).serverId,
                                 onBack = { currentScreen = Screen.Servers },
                             )
-                            Screen.Create -> CreateServerScreen()
+                            Screen.Create -> CreateServerScreen(
+                                onServerCreated = { serverId ->
+                                    currentScreen = Screen.ServerDetail(serverId)
+                                },
+                            )
                             Screen.Settings -> SettingsScreen()
                         }
                     }

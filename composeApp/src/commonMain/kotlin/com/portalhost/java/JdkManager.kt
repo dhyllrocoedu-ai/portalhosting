@@ -29,7 +29,7 @@ class JdkManager {
         val installations = mutableListOf<JavaInstallation>()
         
         System.getenv("JAVA_HOME")?.let { javaHome ->
-            val javaExe = File(javaHome, "bin/java")
+            val javaExe = File(javaHome, javaExeName())
             if (javaExe.exists()) {
                 val version = getJavaVersion(javaExe)
                 if (version > 0) {
@@ -57,7 +57,7 @@ class JdkManager {
             val files: Array<File>? = dir.listFiles()
             files?.forEach { file ->
                 if (file.isDirectory) {
-                    val javaExe = File(file, "bin/java")
+                    val javaExe = File(file, javaExeName())
                     if (javaExe.exists()) {
                         val version = getJavaVersion(javaExe)
                         if (version > 0 && !knownJdks.containsKey(version)) {
@@ -90,13 +90,21 @@ class JdkManager {
     
     fun getJavaExecutable(version: Int): File? {
         return knownJdks[version]?.let { path ->
-            File(path, "bin/java").takeIf { it.exists() }
+            File(path, javaExeName()).takeIf { it.exists() }
         } ?: run {
             val installed = kotlinx.coroutines.runBlocking { detectInstalled() }
-            installed.firstOrNull { it.version == version }?.let { File(it.path, "bin/java") }
+            installed.firstOrNull { it.version == version }?.let { File(it.path, javaExeName()) }
         }
     }
     
+    private fun javaExeName(): String {
+        return if (isWindows()) "bin/java.exe" else "bin/java"
+    }
+
+    private fun isWindows(): Boolean {
+        return System.getProperty("os.name").lowercase().contains("win")
+    }
+
     private fun getJavaVersion(javaExe: File): Int {
         return try {
             val process = ProcessBuilder(javaExe.absolutePath, "-version").redirectErrorStream(true).start()
@@ -139,8 +147,7 @@ class JdkManager {
             val destinationDir = getJdkInstallDir(version)
             destinationDir.mkdirs()
             
-            val isWindows = System.getProperty("os.name").lowercase().contains("win")
-            val archiveExt = if (isWindows) "zip" else "tar.gz"
+            val archiveExt = if (isWindows()) "zip" else "tar.gz"
             val archiveFile = File(destinationDir, "jdk-${version}.$archiveExt")
             val downloadUrlObj = URL(downloadUrl)
             
@@ -158,7 +165,7 @@ class JdkManager {
             val extractedDirNonNull = extractedDir ?: throw Exception("JDK extraction failed")
             
             val javaHome = extractedDirNonNull.absolutePath
-            val javaExe = File(javaHome, "bin/java")
+            val javaExe = File(javaHome, javaExeName())
             
             if (!javaExe.exists()) {
                 throw Exception("Java executable not found after extraction")
@@ -185,7 +192,7 @@ class JdkManager {
     }
     
     suspend fun verifyInstallation(installation: JavaInstallation): Boolean = withContext(Dispatchers.IO) {
-        val javaExe = File(installation.path, "bin/java")
+        val javaExe = File(installation.path, javaExeName())
         return@withContext try {
             val process = ProcessBuilder(javaExe.absolutePath, "-version").redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().readText()
@@ -254,21 +261,20 @@ class JdkManager {
     }
     
     private fun extractArchive(archiveFile: File, destinationDir: File) {
-        val isWindows = System.getProperty("os.name").lowercase().contains("win")
-        
         if (archiveFile.name.endsWith(".tar.gz")) {
-            ProcessBuilder("tar", "-xzf", archiveFile.absolutePath, "-C", destinationDir.absolutePath)
+            val exitCode = ProcessBuilder("tar", "-xzf", archiveFile.absolutePath, "-C", destinationDir.absolutePath)
                 .directory(destinationDir)
                 .start()
                 .waitFor()
+            if (exitCode != 0) throw Exception("tar extraction failed with exit code $exitCode")
         } else if (archiveFile.extension == "zip") {
-            if (isWindows) {
-                // Use PowerShell Expand-Archive on Windows
+            if (isWindows()) {
                 val psCommand = "Expand-Archive -Path '${archiveFile.absolutePath}' -DestinationPath '${destinationDir.absolutePath}' -Force"
-                ProcessBuilder("powershell", "-Command", psCommand)
+                val psProcess = ProcessBuilder("powershell", "-Command", psCommand)
                     .directory(destinationDir)
                     .start()
-                    .waitFor()
+                val exitCode = psProcess.waitFor()
+                if (exitCode != 0) throw Exception("Expand-Archive failed with exit code $exitCode")
             } else {
                 ZipFile(archiveFile).use { zipFile ->
                     val entries = zipFile.entries()
@@ -285,5 +291,6 @@ class JdkManager {
                 }
             }
         }
+        archiveFile.delete()
     }
 }

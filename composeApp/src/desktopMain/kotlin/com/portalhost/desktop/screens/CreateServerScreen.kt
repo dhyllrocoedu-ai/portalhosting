@@ -130,7 +130,7 @@ fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("EXPERIMENTAL_API_USAGE")
 @Composable
-fun CreateServerScreen() {
+fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
     val serverManager = koinInject<ServerManager>()
     val serverDownloader = koinInject<ServerDownloader>()
     val providerRegistry = koinInject<ServerProviderRegistry>()
@@ -757,6 +757,7 @@ fun CreateServerScreen() {
                                         }
                                         serverManager.registerImportedServer(config, targetFile)
                                         toastManager.success("Server \"${config.name}\" imported!")
+                                        onServerCreated(config.id)
                                     } else {
                                         serverManager.createServer(config).onFailure {
                                             errorMessage = it.message ?: "Failed to create server"
@@ -764,6 +765,7 @@ fun CreateServerScreen() {
                                             return@launch
                                         }
                                         toastManager.success("Server \"${config.name}\" created!")
+                                        onServerCreated(config.id)
                                     }
                                     creating = false
                                     serverName = ""

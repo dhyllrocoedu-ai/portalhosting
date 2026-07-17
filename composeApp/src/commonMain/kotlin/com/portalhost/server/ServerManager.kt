@@ -14,9 +14,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -39,10 +42,15 @@ class ServerManager(
     private val _consoleOutputs = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val consoleOutputs: StateFlow<Map<String, List<String>>> = _consoleOutputs
 
-    private val activeProcesses = mutableMapOf<String, ManagedProcess>()
+    private val activeProcesses = ConcurrentHashMap<String, ManagedProcess>()
+    private val serverLocks = ConcurrentHashMap<String, Mutex>()
 
     init {
         loadServersFromDatabase()
+    }
+
+    private fun getLock(serverId: String): Mutex {
+        return serverLocks.getOrPut(serverId) { Mutex() }
     }
 
     private fun loadServersFromDatabase() {
@@ -89,7 +97,17 @@ class ServerManager(
         _serverStates.update { it + (newConfig.id to initialState) }
     }
 
-    suspend fun startServer(serverId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun startServer(serverId: String): Result<Unit> = getLock(serverId).withLock {
+        startServerInternal(serverId)
+    }
+
+    private suspend fun startServerInternal(serverId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val currentState = _serverStates.value[serverId]
+        if (currentState != null && (currentState.status == ServerStatus.RUNNING || currentState.status == ServerStatus.STARTING)) {
+            logger.warn { "Server $serverId is already ${currentState.status}, ignoring start request" }
+            return@withContext Result.failure(Exception("Server is already ${currentState.status.name.lowercase()}"))
+        }
+
         val config = _servers.value[serverId] ?: return@withContext Result.failure(Exception("Server not found: $serverId"))
         logger.info { "Starting server: ${config.name} ($serverId)" }
 
@@ -104,6 +122,8 @@ class ServerManager(
             logger.warn { "Server JAR not found for ${config.name}: $jarFile" }
             return@withContext Result.failure(Exception("Server JAR not found"))
         }
+
+        writeEula()
 
         val processResult = processManager.startProcess(
             command = buildJavaCommand(config),
@@ -122,7 +142,6 @@ class ServerManager(
                     current.add(line)
                     output + (serverId to current)
                 }
-                // Persist console log to database
                 database.insertConsoleLog(serverId, line)
             }
         }
@@ -145,11 +164,27 @@ class ServerManager(
         Result.success(Unit)
     }
 
-    suspend fun stopServer(serverId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun stopServer(serverId: String): Result<Unit> = getLock(serverId).withLock {
+        stopServerInternal(serverId)
+    }
+
+    private suspend fun stopServerInternal(serverId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val currentState = _serverStates.value[serverId]
+        if (currentState != null && (currentState.status == ServerStatus.STOPPED || currentState.status == ServerStatus.STOPPING)) {
+            logger.warn { "Server $serverId is already ${currentState.status}, ignoring stop request" }
+            return@withContext Result.success(Unit)
+        }
+
         val config = _servers.value[serverId]
         logger.info { "Stopping server: ${config?.name ?: serverId}" }
         val process = activeProcesses.remove(serverId)
-            ?: return@withContext Result.failure(Exception("No running process for $serverId"))
+        if (process == null) {
+            logger.warn { "No running process for $serverId, marking as stopped" }
+            val newState = ServerState(id = serverId, status = ServerStatus.STOPPED, pid = null)
+            database.updateServerState(serverId, newState)
+            _serverStates.update { current -> current + (serverId to newState) }
+            return@withContext Result.success(Unit)
+        }
 
         _serverStates.update { current ->
             current + (serverId to (current[serverId]?.copy(
@@ -176,20 +211,28 @@ class ServerManager(
         Result.success(Unit)
     }
 
-    suspend fun restartServer(serverId: String): Result<Unit> {
-        stopServer(serverId)
-        return startServer(serverId)
+    suspend fun restartServer(serverId: String): Result<Unit> = getLock(serverId).withLock {
+        stopServerInternal(serverId)
+        return startServerInternal(serverId)
     }
 
-    suspend fun deleteServer(serverId: String): Result<Unit> {
+    suspend fun deleteServer(serverId: String): Result<Unit> = getLock(serverId).withLock {
         val config = _servers.value[serverId]
         logger.info { "Deleting server: ${config?.name ?: serverId}" }
-        stopServer(serverId)
+        stopServerInternal(serverId)
         database.deleteServer(serverId)
         _servers.update { it - serverId }
         _serverStates.update { it - serverId }
         activeProcesses.remove(serverId)
         return Result.success(Unit)
+    }
+
+    private fun writeEula() {
+        val eulaFile = File(serversDir, "eula.txt")
+        if (!eulaFile.exists()) {
+            eulaFile.writeText("eula=true\n")
+            logger.info { "Wrote eula.txt" }
+        }
     }
 
     private fun buildJavaCommand(config: ServerConfig): List<String> {
@@ -220,9 +263,7 @@ class ServerManager(
     }
 
     private fun buildEnvironment(config: ServerConfig): Map<String, String> {
-        return mapOf(
-            "EULA" to "TRUE"
-        )
+        return emptyMap()
     }
 
     private fun monitorProcess(serverId: String, handle: ManagedProcess) {
@@ -232,6 +273,12 @@ class ServerManager(
             }
             val exitCode = processManager.getExitCode(handle)
             logger.info { "Server $serverId exited with code $exitCode" }
+
+            val currentState = _serverStates.value[serverId]
+            if (currentState?.status == ServerStatus.STOPPING || currentState?.status == ServerStatus.STOPPED) {
+                logger.info { "Server $serverId stop was intentional, not auto-restarting" }
+                return@launch
+            }
 
             val newStatus = if (exitCode == 0) ServerStatus.STOPPED else ServerStatus.CRASHED
             val newState = ServerState(id = serverId, status = newStatus, pid = null)

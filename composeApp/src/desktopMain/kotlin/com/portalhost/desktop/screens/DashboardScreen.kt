@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,22 +23,45 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,21 +74,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.portalhost.filesystem.FileSystem
+import com.portalhost.java.JdkManager
+import com.portalhost.model.ServerConfig
+import com.portalhost.model.ServerState
 import com.portalhost.model.ServerStatus
+import com.portalhost.server.ActivityEntry
 import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelStatus
-import org.koin.compose.koinInject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import org.koin.compose.koinInject
 import java.io.File
 
 @Composable
@@ -73,375 +102,683 @@ fun DashboardScreen(
     onNavigateToCreate: () -> Unit = {},
 ) {
     val serverManager = koinInject<ServerManager>()
-    val fileSystem = koinInject<FileSystem>()
+    val jdkManager = koinInject<JdkManager>()
     val activityLog = koinInject<ActivityLog>()
     val tunnelManager = koinInject<TunnelManager>()
     val servers by serverManager.servers.collectAsState()
     val serverStates by serverManager.serverStates.collectAsState()
+    val consoleOutputs by serverManager.consoleOutputs.collectAsState()
     val tunnelState by tunnelManager.state.collectAsState()
+    val activities by activityLog.activities.collectAsState()
+    val jdkInstalling by jdkManager.isInstalling.collectAsState()
+    val jdkProgress by jdkManager.installProgress.collectAsState()
+    val jdkInstallations by jdkManager.knownInstallations.collectAsState()
     val scope = rememberCoroutineScope()
 
     var selectedServerId by remember { mutableStateOf<String?>(null) }
-    var showServerDropdown by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var commandInput by remember { mutableStateOf("") }
 
-    var storageInfo by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        storageInfo = withContext(Dispatchers.IO) {
-            val dir = fileSystem.getAppDir()
-            val total = dir.totalSpace
-            val free = dir.freeSpace
-            val used = total - free
-            val usedGb = used.toDouble() / (1024 * 1024 * 1024)
-            val totalGb = total.toDouble() / (1024 * 1024 * 1024)
-            "%.1f GB / %.1f GB used".format(usedGb, totalGb)
-        }
-    }
-
-    val runningCount = serverStates.count { it.value.status == ServerStatus.RUNNING }
-    val stoppedCount = serverStates.count { it.value.status == ServerStatus.STOPPED }
-    val totalCount = servers.size
-
-    suspend fun startAllServers() {
-        servers.keys.filter { serverStates[it]?.status != ServerStatus.RUNNING }.forEach { id ->
-            serverManager.startServer(id)
-        }
-    }
-
-    suspend fun stopAllServers() {
-        servers.keys.filter { serverStates[it]?.status == ServerStatus.RUNNING }.forEach { id ->
-            serverManager.stopServer(id)
-        }
-    }
-
-    fun openServersFolder() {
-        try {
-            val folder = fileSystem.getServersDirBlocking()
-            if (folder.exists()) {
-                java.awt.Desktop.getDesktop().open(folder)
-            }
-        } catch (e: Exception) {
-            // Handle error
-        }
-    }
-
-    fun launchInScope(block: suspend () -> Unit) {
-        scope.launch { block() }
-    }
+    val activeServer = selectedServerId?.let { servers[it] }
+    val activeState = selectedServerId?.let { serverStates[it] }
+    val activeConsole = selectedServerId?.let { consoleOutputs[it] } ?: emptyList()
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-    ) {
-        Text("Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Quick Access", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { showServerDropdown = !showServerDropdown },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (selectedServerId != null && servers.containsKey(selectedServerId)) {
-                        val cfg = servers[selectedServerId]!!
-                        val st = serverStates[selectedServerId]
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(cfg.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("${cfg.serverType.name} - ${st?.status?.name ?: "Stopped"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    } else {
-                        Text("Select a server...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    }
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null)
-                }
-                if (showServerDropdown) {
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider()
-                    servers.forEach { (id, config) ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                selectedServerId = id
-                                showServerDropdown = false
-                                onNavigateToServer(id)
-                            }.padding(vertical = 8.dp, horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            val color = when (serverStates[id]?.status) {
-                                ServerStatus.RUNNING -> Color(0xFF4CAF50)
-                                ServerStatus.STARTING -> Color(0xFFFFC107)
-                                ServerStatus.CRASHED -> Color(0xFFF44336)
-                                else -> Color(0xFF9E9E9E)
-                            }
-                            Box(modifier = Modifier.size(8.dp).background(color, CircleShape))
-                            Spacer(Modifier.width(8.dp))
-                            Text(config.name, modifier = Modifier.weight(1f))
-                            Text(config.serverType.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            StatCard("Total Servers", totalCount.toString(), Icons.Filled.Dns, Color(0xFF5C6BC0))
-            StatCard("Running", runningCount.toString(), Icons.Filled.PlayArrow, Color(0xFF4CAF50))
-            StatCard("Stopped", stoppedCount.toString(), Icons.Filled.Stop, Color(0xFF9E9E9E))
-            StatCard("Memory", "${serverStates.values.sumOf { it.memoryUsage } / 1048576}MB", Icons.Filled.Memory, Color(0xFFFF9800))
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Card(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Servers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(12.dp))
-                    if (servers.isEmpty()) {
-                        Text("No servers yet", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        servers.entries.take(5).forEach { (id, config) ->
-                            val state = serverStates[id]
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
-                                    modifier = Modifier.size(8.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    val statusColor = when (state?.status) {
-                                        ServerStatus.RUNNING -> Color(0xFF4CAF50)
-                                        ServerStatus.STARTING -> Color(0xFFFFC107)
-                                        ServerStatus.CRASHED -> Color(0xFFF44336)
-                                        else -> Color(0xFF9E9E9E)
-                                    }
-                                    Text(
-                                        text = "\u25CF",
-                                        color = statusColor,
-                                        fontSize = MaterialTheme.typography.bodySmall.fontSize,
-                                    )
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Text(config.name, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val statusText = when (state?.status) {
-                                    ServerStatus.RUNNING -> "Running"
-                                    ServerStatus.STARTING -> "Starting"
-                                    ServerStatus.STOPPING -> "Stopping"
-                                    ServerStatus.CRASHED -> "Crashed"
-                                    else -> "Stopped"
-                                }
-                                Text(statusText, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                            }
-                            TextButton(onClick = { onNavigateToServer(id) }) {
-                                Text("Manage", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(12.dp))
-                    val activities by activityLog.activities.collectAsState()
-                    if (activities.isEmpty()) {
-                        Text("No recent activity", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        activities.take(10).forEach { entry ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(entry.formattedTime, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(80.dp))
-                                Text(entry.action, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Card(
-                modifier = Modifier.weight(1f),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Cloud, contentDescription = null, tint = Color(0xFF42A5F5))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Tunnels", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    val statusLabel = when (tunnelState.status) {
-                        TunnelStatus.IDLE -> "Not Connected"
-                        TunnelStatus.DOWNLOADING -> "Downloading..."
-                        TunnelStatus.CLAIM_REQUIRED -> "Claim Required"
-                        TunnelStatus.CONNECTING -> "Connecting..."
-                        TunnelStatus.CONNECTED -> "Connected"
-                        TunnelStatus.ERROR -> "Error"
-                    }
-                    Text(statusLabel, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    if (tunnelState.status == TunnelStatus.CONNECTED && tunnelState.tunnels.isNotEmpty()) {
-                        tunnelState.tunnels.forEach { t ->
-                            Text(t.publicAddress, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                    if (tunnelState.status == TunnelStatus.ERROR && tunnelState.error != null) {
-                        Text(tunnelState.error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, maxLines = 2)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Button(
-                        onClick = {
-                            if (tunnelState.status == TunnelStatus.CONNECTED) {
-                                tunnelManager.stop()
-                            } else {
-                                scope.launch { tunnelManager.start(25565) }
-                            }
-                        },
-                        enabled = tunnelState.status != TunnelStatus.DOWNLOADING && tunnelState.status != TunnelStatus.CONNECTING,
-                        modifier = Modifier.height(32.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            when (tunnelState.status) {
-                                TunnelStatus.CONNECTED -> "Disconnect"
-                                else -> "Connect"
-                            },
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier.weight(1f),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Storage, contentDescription = null, tint = Color(0xFF66BB6A))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Storage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(storageInfo ?: "Calculating...", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        // Quick Actions
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Quick Actions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        QuickActionButton(
-                            icon = Icons.Filled.Add,
-                            label = "New Server",
-                            onClick = { onNavigateToCreate() },
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        QuickActionButton(
-                            icon = Icons.Filled.PlayArrow,
-                            label = "Start All",
-                            onClick = { launchInScope { startAllServers() } },
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        QuickActionButton(
-                            icon = Icons.Filled.Stop,
-                            label = "Stop All",
-                            onClick = { launchInScope { stopAllServers() } },
-                        )
-                    }
-                    Box(modifier = Modifier.weight(1f)) {
-                        QuickActionButton(
-                            icon = Icons.Filled.FolderOpen,
-                            label = "Open Servers Folder",
-                            onClick = { openServersFolder() },
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun QuickActionButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    TextButton(
-        onClick = onClick,
         modifier = Modifier
-            .fillMaxWidth()
-            .height(72.dp),
+            .fillMaxSize()
+            .padding(horizontal = 20.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.height(4.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Text("PortalHost", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = {}) {
+                Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+            }
+            IconButton(onClick = {}) {
+                Icon(Icons.Default.MoreVert, contentDescription = "More")
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (servers.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(400.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(16.dp))
+                        Text("No servers yet", style = MaterialTheme.typography.titleLarge)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Create your first Minecraft server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(24.dp))
+                        Button(onClick = onNavigateToCreate) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Create Server")
+                        }
+                    }
+                }
+            } else {
+                val statusColor = when (activeState?.status) {
+                    ServerStatus.RUNNING -> Color(0xFF4CAF50)
+                    ServerStatus.STARTING -> Color(0xFFFFC107)
+                    ServerStatus.STOPPING -> Color(0xFFFF9800)
+                    ServerStatus.CRASHED -> Color(0xFFF44336)
+                    else -> Color(0xFF9E9E9E)
+                }
+
+                ServerCard(
+                    activeServer = activeServer,
+                    serverConfigs = servers.values.toList(),
+                    activeState = activeState,
+                    statusColor = statusColor,
+                    expanded = expanded,
+                    onToggleExpand = { expanded = !expanded },
+                    onSelectServer = { id ->
+                        selectedServerId = id
+                        expanded = false
+                    },
+                    onCreateServer = onNavigateToCreate,
+                    onDeleteServer = { config ->
+                        scope.launch { serverManager.deleteServer(config.id) }
+                        if (config.id == selectedServerId) {
+                            val remaining = servers.keys.firstOrNull { it != config.id }
+                            selectedServerId = remaining
+                        }
+                    },
+                    onStart = { scope.launch { selectedServerId?.let { serverManager.startServer(it) } } },
+                    onStop = { scope.launch { selectedServerId?.let { serverManager.stopServer(it) } } },
+                    onRestart = { scope.launch { selectedServerId?.let { serverManager.restartServer(it) } } }
+                )
+
+                if (jdkInstalling) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Installing Java runtime...")
+                            }
+                            if (jdkProgress > 0.0) {
+                                Spacer(Modifier.height(8.dp))
+                                LinearProgressIndicator(progress = { jdkProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
+                            }
+                        }
+                    }
+                } else if (jdkInstallations.isEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Java runtime not installed. Restart app to retry.")
+                        }
+                    }
+                }
+
+                activeState?.lastError?.let { error ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(8.dp))
+                            Text(error, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                TunnelCard(
+                    tunnelState = tunnelState,
+                    onStart = { scope.launch { tunnelManager.start(activeServer?.port ?: 25565) } },
+                    onStop = { scope.launch { tunnelManager.stop() } }
+                )
+
+                PerformanceCard(
+                    activeState = activeState,
+                    onOpenPerformance = { selectedServerId?.let { onNavigateToServer(it) } }
+                )
+
+                ConsoleCard(
+                    consoleLines = activeConsole,
+                    onOpenConsole = { selectedServerId?.let { onNavigateToServer(it) } },
+                    onCommand = { cmd ->
+                        scope.launch {
+                            selectedServerId?.let { id ->
+                                val handle = serverManager.getProcessForServer(id)
+                                if (handle != null) {
+                                    val writer = handle.outputStream.bufferedWriter()
+                                    writer.write("$cmd\n")
+                                    writer.flush()
+                                }
+                            }
+                        }
+                    },
+                    onClearConsole = {},
+                    isOnline = activeState?.status == ServerStatus.RUNNING,
+                    commandInput = commandInput,
+                    onCommandInputChange = { commandInput = it }
+                )
+
+                ActivityCard(activities = activities)
+            }
         }
     }
 }
 
 @Composable
-private fun StatCard(label: String, value: String, icon: ImageVector, color: Color) {
+private fun ServerCard(
+    activeServer: ServerConfig?,
+    serverConfigs: List<ServerConfig>,
+    activeState: ServerState?,
+    statusColor: Color,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onSelectServer: (String) -> Unit,
+    onCreateServer: () -> Unit,
+    onDeleteServer: (ServerConfig) -> Unit,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onRestart: () -> Unit
+) {
+    val status = activeState?.status ?: ServerStatus.STOPPED
+    val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
+    val statusColorForBadge = when (status) {
+        ServerStatus.RUNNING -> Color(0xFF4CAF50)
+        ServerStatus.STARTING -> Color(0xFFFFC107)
+        ServerStatus.STOPPING -> Color(0xFFFF9800)
+        ServerStatus.CRASHED -> Color(0xFFF44336)
+        else -> Color(0xFFA5D6A7)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(64.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = activeServer?.name ?: "No Server",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = statusColorForBadge.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = statusLabel,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = statusColorForBadge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    if (activeServer != null) {
+                        Text(
+                            text = "${activeServer.serverType.name} ${activeServer.version}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (activeServer != null) {
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text("MC ${activeServer.version.ifBlank { "?" }}", fontSize = 10.sp) },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text("Java ${activeServer.javaVersion}", fontSize = 10.sp) },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text("RAM ${activeServer.memoryMax}M", fontSize = 10.sp) },
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                        }
+                    }
+                }
+                if (serverConfigs.isNotEmpty()) {
+                    IconButton(onClick = onToggleExpand) {
+                        Icon(
+                            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                            contentDescription = "Switch server"
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val canStart = (status == ServerStatus.STOPPED || status == ServerStatus.CRASHED) && activeServer != null
+                val canStop = status == ServerStatus.RUNNING
+                val canRestart = status == ServerStatus.RUNNING
+
+                ControlButton(
+                    icon = Icons.Default.PlayArrow,
+                    label = "Start",
+                    onClick = onStart,
+                    enabled = canStart,
+                    color = Color(0xFF4CAF50)
+                )
+                ControlButton(
+                    icon = Icons.Default.Stop,
+                    label = "Stop",
+                    onClick = onStop,
+                    enabled = canStop,
+                    color = Color(0xFFF44336)
+                )
+                ControlButton(
+                    icon = Icons.Default.Refresh,
+                    label = "Restart",
+                    onClick = onRestart,
+                    enabled = canRestart,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (expanded) {
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                serverConfigs.forEach { config ->
+                    val isActive = config.id == activeServer?.id
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            onSelectServer(config.id)
+                        },
+                        color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text(config.name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        activeServer?.let { onDeleteServer(it) }
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Delete Server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.weight(1f))
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.ControlButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    enabled: Boolean,
+    color: Color
+) {
+    ElevatedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.weight(1f).height(56.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.elevatedButtonColors(
+            containerColor = color.copy(alpha = 0.12f),
+            contentColor = color,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        contentPadding = PaddingValues(vertical = 4.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.height(2.dp))
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun TunnelCard(
+    tunnelState: com.portalhost.server.TunnelState,
+    onStart: () -> Unit,
+    onStop: () -> Unit
+) {
+    val status = tunnelState.status
+    val connected = status == TunnelStatus.CONNECTED
+    val statusText = when (status) {
+        TunnelStatus.IDLE -> "Not Connected"
+        TunnelStatus.DOWNLOADING -> "Downloading..."
+        TunnelStatus.CLAIM_REQUIRED -> "Claim Required"
+        TunnelStatus.CONNECTING -> "Connecting..."
+        TunnelStatus.CONNECTED -> "Connected"
+        TunnelStatus.ERROR -> "Error"
+    }
+    val statusColor = when (status) {
+        TunnelStatus.CONNECTED -> MaterialTheme.colorScheme.primary
+        TunnelStatus.ERROR -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val enabled = status != TunnelStatus.DOWNLOADING
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text("Tunnel", style = MaterialTheme.typography.titleMedium)
+                Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
             }
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(28.dp))
+            Button(
+                onClick = { if (connected) onStop() else onStart() },
+                enabled = enabled,
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(if (connected) "Disconnect" else "Connect")
+            }
         }
+    }
+}
+
+@Composable
+private fun PerformanceCard(
+    activeState: ServerState?,
+    onOpenPerformance: () -> Unit
+) {
+    val live = activeState?.status == ServerStatus.RUNNING || activeState?.status == ServerStatus.STARTING
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Performance", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onOpenPerformance) {
+                    Text("View Details", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatMiniCard(value = if (live) "${activeState?.cpuUsage?.toInt()}%" else "—", label = "CPU")
+                StatMiniCard(
+                    value = if (live) formatRam(activeState?.memoryUsage ?: 0) else "—",
+                    label = "RAM"
+                )
+                StatMiniCard(
+                    value = if (live && activeState?.cpuUsage != null) "%.1f".format(20.0 - (activeState.cpuUsage / 5.0)) else "—",
+                    label = "TPS"
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatMiniCard(value = if (live) "${activeState?.playersOnline ?: 0}" else "—", label = "Players")
+                StatMiniCard(value = "—", label = "Download")
+                StatMiniCard(value = "—", label = "Upload")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.StatMiniCard(value: String, label: String) {
+    Surface(
+        modifier = Modifier.weight(1f),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ConsoleCard(
+    consoleLines: List<String>,
+    onOpenConsole: () -> Unit,
+    onCommand: (String) -> Unit,
+    onClearConsole: () -> Unit,
+    isOnline: Boolean,
+    commandInput: String,
+    onCommandInputChange: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onClearConsole, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                }
+                TextButton(onClick = onOpenConsole) {
+                    Text("Open Console", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0D0D0D))
+                    .padding(8.dp)
+            ) {
+                if (consoleLines.isEmpty()) {
+                    Text(
+                        text = "Console output will appear here...",
+                        color = Color(0xFF555555),
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    )
+                } else {
+                    LazyColumn {
+                        items(consoleLines.takeLast(6)) { line ->
+                            Text(
+                                text = line,
+                                color = consoleLineColor(line),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                lineHeight = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (isOnline) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = commandInput,
+                        onValueChange = onCommandInputChange,
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text("Enter command...", fontSize = 13.sp) },
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(onClick = {
+                        if (commandInput.isNotBlank()) {
+                            onCommand(commandInput)
+                            onCommandInputChange("")
+                        }
+                    }) {
+                        Icon(Icons.Default.Send, contentDescription = "Send")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityCard(activities: List<ActivityEntry>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {}) {
+                    Text("View All", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            if (activities.isEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text("No recent activity", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Spacer(Modifier.height(8.dp))
+                activities.take(10).forEach { entry ->
+                    ActivityRow(entry)
+                    if (entry != activities.take(10).last()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityRow(entry: ActivityEntry) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = entry.formattedTime,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontFamily = FontFamily.Monospace
+        )
+        Spacer(Modifier.width(8.dp))
+        Text("[${entry.serverName}] ${entry.action}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private fun formatRam(bytes: Long): String = when {
+    bytes < 1024 -> "${bytes}B"
+    bytes < 1024 * 1024 -> "${bytes / 1024}KB"
+    bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)}MB"
+    else -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024 * 1024))}GB"
+}
+
+private fun consoleLineColor(line: String): Color {
+    return when {
+        line.contains(" ERROR ") || line.contains("FATAL") || line.contains("exception", ignoreCase = true) -> Color(0xFFF44336)
+        line.contains(" WARN ") -> Color(0xFFFFC107)
+        line.contains(" INFO ") || line.contains("[User Authenticator #") -> Color(0xFF4CAF50)
+        line.contains("joined the game") -> Color(0xFF4CAF50)
+        line.contains("left the game") -> Color(0xFFFF9800)
+        line.matches(Regex("""^\s*\[\d+:\d+:\d+\]\[.*\].*""")) -> Color(0xFFB0BEC5)
+        else -> Color(0xFFE0E0E0)
     }
 }

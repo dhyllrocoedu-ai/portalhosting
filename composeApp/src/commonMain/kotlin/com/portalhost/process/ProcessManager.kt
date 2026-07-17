@@ -12,6 +12,7 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -19,7 +20,7 @@ private val logger = KotlinLogging.logger {}
 class ProcessManager {
     private val processes = ConcurrentHashMap<Int, java.lang.Process>()
     private val outputChannels = ConcurrentHashMap<Int, Channel<String>>()
-    private var nextPid = 1
+    private val nextPid = AtomicInteger(1)
 
     suspend fun startProcess(
         command: List<String>,
@@ -37,7 +38,7 @@ class ProcessManager {
             }
 
             val process = builder.start()
-            val pid = nextPid++
+            val pid = nextPid.getAndIncrement()
             val osPid = getOsPid(process)
             val handle = ManagedProcess(
                 pid = pid,
