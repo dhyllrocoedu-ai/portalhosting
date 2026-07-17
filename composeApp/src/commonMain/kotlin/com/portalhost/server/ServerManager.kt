@@ -61,6 +61,20 @@ class ServerManager(
         val serversMap = configs.associateBy { it.id }
         _servers.value = serversMap
         _serverStates.value = states
+
+        for ((id, _) in serversMap) {
+            val serverDir = getServerDir(id)
+            serverDir.mkdirs()
+            val oldJar = File(serversDir, "$id.jar")
+            val newJar = File(serverDir, "$id.jar")
+            if (oldJar.exists() && !newJar.exists()) {
+                oldJar.renameTo(newJar)
+            }
+        }
+    }
+
+    private fun getServerDir(serverId: String): File {
+        return File(serversDir, serverId).also { it.mkdirs() }
     }
 
     suspend fun createServer(config: ServerConfig): Result<String> {
@@ -70,6 +84,11 @@ class ServerManager(
         val downloadResult = downloader.downloadServer(newConfig)
         return downloadResult.fold(
             onSuccess = { jarFile ->
+                val serverDir = getServerDir(newConfig.id)
+                val targetJar = File(serverDir, "${newConfig.id}.jar")
+                if (jarFile.exists() && jarFile.absolutePath != targetJar.absolutePath) {
+                    jarFile.renameTo(targetJar)
+                }
                 val updatedConfig = newConfig.copy()
                 database.insertServer(updatedConfig)
                 _servers.update { it + (updatedConfig.id to updatedConfig) }
@@ -92,6 +111,11 @@ class ServerManager(
     fun registerImportedServer(config: ServerConfig, jarFile: java.io.File) {
         val newConfig = config.copy(id = config.id.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString())
         logger.info { "Registering imported server: ${newConfig.name} (${newConfig.id}) from ${jarFile.name}" }
+        val serverDir = getServerDir(newConfig.id)
+        val targetJar = File(serverDir, "${newConfig.id}.jar")
+        if (jarFile.exists() && jarFile.absolutePath != targetJar.absolutePath) {
+            jarFile.copyTo(targetJar, overwrite = true)
+        }
         database.insertServer(newConfig)
         _servers.update { it + (newConfig.id to newConfig) }
         val initialState = ServerState(id = newConfig.id, status = ServerStatus.STOPPED)
@@ -120,17 +144,18 @@ class ServerManager(
                 ) ?: ServerState(id = serverId, status = ServerStatus.STARTING)))
             }
 
-            val jarFile = File(serversDir, "${config.id}.jar")
+            val serverDir = getServerDir(serverId)
+            val jarFile = File(serverDir, "${config.id}.jar")
             if (!jarFile.exists()) {
                 logger.warn { "Server JAR not found for ${config.name}: $jarFile" }
                 return@withContext Result.failure(Exception("Server JAR not found"))
             }
 
-            writeEula()
+            writeEula(serverId)
 
             val processResult = processManager.startProcess(
-                command = buildJavaCommand(config),
-                workingDir = serversDir,
+                command = buildJavaCommand(config, serverDir),
+                workingDir = serverDir,
                 environment = buildEnvironment(config),
             )
 
@@ -189,7 +214,7 @@ class ServerManager(
 
         val config = _servers.value[serverId]
         logger.info { "Stopping server: ${config?.name ?: serverId}" }
-        val process = activeProcesses.remove(serverId)
+        val process = activeProcesses[serverId]
         if (process == null) {
             logger.warn { "No running process for $serverId, marking as stopped" }
             val newState = ServerState(id = serverId, status = ServerStatus.STOPPED, pid = null)
@@ -204,20 +229,40 @@ class ServerManager(
             ) ?: ServerState(id = serverId, status = ServerStatus.STOPPING)))
         }
 
-        val stopped = processManager.stopProcess(process)
-        if (!stopped) {
-            processManager.killProcess(process)
+        try {
+            val proc = processManager.getProcessHandle(process)
+            if (proc != null && proc.isAlive) {
+                val writer = proc.outputStream.bufferedWriter()
+                writer.write("stop\n")
+                writer.flush()
+                logger.info { "Sent stop command to server $serverId" }
+            }
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to send stop command to server $serverId" }
         }
 
-        val newState = ServerState(
-            id = serverId,
-            status = ServerStatus.STOPPED,
-            pid = null
-        )
-        database.updateServerState(serverId, newState)
-        _serverStates.update { current ->
-            current + (serverId to newState)
+        var exited = false
+        for (i in 0 until 15) {
+            if (!processManager.isRunning(process)) {
+                exited = true
+                break
+            }
+            delay(1000)
         }
+
+        if (!exited) {
+            logger.warn { "Server $serverId did not exit after stop command, destroying..." }
+            processManager.stopProcess(process)
+            delay(2000)
+            if (processManager.isRunning(process)) {
+                processManager.killProcess(process)
+            }
+        }
+
+        activeProcesses.remove(serverId)
+        val newState = ServerState(id = serverId, status = ServerStatus.STOPPED, pid = null)
+        database.updateServerState(serverId, newState)
+        _serverStates.update { current -> current + (serverId to newState) }
         logger.info { "Server stopped: ${config?.name ?: serverId}" }
 
         Result.success(Unit)
@@ -236,25 +281,29 @@ class ServerManager(
         _servers.update { it - serverId }
         _serverStates.update { it - serverId }
         activeProcesses.remove(serverId)
+        val serverDir = getServerDir(serverId)
+        if (serverDir.exists()) {
+            serverDir.deleteRecursively()
+        }
         return Result.success(Unit)
     }
 
-    private fun writeEula() {
-        val eulaFile = File(serversDir, "eula.txt")
+    private fun writeEula(serverId: String) {
+        val eulaFile = File(getServerDir(serverId), "eula.txt")
         if (!eulaFile.exists()) {
             eulaFile.writeText("eula=true\n")
-            logger.info { "Wrote eula.txt" }
+            logger.info { "Wrote eula.txt for $serverId" }
         }
     }
 
-    private fun buildJavaCommand(config: ServerConfig): List<String> {
+    private fun buildJavaCommand(config: ServerConfig, serverDir: File): List<String> {
         val javaExe = jdkManager.getJavaExecutable(config.javaVersion)
         return if (javaExe != null) {
             listOf(
                 javaExe.absolutePath,
                 "-Xms${config.memoryMin}M",
                 "-Xmx${config.memoryMax}M",
-                "-jar", "${config.id}.jar",
+                "-jar", File(serverDir, "${config.id}.jar").absolutePath,
                 "nogui"
             )
         } else {
@@ -264,7 +313,7 @@ class ServerManager(
                     systemJava.absolutePath,
                     "-Xms${config.memoryMin}M",
                     "-Xmx${config.memoryMax}M",
-                    "-jar", "${config.id}.jar",
+                    "-jar", File(serverDir, "${config.id}.jar").absolutePath,
                     "nogui"
                 )
             } else {
@@ -274,7 +323,7 @@ class ServerManager(
     }
 
     fun getServerJar(serverId: String): File {
-        return File(serversDir, "${serverId}.jar")
+        return File(getServerDir(serverId), "${serverId}.jar")
     }
 
     fun getProcessForServer(serverId: String): java.lang.Process? {

@@ -2,7 +2,9 @@ package com.portalhost.server
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
 import java.io.File
+import java.io.InputStreamReader
 
 data class ProcessStats(
     val cpuPercent: Float = 0f,
@@ -61,8 +63,24 @@ class ProcessMonitor {
         }
     }
 
+    private fun isWindows(): Boolean {
+        return System.getProperty("os.name").lowercase().contains("win")
+    }
+
+    private fun execAndRead(vararg command: String): List<String> {
+        return try {
+            val proc = ProcessBuilder(*command).redirectErrorStream(true).start()
+            proc.inputStream.bufferedReader().readLines()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     private fun measureCpu(pid: Int): Float {
         return try {
+            if (isWindows()) {
+                return measureCpuWindows(pid)
+            }
             val statFile = File("/proc/$pid/stat")
             if (!statFile.exists()) return 0f
 
@@ -79,7 +97,7 @@ class ProcessMonitor {
             }
 
             val elapsedCpu = cpuTime - lastCpuTime
-            val elapsedWall = (wallTime - lastWallTime) / 10_000_000L // to centiseconds
+            val elapsedWall = (wallTime - lastWallTime) / 10_000_000L
 
             lastCpuTime = cpuTime
             lastWallTime = wallTime
@@ -93,8 +111,43 @@ class ProcessMonitor {
         }
     }
 
+    private fun measureCpuWindows(pid: Int): Float {
+        return try {
+            val lines = execAndRead("powershell", "-NoProfile", "-Command",
+                "\$p = Get-Process -Id $pid -ErrorAction SilentlyContinue; if (\$p) { \$p.CPU.ToString() + '|' + (Get-Date).Ticks.ToString() }")
+            if (lines.isEmpty()) return 0f
+            val parts = lines[0].split('|')
+            if (parts.size < 2) return 0f
+            val cpuSeconds = parts[0].toFloatOrNull() ?: return 0f
+            val cpuTicks = (cpuSeconds * 100).toLong()
+            val wallTime = System.nanoTime()
+
+            if (lastCpuTime == 0L) {
+                lastCpuTime = cpuTicks
+                lastWallTime = wallTime
+                return 0f
+            }
+
+            val elapsedCpu = cpuTicks - lastCpuTime
+            val elapsedWall = (wallTime - lastWallTime) / 10_000_000L
+
+            lastCpuTime = cpuTicks
+            lastWallTime = wallTime
+
+            if (elapsedWall <= 0) return 0f
+            val cores = Runtime.getRuntime().availableProcessors()
+            ((elapsedCpu.toFloat() / elapsedWall.toFloat()) * 100f / cores.toFloat())
+                .coerceIn(0f, 100f)
+        } catch (_: Exception) {
+            0f
+        }
+    }
+
     private fun readRss(pid: Int): Long {
         return try {
+            if (isWindows()) {
+                return readRssWindows(pid)
+            }
             val statusFile = File("/proc/$pid/status")
             if (!statusFile.exists()) return 0L
             val lines = statusFile.readLines()
@@ -112,30 +165,50 @@ class ProcessMonitor {
         }
     }
 
+    private fun readRssWindows(pid: Int): Long {
+        return try {
+            val lines = execAndRead("powershell", "-NoProfile", "-Command",
+                "\$p = Get-Process -Id $pid -ErrorAction SilentlyContinue; if (\$p) { \$p.WorkingSet64.ToString() }")
+            if (lines.isEmpty()) return 0L
+            lines[0].trim().toLongOrNull() ?: 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
+
     private fun measureNetworkRate(): Pair<Long, Long> {
         return try {
             var rx: Long
             var tx: Long
-            val netFile = File("/proc/net/dev")
-            if (netFile.exists()) {
-                var rxTotal = 0L
-                var txTotal = 0L
-                netFile.readLines().forEach { line ->
-                    if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
-                        val parts = line.trim().split("\\s+".toRegex())
-                        if (parts.size >= 10) {
-                            val iface = parts[0].removeSuffix(":")
-                            if (iface == "lo") return@forEach
-                            rxTotal += parts[1].toLongOrNull() ?: 0
-                            txTotal += parts[9].toLongOrNull() ?: 0
+            if (isWindows()) {
+                val lines = execAndRead("powershell", "-NoProfile", "-Command",
+                    "Get-NetAdapterStatistics -ErrorAction SilentlyContinue | Where-Object { \$_.Name -ne 'Loopback' -and \$_.Name -ne 'Loopback Pseudo-Interface 1' } | Measure-Object -Property ReceivedBytes,SentBytes -Sum | ForEach-Object { \$_.Sum.ToString() }")
+                if (lines.size >= 2) {
+                    rx = lines[0].trim().toLongOrNull() ?: 0L
+                    tx = lines[1].trim().toLongOrNull() ?: 0L
+                } else {
+                    rx = 0L; tx = 0L
+                }
+            } else {
+                val netFile = File("/proc/net/dev")
+                if (netFile.exists()) {
+                    var rxTotal = 0L
+                    var txTotal = 0L
+                    netFile.readLines().forEach { line ->
+                        if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
+                            val parts = line.trim().split("\\s+".toRegex())
+                            if (parts.size >= 10) {
+                                val iface = parts[0].removeSuffix(":")
+                                if (iface == "lo") return@forEach
+                                rxTotal += parts[1].toLongOrNull() ?: 0
+                                txTotal += parts[9].toLongOrNull() ?: 0
+                            }
                         }
                     }
+                    rx = rxTotal; tx = txTotal
+                } else {
+                    rx = 0L; tx = 0L
                 }
-                rx = rxTotal
-                tx = txTotal
-            } else {
-                rx = 0L
-                tx = 0L
             }
             val now = System.nanoTime()
             val elapsedNs = now - lastNetTime

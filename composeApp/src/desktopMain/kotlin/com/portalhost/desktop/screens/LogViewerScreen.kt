@@ -37,11 +37,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.filesystem.FileSystem
+import org.koin.compose.koinInject
 import java.io.File
 import java.util.zip.GZIPInputStream
 
 @Composable
 fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
+    val fileSystem = koinInject<FileSystem>()
     var logFiles by remember { mutableStateOf<List<File>>(emptyList()) }
     var selectedLog by remember { mutableStateOf<File?>(null) }
     var logContent by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -57,13 +60,13 @@ fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
     }
 
     LaunchedEffect(serverId) {
-        val logsDir = File("servers/$serverId/logs")
+        val logsDir = File(fileSystem.getServersDirBlocking(), "$serverId/logs")
         logFiles = if (logsDir.exists()) {
             logsDir.listFiles()?.filter { it.name.endsWith(".log") || it.name.endsWith(".txt") || it.name.endsWith(".gz") }
                 ?.sortedByDescending { it.lastModified() } ?: emptyList()
         } else emptyList()
 
-        val latestLog = File("servers/$serverId/logs/latest.log")
+        val latestLog = File(fileSystem.getServersDirBlocking(), "$serverId/logs/latest.log")
         if (latestLog.exists()) {
             selectedLog = latestLog
             logContent = latestLog.readLines().takeLast(500)

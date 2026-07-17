@@ -57,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.util.pickFile
 import kotlinx.coroutines.Dispatchers
@@ -70,7 +71,8 @@ data class FileEntry(val file: File, val isDirectory: Boolean)
 
 @Composable
 fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
-    val rootDir = remember(serverId) { File("servers/$serverId") }
+    val fileSystem = koinInject<FileSystem>()
+    val rootDir = remember(serverId) { File(fileSystem.getServersDirBlocking(), serverId) }
     var currentDir by remember(serverId) { mutableStateOf(rootDir) }
     var entries by remember { mutableStateOf<List<FileEntry>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }

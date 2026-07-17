@@ -118,8 +118,15 @@ fun DashboardScreen(
     val scope = rememberCoroutineScope()
 
     var selectedServerId by remember { mutableStateOf<String?>(null) }
+    val previousServerCount by remember { mutableStateOf(servers.size) }
     var expanded by remember { mutableStateOf(false) }
     var commandInput by remember { mutableStateOf("") }
+
+    LaunchedEffect(servers) {
+        if (selectedServerId == null && servers.isNotEmpty()) {
+            selectedServerId = servers.keys.first()
+        }
+    }
 
     val activeServer = selectedServerId?.let { servers[it] }
     val activeState = selectedServerId?.let { serverStates[it] }
@@ -232,7 +239,7 @@ fun DashboardScreen(
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                             Spacer(Modifier.width(12.dp))
-                            Text("Java runtime not installed. Restart app to retry.")
+                            Text("Java runtime not installed. Install from Settings or place JDK in the data directory.")
                         }
                     }
                 }

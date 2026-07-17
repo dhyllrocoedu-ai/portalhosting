@@ -72,6 +72,7 @@ import com.portalhost.db.DatabaseRepository
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerStatus
 import com.portalhost.server.BackupEntry
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.server.BackupManager
 import com.portalhost.server.ServerManager
 import kotlinx.coroutines.launch
@@ -177,7 +178,7 @@ fun ServerDetailScreen(
             }
         }
 
-        val tabs = listOf("Properties", "Files", "Players", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
+        val tabs = listOf("Properties", "Files", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
         ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -191,15 +192,14 @@ fun ServerDetailScreen(
         when (selectedTab) {
             0 -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
             1 -> ServerFilesScreen(serverId = serverId)
-            2 -> PlayerManagementScreen(serverId = serverId)
-            3 -> WorldsTab(serverId = serverId)
-            4 -> PluginsTab(serverId = serverId)
-            5 -> ModsTab(serverId = serverId)
-            6 -> DatapacksTab(serverId = serverId)
-            7 -> BackupsTab(serverId = serverId, backupManager = backupManager)
-            8 -> PerformanceScreen(serverId = serverId)
-            9 -> LogViewerScreen(serverId = serverId)
-            10 -> RconScreen(serverId = serverId)
+            2 -> WorldsTab(serverId = serverId)
+            3 -> PluginsTab(serverId = serverId)
+            4 -> ModsTab(serverId = serverId)
+            5 -> DatapacksTab(serverId = serverId)
+            6 -> BackupsTab(serverId = serverId, backupManager = backupManager)
+            7 -> PerformanceScreen(serverId = serverId)
+            8 -> LogViewerScreen(serverId = serverId)
+            9 -> RconScreen(serverId = serverId)
         }
     }
 }
@@ -375,6 +375,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
 @Composable
 private fun WorldsTab(serverId: String) {
     val serverManager = koinInject<ServerManager>()
+    val fileSystem = koinInject<FileSystem>()
     val servers by serverManager.servers.collectAsState()
     val config = servers[serverId]
     var worlds by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
@@ -382,7 +383,7 @@ private fun WorldsTab(serverId: String) {
     var importFilePath by remember { mutableStateOf("") }
 
     LaunchedEffect(serverId) {
-        val dir = File("servers/$serverId")
+        val dir = File(fileSystem.getServersDirBlocking(), serverId)
         worlds = dir.listFiles()?.filter {
             it.isDirectory && (it.name == "world" || it.name.startsWith("world_"))
         } ?: emptyList()
@@ -444,7 +445,7 @@ private fun WorldsTab(serverId: String) {
             confirmButton = {
                 TextButton(onClick = {
                     if (importFilePath.isNotBlank()) {
-                        importWorldZip(serverId, importFilePath)
+                        importWorldZip(fileSystem.getServersDirBlocking(), serverId, importFilePath)
                         showImportDialog = false
                         importFilePath = ""
                     }
@@ -455,9 +456,9 @@ private fun WorldsTab(serverId: String) {
     }
 }
 
-private fun importWorldZip(serverId: String, zipPath: String) {
+private fun importWorldZip(serversDir: File, serverId: String, zipPath: String) {
     val zipFile = File(zipPath)
-    val targetDir = File("servers/$serverId")
+    val targetDir = File(serversDir, serverId)
     targetDir.mkdirs()
     try {
         ZipFile(zipFile).use { zip ->
@@ -484,10 +485,11 @@ private fun importWorldZip(serverId: String, zipPath: String) {
 
 @Composable
 private fun PluginsTab(serverId: String) {
+    val fileSystem = koinInject<FileSystem>()
     var plugins by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
     LaunchedEffect(serverId) {
-        val dir = File("servers/$serverId/plugins")
+        val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
         plugins = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
@@ -526,10 +528,11 @@ private fun PluginsTab(serverId: String) {
 
 @Composable
 private fun ModsTab(serverId: String) {
+    val fileSystem = koinInject<FileSystem>()
     var mods by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
     LaunchedEffect(serverId) {
-        val dir = File("servers/$serverId/mods")
+        val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
         mods = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
@@ -568,10 +571,11 @@ private fun ModsTab(serverId: String) {
 
 @Composable
 private fun DatapacksTab(serverId: String) {
+    val fileSystem = koinInject<FileSystem>()
     var datapacks by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
     LaunchedEffect(serverId) {
-        val dir = File("servers/$serverId/world/datapacks")
+        val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
         datapacks = if (dir.exists()) dir.listFiles()?.filter { it.isDirectory || it.name.endsWith(".zip") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 

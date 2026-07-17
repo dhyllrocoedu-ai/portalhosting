@@ -114,7 +114,17 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
         try {
             playitDir.mkdirs()
             configFile.writeText("secret_key = '$key'\nrefresh_from_api = true\nmappings = []\n")
+            _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, claimUrl = null)
+            kotlinx.coroutines.runBlocking { start(currentServerPort) }
         } catch (_: Exception) {}
+    }
+
+    fun startClaimFlow() {
+        stop()
+        configFile.delete()
+        secretKey = null
+        _state.value = TunnelState(status = TunnelStatus.CONNECTING)
+        kotlinx.coroutines.runBlocking { start(currentServerPort) }
     }
 
     fun getSecretKey(): String? = secretKey

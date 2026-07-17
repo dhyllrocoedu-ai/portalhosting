@@ -118,9 +118,18 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     }
     
     suspend fun refresh(): List<JavaInstallation> = withContext(Dispatchers.IO) {
-        val installations = detectInstalled()
-        _knownInstallations.value = installations
+        detectInstalled()
         saveKnownJdks()
+        val installations = knownJdks.map { (version, path) ->
+            val javaExe = File(path, javaExeName())
+            JavaInstallation(
+                version = version,
+                path = path,
+                vendor = if (javaExe.exists()) getJavaVendor(javaExe) else "Unknown",
+                isJre = !javaExe.exists() || !File(path, "include").exists()
+            )
+        }.sortedByDescending { it.version }
+        _knownInstallations.value = installations
         installations
     }
     
