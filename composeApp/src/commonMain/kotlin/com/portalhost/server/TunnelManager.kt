@@ -44,7 +44,7 @@ data class TunnelState(
 class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesystem.FileSystem()) {
     private val playitDir: File get() = File(fileSystem.getAppDirBlocking(), "playit")
     private val configFile: File get() = File(playitDir, "playit.toml")
-    private val daemonBinary: File get() = File(playitDir, "playitd")
+    private val daemonBinary: File get() = File(playitDir, if (System.getProperty("os.name").lowercase().contains("win")) "playitd.exe" else "playitd")
 
     private var process: Process? = null
     private var readJob: Job? = null
@@ -96,10 +96,12 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
             conn.readTimeout = 120000
             conn.connect()
             val input = conn.getInputStream()
-            daemonBinary.outputStream().use { output -> input.copyTo(output) }
-            daemonBinary.setExecutable(true)
+            
+            val targetBinary = if (isWindows) File(playitDir, "playitd.exe") else daemonBinary
+            targetBinary.outputStream().use { output -> input.copyTo(output) }
+            targetBinary.setExecutable(true)
 
-            logger.info { "Downloaded playit agent (${daemonBinary.length()} bytes)" }
+            logger.info { "Downloaded playit agent (${targetBinary.length()} bytes) to ${targetBinary.absolutePath}" }
             _state.value = _state.value.copy(status = TunnelStatus.IDLE)
             Result.success(Unit)
         } catch (e: Exception) {

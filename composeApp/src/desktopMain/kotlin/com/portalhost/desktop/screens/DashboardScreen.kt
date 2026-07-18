@@ -3,6 +3,7 @@ package com.portalhost.desktop.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +23,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.ExpandLess
@@ -36,6 +42,8 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
@@ -44,17 +52,25 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Laptop
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,16 +86,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,17 +116,23 @@ import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelStatus
+import com.portalhost.server.classifyLogLevel
+import com.portalhost.server.consoleLineColor
 import com.portalhost.server.getServerIconFile
 import com.portalhost.server.loadServerIcon
+import com.portalhost.server.LogLevel
+import com.portalhost.server.ALL_LOG_LEVELS
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
+import androidx.compose.ui.platform.LocalClipboardManager
 
 @Composable
 fun DashboardScreen(
     onNavigateToConsole: (String) -> Unit = {},
     onNavigateToServer: (String) -> Unit = {},
     onNavigateToCreate: () -> Unit = {},
+    onNavigateToPlayers: (String) -> Unit = {},
 ) {
     val serverManager = koinInject<ServerManager>()
     val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
@@ -277,7 +304,8 @@ fun DashboardScreen(
 
                 PerformanceCard(
                     activeState = activeState,
-                    onOpenPerformance = { selectedServerId?.let { onNavigateToServer(it) } }
+                    onOpenPerformance = { selectedServerId?.let { onNavigateToServer(it) } },
+                    onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
                 )
 
                 ConsoleCard(
@@ -388,21 +416,18 @@ private fun ServerCard(
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (activeServer != null) {
-                            SuggestionChip(
-                                onClick = {},
-                                label = { Text("MC ${activeServer.version.ifBlank { "?" }}", fontSize = 10.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            SuggestionChip(
-                                onClick = {},
-                                label = { Text("Java ${activeServer.javaVersion}", fontSize = 10.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            SuggestionChip(
-                                onClick = {},
-                                label = { Text("RAM ${activeServer.memoryMax}M", fontSize = 10.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Layers, contentDescription = "Minecraft version", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                Text(text = "MC ${activeServer.version.ifBlank { "?" }}", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Laptop, contentDescription = "Java version", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                Text(text = "Java ${activeServer.javaVersion}", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Settings, contentDescription = "RAM", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                Text(text = "${activeServer.memoryMax}M", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                            }
                         }
                     }
                 }
@@ -531,6 +556,7 @@ private fun TunnelCard(
     onStart: () -> Unit,
     onStop: () -> Unit
 ) {
+    val clipboardManager = LocalClipboardManager.current
     val status = tunnelState.status
     val connected = status == TunnelStatus.CONNECTED
     val statusText = when (status) {
@@ -553,23 +579,75 @@ private fun TunnelCard(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(28.dp))
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Tunnel", style = MaterialTheme.typography.titleMedium)
-                Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
-            }
-            Button(
-                onClick = { if (connected) onStop() else onStart() },
-                enabled = enabled,
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (connected) "Disconnect" else "Connect")
+                Icon(Icons.Default.Cloud, contentDescription = null, modifier = Modifier.size(28.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Tunnel", style = MaterialTheme.typography.titleMedium)
+                    Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
+                }
+                Button(
+                    onClick = { if (connected) onStop() else onStart() },
+                    enabled = enabled,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(if (connected) "Disconnect" else "Connect")
+                }
+            }
+
+            if (connected && tunnelState.tunnels.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    tunnelState.tunnels.forEach { tunnel ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Text(
+                                        text = tunnel.publicAddress,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontFamily = FontFamily.Monospace,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Text(
+                                    text = "Local: 0.0.0.0:${tunnel.localPort} (${tunnel.type.uppercase()})",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(tunnel.publicAddress))
+                            }, modifier = Modifier.size(36.dp)) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy address", modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                    if (tunnelState.claimUrl != null) {
+                        Text(
+                            text = "Claim URL: ${tunnelState.claimUrl}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }
@@ -578,7 +656,8 @@ private fun TunnelCard(
 @Composable
 private fun PerformanceCard(
     activeState: ServerState?,
-    onOpenPerformance: () -> Unit
+    onOpenPerformance: () -> Unit,
+    onOpenPlayers: () -> Unit
 ) {
     val live = activeState?.status == ServerStatus.RUNNING || activeState?.status == ServerStatus.STARTING
 
@@ -618,7 +697,27 @@ private fun PerformanceCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatMiniCard(value = if (live) "${activeState?.playersOnline ?: 0}" else "—", label = "Players")
+                Surface(
+                    modifier = Modifier.weight(1f)
+                        .fillMaxWidth()
+                        .clickable { onOpenPlayers() }
+                        .padding(vertical = 14.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (live) "${activeState?.playersOnline ?: 0}" else "—",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(text = "Players", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 StatMiniCard(value = "—", label = "Download")
                 StatMiniCard(value = "—", label = "Upload")
             }
@@ -654,18 +753,82 @@ private fun ConsoleCard(
     commandInput: String,
     onCommandInputChange: (String) -> Unit
 ) {
+    var commandInput by remember { mutableStateOf(commandInput) }
+    var commandHistory by remember { mutableStateOf(listOf<String>()) }
+    var historyIndex by remember { mutableIntStateOf(-1) }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf(listOf<Int>()) }
+    var currentSearchIdx by remember { mutableIntStateOf(0) }
+    var activeLevel by remember { mutableStateOf(LogLevel.ALL) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    var isUserScrolling by remember { mutableStateOf(false) }
+    var isNearBottom by remember { mutableStateOf(true) }
+
+    // Apply log level filter
+    val levelFiltered = if (activeLevel == LogLevel.ALL) consoleLines
+        else consoleLines.filter { classifyLogLevel(it) == activeLevel }
+
+    // Apply search on top of level filter
+    val displayLines = if (searchQuery.isNotBlank()) {
+        levelFiltered.filterIndexed { idx, _ ->
+            val originalIdx = if (activeLevel == LogLevel.ALL) idx
+                else consoleLines.indexOf(levelFiltered[idx])
+            originalIdx in searchResults
+        }
+    } else levelFiltered
+
+    // Search logic (indexes into original consoleLines)
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isNotBlank()) {
+            searchResults = consoleLines.mapIndexedNotNull { idx, line ->
+                if (line.contains(searchQuery, ignoreCase = true)) idx else null
+            }
+            currentSearchIdx = 0
+        } else {
+            searchResults = emptyList()
+        }
+    }
+
+    // Auto-scroll: always scroll to latest line unless user scrolls up manually
+    val isScrolling = remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.distinctUntilChanged().collect { scrolling ->
+            if (!scrolling && isScrolling.value) {
+                isScrolling.value = false
+            }
+        }
+    }
+    LaunchedEffect(displayLines.size) {
+        if (!isScrolling.value && displayLines.isNotEmpty()) {
+            try { listState.scrollToItem(displayLines.size - 1) } catch (_: Exception) {}
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            // Header with search, filter, clear, open console
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
+                
+                // Search toggle
+                IconButton(onClick = { showSearch = !showSearch }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Search, contentDescription = if (showSearch) "Hide search" else "Search", modifier = Modifier.size(20.dp))
+                }
+                // Filter toggle
+                IconButton(onClick = { activeLevel = if (activeLevel == LogLevel.ALL) LogLevel.ERROR else LogLevel.ALL }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.FilterAlt, contentDescription = if (activeLevel == LogLevel.ALL) "Filter: ERROR only" else "Filter: ALL", modifier = Modifier.size(20.dp))
+                }
                 IconButton(onClick = onClearConsole, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = "Clear", modifier = Modifier.size(18.dp))
                 }
@@ -674,44 +837,139 @@ private fun ConsoleCard(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            // Search bar
+            if (showSearch) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search console...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                )
+                if (searchResults.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Match ${currentSearchIdx + 1}: ${consoleLines.getOrNull(searchResults.getOrNull(currentSearchIdx) ?: -1)?.take(80) ?: ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                        )
+                        Row {
+                            IconButton(onClick = {
+                                currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0)
+                            }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(16.dp))
+                            }
+                            IconButton(onClick = {
+                                currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1)
+                            }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
 
+            // Log level filter chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                LogLevel.entries.forEach { level ->
+                    FilterChip(
+                        selected = activeLevel == level,
+                        onClick = { activeLevel = level },
+                        label = { Text(level.name, fontSize = 11.sp) },
+                        leadingIcon = if (activeLevel == level) {
+                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                        } else null,
+                    )
+                }
+            }
+
+            // Console output
+            Spacer(Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF0D0D0D))
-                    .padding(8.dp)
+                    .padding(8.dp),
             ) {
-                if (consoleLines.isEmpty()) {
+                if (displayLines.isEmpty()) {
                     Text(
-                        text = "Console output will appear here...",
+                        text = if (searchQuery.isNotBlank()) "No matching lines found"
+                        else "Console output will appear here when the server is running...",
                         color = Color(0xFF555555),
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp
                     )
                 } else {
-                    LazyColumn {
-                        items(consoleLines.takeLast(6)) { line ->
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(1.dp),
+                    ) {
+                        items(count = displayLines.size, key = { index -> "console_$index" }) { index ->
+                            val line = displayLines[index]
                             Text(
-                                text = line,
-                                color = consoleLineColor(line),
+                                line,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 10.sp,
-                                lineHeight = 13.sp
+                                color = consoleLineColor(line),
                             )
                         }
                     }
                 }
             }
 
+            // Scroll to bottom FAB
+            if (isScrolling.value && displayLines.size > 20) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    androidx.compose.material3.SmallFloatingActionButton(
+                        onClick = {
+                            isScrolling.value = false
+                            scope.launch {
+                                try { listState.animateScrollToItem(displayLines.size - 1) } catch (_: Exception) {}
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(16.dp),
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                    ) {
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Scroll to bottom")
+                    }
+                }
+            }
+
+            // Command input
             if (isOnline) {
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = commandInput,
-                        onValueChange = onCommandInputChange,
+                        onValueChange = { newInput ->
+                            commandInput = newInput
+                            historyIndex = -1
+                            onCommandInputChange(newInput)
+                        },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Enter command...", fontSize = 13.sp) },
                         singleLine = true,
@@ -721,6 +979,7 @@ private fun ConsoleCard(
                     IconButton(onClick = {
                         if (commandInput.isNotBlank()) {
                             onCommand(commandInput)
+                            commandInput = ""
                             onCommandInputChange("")
                         }
                     }) {

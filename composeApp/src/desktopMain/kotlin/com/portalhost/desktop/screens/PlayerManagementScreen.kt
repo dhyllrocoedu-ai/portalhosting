@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Shield
@@ -25,12 +26,16 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,6 +52,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import kotlin.OptIn
 
 private val playerJson = Json { prettyPrint = true }
 
@@ -55,17 +61,21 @@ data class OpEntry(val uuid: String, val name: String, val level: Int = 4, val b
 data class BannedPlayerEntry(val uuid: String, val name: String, val created: String? = null, val source: String? = null, val expires: String? = null, val reason: String? = null)
 data class BannedIpEntry(val ip: String, val created: String? = null, val source: String? = null, val expires: String? = null, val reason: String? = null)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Online", "Whitelist", "Operators", "Banned Players", "Banned IPs")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            "Player Management",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(16.dp),
+        TopAppBar(
+            title = { Text("Player Management", style = MaterialTheme.typography.titleMedium) },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
         )
 
         TabRow(selectedTabIndex = selectedTab) {
