@@ -28,12 +28,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
@@ -41,8 +43,9 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.WindowState
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.singleWindowApplication
+import androidx.compose.ui.window.WindowState
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
@@ -105,42 +108,14 @@ fun DesktopApp() {
     }
 
     MaterialTheme(colorScheme = colorScheme) {
-        Scaffold(
-            topBar = {
-                if (showTabs) {
-                    TopAppBar(
-                        title = { Text(title, fontWeight = FontWeight.SemiBold) },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-                    )
-                } else {
-                    TopAppBar(
-                        title = { Text(title, fontWeight = FontWeight.SemiBold) },
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                currentScreen = when (currentScreen) {
-                                    is Screen.ServerDetail -> Screen.Servers
-                                    is Screen.Console -> Screen.Home
-                                    else -> Screen.Servers
-                                }
-                            }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-                    )
-                }
-            },
-            floatingActionButton = {
-                if (showFab) {
-                    FloatingActionButton(
-                        onClick = { currentScreen = Screen.Create },
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "New Server")
-                    }
-                }
-            },
-        ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // Custom window chrome with drag region + controls
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Main content area (below title bar)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 40.dp) // Space for title bar
+            ) {
                 if (showTabs) {
                     TabRow(selectedTabIndex = selectedTab) {
                         Tab(
@@ -230,6 +205,15 @@ fun DesktopApp() {
     }
 }
 
+// DesktopApp() function ends above
+
+@Composable
+fun AppContent() {
+    MaterialTheme {
+        DesktopApp()
+    }
+}
+
 fun main() {
     try {
         initKoin(desktopModule())
@@ -246,10 +230,14 @@ fun main() {
         e.printStackTrace(System.err)
         return
     }
+
     singleWindowApplication(
         title = "Portal Host",
-        state = WindowState(width = 1200.dp, height = 800.dp),
+        state = WindowState(
+            width = 1200.dp,
+            height = 800.dp,
+        ),
     ) {
-        DesktopApp()
+        AppContent()
     }
 }
