@@ -141,105 +141,107 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp,
         ) {
-            Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Server Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
-                    Row {
-                        if (showSearch && searchResults.isNotEmpty()) {
-                            Text(
-                                "${currentSearchIdx + 1}/${searchResults.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.align(Alignment.CenterVertically)
-                            )
-                        }
-                        IconButton(onClick = { showSearch = !showSearch }) {
-                            Icon(Icons.Filled.Search, contentDescription = "Search", modifier = Modifier.size(20.dp))
-                        }
-                        IconButton(onClick = {
-                            activeLevel = if (activeLevel == LogLevel.ALL) LogLevel.ERROR else LogLevel.ALL
-                        }) {
-                            Icon(Icons.Filled.FilterAlt, contentDescription = "Filter", modifier = Modifier.size(20.dp))
-                        }
-                        IconButton(onClick = {
-                            val lines = displayLines.joinToString("\n")
-                            val tempFile = File.createTempFile("console_${serverId}_", ".log")
-                            tempFile.writeText(lines)
-                        }) {
-                            Icon(Icons.Filled.SaveAlt, contentDescription = "Save", modifier = Modifier.size(20.dp))
-                        }
-                        IconButton(onClick = {
-                            val map = serverManager.consoleOutputs.value.toMutableMap()
-                            map[serverId] = emptyList()
-                        }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(20.dp))
-                        }
-                    }
-                }
-            }
-
-            if (showSearch) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search console...") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Clear")
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                )
-                if (searchResults.isNotEmpty()) {
+            Column {
+                Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            "Match ${currentSearchIdx + 1}: ${allLines.getOrNull(searchResults.getOrNull(currentSearchIdx) ?: -1)?.take(80) ?: ""}",
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                        )
+                        Text("Server Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
                         Row {
-                            IconButton(onClick = {
-                                currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0)
-                            }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(16.dp))
+                            if (showSearch && searchResults.isNotEmpty()) {
+                                Text(
+                                    "${currentSearchIdx + 1}/${searchResults.size}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.align(Alignment.CenterVertically)
+                                )
+                            }
+                            IconButton(onClick = { showSearch = !showSearch }) {
+                                Icon(Icons.Filled.Search, contentDescription = "Search", modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = {
-                                currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1)
-                            }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Next", modifier = Modifier.size(16.dp))
+                                activeLevel = if (activeLevel == LogLevel.ALL) LogLevel.ERROR else LogLevel.ALL
+                            }) {
+                                Icon(Icons.Filled.FilterAlt, contentDescription = "Filter", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = {
+                                val lines = displayLines.joinToString("\n")
+                                val tempFile = File.createTempFile("console_${serverId}_", ".log")
+                                tempFile.writeText(lines)
+                            }) {
+                                Icon(Icons.Filled.SaveAlt, contentDescription = "Save", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = {
+                                val map = serverManager.consoleOutputs.value.toMutableMap()
+                                map[serverId] = emptyList()
+                            }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(20.dp))
                             }
                         }
                     }
                 }
-            }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                ALL_LOG_LEVELS.forEach { level ->
-                    FilterChip(
-                        selected = activeLevel == level,
-                        onClick = { activeLevel = level },
-                        label = { Text(level.name, fontSize = 11.sp) },
-                        leadingIcon = if (activeLevel == level) {
-                            { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                        } else null,
+                if (showSearch) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search console...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     )
+                    if (searchResults.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Match ${currentSearchIdx + 1}: ${allLines.getOrNull(searchResults.getOrNull(currentSearchIdx) ?: -1)?.take(80) ?: ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                            )
+                            Row {
+                                IconButton(onClick = {
+                                    currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0)
+                                }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(onClick = {
+                                    currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1)
+                                }, modifier = Modifier.size(24.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Next", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    ALL_LOG_LEVELS.forEach { level ->
+                        FilterChip(
+                            selected = activeLevel == level,
+                            onClick = { activeLevel = level },
+                            label = { Text(level.name, fontSize = 11.sp) },
+                            leadingIcon = if (activeLevel == level) {
+                                { Icon(Icons.Filled.Check, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                            } else null,
+                        )
+                    }
                 }
             }
         }
