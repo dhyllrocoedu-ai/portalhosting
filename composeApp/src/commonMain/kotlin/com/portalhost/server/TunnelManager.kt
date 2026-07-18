@@ -153,6 +153,11 @@ refresh_from_api = true
 mappings = [$mapping]
 """.trimIndent())
 
+            // Ensure binary is executable on Windows
+            if (daemonBinary.exists()) {
+                daemonBinary.setExecutable(true)
+            }
+
             val args = mutableListOf(daemonBinary.absolutePath)
             val logFile = File(playitDir, "playitd.log")
             args.add("--log-path")
@@ -162,6 +167,10 @@ mappings = [$mapping]
                 args.add(secretKey!!)
             }
 
+            logger.info { "Starting tunnel with command: ${args.joinToString(" ")}" }
+            logger.info { "Working directory: ${playitDir.absolutePath}" }
+            logger.info { "Binary exists: ${daemonBinary.exists()}, executable: ${daemonBinary.canExecute()}" }
+
             val proc = ProcessBuilder(args)
                 .directory(playitDir)
                 .redirectErrorStream(true)
@@ -170,8 +179,19 @@ mappings = [$mapping]
             process = proc
             startReader(proc, serverPort)
 
+            // Wait briefly to check if process crashes immediately
+            delay(1000)
+            if (!proc.isAlive) {
+                val exitCode = proc.exitValue()
+                val errorOutput = proc.errorStream.bufferedReader().readText()
+                val output = proc.inputStream.bufferedReader().readText()
+                logger.error { "Tunnel process exited immediately with code $exitCode. Output: $output Error: $errorOutput" }
+                _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = "Process exited with code $exitCode: $output")
+                return Result.failure(Exception("Process exited with code $exitCode"))
+            }
+
             _state.value = _state.value.copy(status = TunnelStatus.CONNECTING)
-            logger.info { "Tunnel process started" }
+            logger.info { "Tunnel process started with PID: ${proc.pid()}" }
             Result.success(Unit)
         } catch (e: Exception) {
             logger.error(e) { "Failed to start tunnel" }
