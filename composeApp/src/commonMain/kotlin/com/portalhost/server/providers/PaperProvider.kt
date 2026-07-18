@@ -34,7 +34,7 @@ class PaperProvider : ServerProvider {
         project.versions.values.flatten()
             .filter { !it.contains("-") }
             .map { ServerVersion(version = it, stable = true, releaseDate = null) }
-            .sortedByDescending { it.version }
+            .sortedWith(compareByDescending { parseSemver(it.version) })
     }
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> = coroutineContext.runCatching {

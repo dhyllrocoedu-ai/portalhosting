@@ -51,7 +51,7 @@ class PurpurProvider : ServerProvider {
 
             Result.success(root.versions
                 .map { ServerVersion(it, true, null) }
-                .sortedByDescending { it.version }
+                .sortedWith(compareByDescending { parseSemver(it.version) })
             )
         } catch (e: Exception) {
             Result.failure(e)

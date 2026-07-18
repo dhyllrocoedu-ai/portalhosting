@@ -1,5 +1,6 @@
 package com.portalhost.desktop.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +78,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -93,6 +95,8 @@ import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelStatus
+import com.portalhost.server.getServerIconFile
+import com.portalhost.server.loadServerIcon
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
@@ -104,6 +108,7 @@ fun DashboardScreen(
     onNavigateToCreate: () -> Unit = {},
 ) {
     val serverManager = koinInject<ServerManager>()
+    val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
     val jdkManager = koinInject<JdkManager>()
     val activityLog = koinInject<ActivityLog>()
     val tunnelManager = koinInject<TunnelManager>()
@@ -131,6 +136,12 @@ fun DashboardScreen(
     val activeServer = selectedServerId?.let { servers[it] }
     val activeState = selectedServerId?.let { serverStates[it] }
     val activeConsole = selectedServerId?.let { consoleOutputs[it] } ?: emptyList()
+    val serverIcon = remember(activeServer?.id) {
+        activeServer?.id?.let { id ->
+            val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), id))
+            loadServerIcon(iconFile)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -190,6 +201,7 @@ fun DashboardScreen(
                 }
 
                 ServerCard(
+                    serverIcon = serverIcon,
                     activeServer = activeServer,
                     serverConfigs = servers.values.toList(),
                     activeState = activeState,
@@ -297,6 +309,7 @@ fun DashboardScreen(
 
 @Composable
 private fun ServerCard(
+    serverIcon: ImageBitmap?,
     activeServer: ServerConfig?,
     serverConfigs: List<ServerConfig>,
     activeState: ServerState?,
@@ -336,7 +349,11 @@ private fun ServerCard(
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (serverIcon != null) {
+                            Image(bitmap = serverIcon, contentDescription = "Server Icon", modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)))
+                        } else {
+                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
                 Spacer(Modifier.width(16.dp))

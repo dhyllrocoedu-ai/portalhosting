@@ -5,6 +5,11 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,6 +70,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -80,13 +86,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.ceil
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.java.JdkManager
@@ -96,6 +110,9 @@ import com.portalhost.model.ServerType
 import com.portalhost.model.ServerVersion
 import com.portalhost.server.ServerDownloader
 import com.portalhost.server.ServerManager
+import com.portalhost.server.getServerIconFile
+import com.portalhost.server.loadServerIcon
+import com.portalhost.server.saveServerIcon
 import com.portalhost.server.providers.ServerProviderRegistry
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.util.pickFile
@@ -126,6 +143,50 @@ fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
     it == ServerType.PAPER || it == ServerType.FABRIC || it == ServerType.FORGE ||
     it == ServerType.NEOFORGE
 } ?: false
+
+private val motdColorMap = mapOf(
+    '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
+    '4' to Color(0xFFAA0000), '5' to Color(0xFFAA00AA), '6' to Color(0xFFFFAA00), '7' to Color(0xFFAAAAAA),
+    '8' to Color(0xFF555555), '9' to Color(0xFF5555FF), 'a' to Color(0xFF55FF55), 'b' to Color(0xFF55FFFF),
+    'c' to Color(0xFFFF5555), 'd' to Color(0xFFFF55FF), 'e' to Color(0xFFFFFF55), 'f' to Color(0xFFFFFFFF)
+)
+
+private fun parseMotdPreview(motd: String): AnnotatedString {
+    return buildAnnotatedString {
+        var i = 0
+        var currentColor: Color? = null
+        var bold = false
+        var italic = false
+        var strikethrough = false
+        var underline = false
+        while (i < motd.length) {
+            if (motd[i] == '§' && i + 1 < motd.length) {
+                val code = motd[i + 1].lowercaseChar()
+                when (code) {
+                    in '0'..'9', in 'a'..'f' -> currentColor = motdColorMap[code]
+                    'l' -> bold = true
+                    'm' -> strikethrough = true
+                    'n' -> underline = true
+                    'o' -> italic = true
+                    'r' -> { currentColor = null; bold = false; italic = false; strikethrough = false; underline = false }
+                }
+                i += 2
+            } else {
+                val start = i
+                while (i < motd.length && !(motd[i] == '§' && i + 1 < motd.length)) i++
+                val segment = motd.substring(start, i)
+                if (segment.isNotEmpty()) {
+                    withStyle(SpanStyle(
+                        color = currentColor ?: Color(0xFFAAAAAA),
+                        fontWeight = if (bold) FontWeight.Bold else null,
+                        fontStyle = if (italic) FontStyle.Italic else null,
+                        textDecoration = when { strikethrough && underline -> TextDecoration.combine(listOf(TextDecoration.LineThrough, TextDecoration.Underline)); strikethrough -> TextDecoration.LineThrough; underline -> TextDecoration.Underline; else -> null }
+                    )) { append(segment) }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("EXPERIMENTAL_API_USAGE")
@@ -166,6 +227,7 @@ fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
     var gamemode by remember { mutableStateOf("survival") }
     var difficulty by remember { mutableStateOf("easy") }
     var motd by remember { mutableStateOf("A Minecraft Server") }
+    var iconPath by remember { mutableStateOf<String?>(null) }
     var eulaAccepted by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -518,6 +580,7 @@ fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
         }
 
         Spacer(Modifier.height(12.dp))
+        var showMotdColors by remember { mutableStateOf(false) }
         OutlinedTextField(
             value = motd,
             onValueChange = { motd = it.take(60) },
@@ -526,6 +589,64 @@ fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
             modifier = Modifier.fillMaxWidth(),
             leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
         )
+        TextButton(onClick = { showMotdColors = !showMotdColors }) {
+            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(if (showMotdColors) "Hide Codes" else "Color Codes", style = MaterialTheme.typography.labelSmall)
+        }
+        if (showMotdColors) {
+            val insertCode: (String) -> Unit = { code ->
+                motd = motd + code
+            }
+            val mcColors = listOf(
+                '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
+                '4' to Color(0xFFAA0000), '5' to Color(0xFFAA00AA), '6' to Color(0xFFFFAA00), '7' to Color(0xFFAAAAAA),
+                '8' to Color(0xFF555555), '9' to Color(0xFF5555FF), 'a' to Color(0xFF55FF55), 'b' to Color(0xFF55FFFF),
+                'c' to Color(0xFFFF5555), 'd' to Color(0xFFFF55FF), 'e' to Color(0xFFFFFF55), 'f' to Color(0xFFFFFFFF),
+            )
+            Text("Colors", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                mcColors.forEach { (code, color) ->
+                    val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
+                    Box(modifier = Modifier.size(24.dp).clip(RoundedCornerShape(12.dp)).background(color).border(0.5.dp, borderColor, RoundedCornerShape(12.dp)).clickable { insertCode("§$code") }, contentAlignment = Alignment.Center) {
+                        Text(code.toString(), fontSize = 10.sp, color = if (code in listOf('0', '8', '4')) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Formatting", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                val formatCodes = listOf("Bold" to "§l", "Italic" to "§o", "Underline" to "§n", "Strike" to "§m", "Obfuscated" to "§k", "Reset" to "§r")
+                formatCodes.forEach { (label, code) ->
+                    SuggestionChip(onClick = { insertCode(code) }, label = { Text(label, fontSize = 11.sp) })
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B))) {
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    val parsed = remember(motd) { parseMotdPreview(motd) }
+                    Text(text = if (parsed.text.isEmpty()) buildAnnotatedString { withStyle(SpanStyle(color = Color(0xFFAAAAAA))) { append("MOTD preview will appear here") } } else parsed, fontSize = 15.sp, lineHeight = 22.sp)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(onClick = {
+            val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
+            if (files.isNotEmpty()) iconPath = files[0].absolutePath
+        }) {
+            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(if (iconPath != null) "Change Icon" else "Set Server Icon", style = MaterialTheme.typography.labelSmall)
+        }
+        if (iconPath != null) {
+            Spacer(Modifier.height(4.dp))
+            Text("Icon: $iconPath", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 
     @Composable
@@ -632,6 +753,37 @@ fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
                     3 -> StepProperties()
                     4 -> StepStorageCheck()
                     5 -> StepEula()
+                }
+
+                if (creating) {
+                    Spacer(Modifier.height(16.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = downloadStatus.ifBlank { "Preparing..." },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "${(downloadProgress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { downloadProgress.toFloat().coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
 
                 errorMessage?.let { msg ->
@@ -763,6 +915,12 @@ fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
                                             errorMessage = it.message ?: "Failed to create server"
                                             creating = false
                                             return@launch
+                                        }
+                                        if (iconPath != null) {
+                                            val iconDest = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), config.id))
+                                            withContext(Dispatchers.IO) {
+                                                saveServerIcon(java.io.File(iconPath!!), iconDest)
+                                            }
                                         }
                                         toastManager.success("Server \"${config.name}\" created!")
                                         onServerCreated(config.id)

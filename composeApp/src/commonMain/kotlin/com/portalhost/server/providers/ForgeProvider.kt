@@ -25,7 +25,7 @@ class ForgeProvider : ServerProvider {
             val versions = parseMavenMetadata(response)
                 .filter { it.startsWith("1.") }
                 .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
-                .reversed()
+                .sortedWith(compareByDescending { parseSemver(it.version) })
             Result.success(versions)
         } catch (e: Exception) {
             Result.failure(e)
@@ -46,7 +46,7 @@ class ForgeProvider : ServerProvider {
                         size = 0
                     )
                 }
-                .reversed()
+                .sortedWith(compareByDescending { parseSemver(it.id) })
             Result.success(builds)
         } catch (e: Exception) {
             Result.failure(e)

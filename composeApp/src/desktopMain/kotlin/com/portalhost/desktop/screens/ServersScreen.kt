@@ -1,5 +1,6 @@
 package com.portalhost.desktop.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,10 +69,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.filesystem.FileSystem
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerState
 import com.portalhost.model.ServerStatus
 import com.portalhost.server.ServerManager
+import com.portalhost.server.getServerIconFile
+import com.portalhost.server.loadServerIcon
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -238,6 +242,11 @@ private fun ServerListItem(
     var showMenu by remember { mutableStateOf(false) }
     val typeInfo = serverTypeInfo(server.serverType)
     val status = state?.status ?: ServerStatus.STOPPED
+    val fileSystem = koinInject<FileSystem>()
+    val serverIcon = remember(server.id) {
+        val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), server.id))
+        loadServerIcon(iconFile)
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -252,7 +261,11 @@ private fun ServerListItem(
                     color = typeInfo.color.copy(alpha = 0.15f)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(24.dp), tint = typeInfo.color)
+                        if (serverIcon != null) {
+                            Image(bitmap = serverIcon, contentDescription = "Server Icon", modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)))
+                        } else {
+                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(24.dp), tint = typeInfo.color)
+                        }
                     }
                 }
                 Spacer(Modifier.width(12.dp))

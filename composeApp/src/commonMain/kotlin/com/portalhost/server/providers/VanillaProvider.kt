@@ -73,6 +73,7 @@ class VanillaProvider : ServerProvider {
                         releaseDate = entry.releaseTime
                     )
                 }
+                .sortedWith(compareByDescending { parseSemver(it.version) })
             
             Result.success(versions)
         } catch (e: Exception) {

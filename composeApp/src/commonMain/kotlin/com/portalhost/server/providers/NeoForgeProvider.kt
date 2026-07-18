@@ -39,7 +39,7 @@ class NeoForgeProvider : ServerProvider {
             }
             Result.success(mcVersions
                 .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
-                .sortedByDescending { it.version }
+                .sortedWith(compareByDescending { parseSemver(it.version) })
             )
         } catch (e: Exception) {
             Result.failure(e)
@@ -66,7 +66,7 @@ class NeoForgeProvider : ServerProvider {
                         size = 0
                     )
                 }
-                .reversed()
+                .sortedWith(compareByDescending { parseSemver(it.id) })
             )
         } catch (e: Exception) {
             Result.failure(e)

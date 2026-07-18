@@ -53,7 +53,7 @@ class FabricProvider : ServerProvider {
             Result.success(versions
                 .filter { it.stable }
                 .map { ServerVersion(it.version, it.stable, null) }
-                .sortedByDescending { it.version }
+                .sortedWith(compareByDescending { parseSemver(it.version) })
             )
         } catch (e: Exception) {
             Result.failure(e)

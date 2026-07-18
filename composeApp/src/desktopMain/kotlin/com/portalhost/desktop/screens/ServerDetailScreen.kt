@@ -1,7 +1,10 @@
 package com.portalhost.desktop.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Games
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -44,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
@@ -62,10 +68,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.db.DatabaseRepository
@@ -75,10 +88,60 @@ import com.portalhost.server.BackupEntry
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.server.BackupManager
 import com.portalhost.server.ServerManager
+import com.portalhost.server.getServerIconFile
+import com.portalhost.server.loadServerIcon
+import com.portalhost.server.saveServerIcon
+import com.portalhost.util.pickFile
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import java.io.File
 import java.util.zip.ZipFile
+
+private val motdColorMap = mapOf(
+    '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
+    '4' to Color(0xFFAA0000), '5' to Color(0xFFAA00AA), '6' to Color(0xFFFFAA00), '7' to Color(0xFFAAAAAA),
+    '8' to Color(0xFF555555), '9' to Color(0xFF5555FF), 'a' to Color(0xFF55FF55), 'b' to Color(0xFF55FFFF),
+    'c' to Color(0xFFFF5555), 'd' to Color(0xFFFF55FF), 'e' to Color(0xFFFFFF55), 'f' to Color(0xFFFFFFFF)
+)
+
+private fun parseMotdPreview(motd: String): AnnotatedString {
+    return buildAnnotatedString {
+        var i = 0
+        var currentColor: Color? = null
+        var bold = false
+        var italic = false
+        var strikethrough = false
+        var underline = false
+        while (i < motd.length) {
+            if (motd[i] == '§' && i + 1 < motd.length) {
+                val code = motd[i + 1].lowercaseChar()
+                when (code) {
+                    in '0'..'9', in 'a'..'f' -> currentColor = motdColorMap[code]
+                    'l' -> bold = true
+                    'm' -> strikethrough = true
+                    'n' -> underline = true
+                    'o' -> italic = true
+                    'r' -> { currentColor = null; bold = false; italic = false; strikethrough = false; underline = false }
+                }
+                i += 2
+            } else {
+                val start = i
+                while (i < motd.length && !(motd[i] == '§' && i + 1 < motd.length)) i++
+                val segment = motd.substring(start, i)
+                if (segment.isNotEmpty()) {
+                    withStyle(SpanStyle(
+                        color = currentColor ?: Color(0xFFAAAAAA),
+                        fontWeight = if (bold) FontWeight.Bold else null,
+                        fontStyle = if (italic) FontStyle.Italic else null,
+                        textDecoration = when { strikethrough && underline -> TextDecoration.combine(listOf(TextDecoration.LineThrough, TextDecoration.Underline)); strikethrough -> TextDecoration.LineThrough; underline -> TextDecoration.Underline; else -> null }
+                    )) { append(segment) }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun ServerDetailScreen(
@@ -94,12 +157,20 @@ fun ServerDetailScreen(
     var selectedTab by remember { mutableStateOf(0) }
 
     val database = koinInject<DatabaseRepository>()
+    val fileSystem = koinInject<FileSystem>()
     val backupManager = remember(config) {
         config?.let { BackupManager(File(serverManager.getServerJar(serverId).parentFile, serverId), serverId, database) }
     }
     val backupEntries by backupManager?.backups?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var importFileName by remember { mutableStateOf<String?>(null) }
+
+    val serverIcon = remember(config?.id) {
+        config?.id?.let { id ->
+            val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), id))
+            loadServerIcon(iconFile)
+        }
+    }
 
     LaunchedEffect(serverId) {
         backupManager?.refreshBackups()
@@ -141,6 +212,10 @@ fun ServerDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    if (serverIcon != null) {
+                        Image(bitmap = serverIcon, contentDescription = "Server Icon", modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
+                        Spacer(Modifier.width(16.dp))
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(config.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("${config.serverType.name} v${config.version}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -225,21 +300,23 @@ private fun StatusBadgeDetail(status: ServerStatus) {
 private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.ServerState?, serverManager: ServerManager, serverId: String, onDeleteRequest: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val database = koinInject<DatabaseRepository>()
-    var name by remember(config) { mutableStateOf(config.name) }
-    var port by remember(config) { mutableStateOf(config.port.toString()) }
-    var memoryMin by remember(config) { mutableStateOf(config.memoryMin.toString()) }
-    var memoryMax by remember(config) { mutableStateOf(config.memoryMax.toString()) }
-    var gamemode by remember(config) { mutableStateOf(config.properties["gamemode"] ?: "survival") }
-    var difficulty by remember(config) { mutableStateOf(config.properties["difficulty"] ?: "easy") }
-    var motd by remember(config) { mutableStateOf(config.properties["motd"] ?: "A Minecraft Server") }
-    var pvp by remember(config) { mutableStateOf(config.properties["pvp"]?.toBooleanStrictOrNull() ?: true) }
-    var onlineMode by remember(config) { mutableStateOf(config.properties["online-mode"]?.toBooleanStrictOrNull() ?: true) }
-    var whitelist by remember(config) { mutableStateOf(config.properties["white-list"]?.toBooleanStrictOrNull() ?: false) }
-    var spawnProtection by remember(config) { mutableStateOf(config.properties["spawn-protection"] ?: "16") }
-    var rconEnabled by remember(config) { mutableStateOf(config.rconEnabled) }
-    var rconPort by remember(config) { mutableStateOf(config.rconPort.toString()) }
-    var autoRestart by remember(config) { mutableStateOf(config.autoRestart) }
+    val fileSystem = koinInject<FileSystem>()
+    var name by remember(config) { mutableStateOf<String>(config.name) }
+    var port by remember(config) { mutableStateOf<String>(config.port.toString()) }
+    var memoryMin by remember(config) { mutableStateOf<String>(config.memoryMin.toString()) }
+    var memoryMax by remember(config) { mutableStateOf<String>(config.memoryMax.toString()) }
+    var gamemode by remember(config) { mutableStateOf<String>(config.properties["gamemode"] ?: "survival") }
+    var difficulty by remember(config) { mutableStateOf<String>(config.properties["difficulty"] ?: "easy") }
+    var motd by remember(config) { mutableStateOf<String>(config.properties["motd"] ?: "A Minecraft Server") }
+    var pvp by remember(config) { mutableStateOf<Boolean>(config.properties["pvp"]?.toBooleanStrictOrNull() ?: true) }
+    var onlineMode by remember(config) { mutableStateOf<Boolean>(config.properties["online-mode"]?.toBooleanStrictOrNull() ?: true) }
+    var whitelist by remember(config) { mutableStateOf<Boolean>(config.properties["white-list"]?.toBooleanStrictOrNull() ?: false) }
+    var spawnProtection by remember(config) { mutableStateOf<String>(config.properties["spawn-protection"] ?: "16") }
+    var rconEnabled by remember(config) { mutableStateOf<Boolean>(config.rconEnabled) }
+    var rconPort by remember(config) { mutableStateOf<String>(config.rconPort.toString()) }
+    var autoRestart by remember(config) { mutableStateOf<Boolean>(config.autoRestart) }
     var savedMessage by remember { mutableStateOf<String?>(null) }
+    var iconPreview by remember(config) { mutableStateOf<ImageBitmap?>(loadServerIcon(getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), config.id)))) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         Card(
@@ -260,6 +337,75 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(value = motd, onValueChange = { motd = it }, label = { Text("MOTD") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                var showMotdColors by remember { mutableStateOf(false) }
+                TextButton(onClick = { showMotdColors = !showMotdColors }) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (showMotdColors) "Hide Codes" else "Color Codes", style = MaterialTheme.typography.labelSmall)
+                }
+                if (showMotdColors) {
+                    val insertCode: (String) -> Unit = { code ->
+                        motd = motd + code
+                    }
+                    val mcColors = listOf(
+                        '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
+                        '4' to Color(0xFFAA0000), '5' to Color(0xFFAA00AA), '6' to Color(0xFFFFAA00), '7' to Color(0xFFAAAAAA),
+                        '8' to Color(0xFF555555), '9' to Color(0xFF5555FF), 'a' to Color(0xFF55FF55), 'b' to Color(0xFF55FFFF),
+                        'c' to Color(0xFFFF5555), 'd' to Color(0xFFFF55FF), 'e' to Color(0xFFFFFF55), 'f' to Color(0xFFFFFFFF),
+                    )
+                    Text("Colors", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        mcColors.forEach { (code, color) ->
+                            val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
+                            Box(modifier = Modifier.size(24.dp).clip(RoundedCornerShape(12.dp)).background(color).border(0.5.dp, borderColor, RoundedCornerShape(12.dp)).clickable { insertCode("§$code") }, contentAlignment = Alignment.Center) {
+                                Text(code.toString(), fontSize = 10.sp, color = if (code in listOf('0', '8', '4')) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Formatting", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val formatCodes = listOf("Bold" to "§l", "Italic" to "§o", "Underline" to "§n", "Strike" to "§m", "Obfuscated" to "§k", "Reset" to "§r")
+                        formatCodes.forEach { (label, code) ->
+                            SuggestionChip(onClick = { insertCode(code) }, label = { Text(label, fontSize = 11.sp) })
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B))) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            val parsed = remember(motd) { parseMotdPreview(motd) }
+                            Text(text = if (parsed.text.isEmpty()) buildAnnotatedString { withStyle(SpanStyle(color = Color(0xFFAAAAAA))) { append("MOTD preview will appear here") } } else parsed, fontSize = 15.sp, lineHeight = 22.sp)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = {
+                    val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
+                    if (files.isNotEmpty()) {
+                        scope.launch {
+                            val iconDest = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), serverId))
+                            withContext(Dispatchers.IO) {
+                                saveServerIcon(java.io.File(files[0].absolutePath), iconDest)
+                            }
+                            iconPreview = loadServerIcon(iconDest)
+                        }
+                    }
+                }) {
+                    Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (iconPreview != null) "Change Icon" else "Set Server Icon", style = MaterialTheme.typography.labelSmall)
+                }
+                if (iconPreview != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("Icon selected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = gamemode, onValueChange = { gamemode = it }, label = { Text("Gamemode") }, singleLine = true, modifier = Modifier.weight(1f))
