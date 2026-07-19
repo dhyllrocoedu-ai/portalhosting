@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -59,9 +60,13 @@ import kotlin.OptIn
 
 private val playerJson = Json { prettyPrint = true }
 
+@Serializable
 data class WhitelistEntry(val uuid: String, val name: String)
+@Serializable
 data class OpEntry(val uuid: String, val name: String, val level: Int = 4, val bypassesPlayerLimit: Boolean = false)
+@Serializable
 data class BannedPlayerEntry(val uuid: String, val name: String, val created: String? = null, val source: String? = null, val expires: String? = null, val reason: String? = null)
+@Serializable
 data class BannedIpEntry(val ip: String, val created: String? = null, val source: String? = null, val expires: String? = null, val reason: String? = null)
 
 @OptIn(ExperimentalMaterial3Api::class)

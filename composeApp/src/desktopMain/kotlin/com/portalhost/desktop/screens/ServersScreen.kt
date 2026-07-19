@@ -3,6 +3,7 @@ package com.portalhost.desktop.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,11 +13,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -210,8 +214,10 @@ fun ServersScreen(
                         )
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredServers, key = { (id, _) -> id }) { (id, config) ->
@@ -224,9 +230,7 @@ fun ServersScreen(
                         }
 
                         item {
-                            Spacer(Modifier.height(4.dp))
                             CreateServerCard(onClick = onNavigateToCreate)
-                            Spacer(Modifier.height(8.dp))
                         }
                     }
                 }
@@ -251,14 +255,15 @@ private fun ServerListItem(
         val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), server.id))
         loadServerIcon(iconFile)
     }
+    val statusColor = ThemeColors.serverStatusColor(status)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(modifier = Modifier.size(48.dp)) {
                 Surface(
                     modifier = Modifier.size(48.dp),
                     shape = RoundedCornerShape(10.dp),
@@ -268,121 +273,101 @@ private fun ServerListItem(
                         if (serverIcon != null) {
                             Image(bitmap = serverIcon, contentDescription = "Server Icon", modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)))
                         } else {
-                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(24.dp), tint = typeInfo.color)
+                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(28.dp), tint = typeInfo.color)
                         }
                     }
                 }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = server.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = typeInfo.color.copy(alpha = 0.15f)
-                        ) {
-                            Text(
-                                text = typeInfo.label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = typeInfo.color,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Box {
-                            IconButton(
-                                onClick = { showMenu = true },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Options", modifier = Modifier.size(20.dp))
-                            }
-                            DropdownMenu(
-                                expanded = showMenu,
-                                onDismissRequest = { showMenu = false },
-                                offset = DpOffset(x = (-160).dp, y = 0.dp)
-                            ) {
-                                DropdownMenuItem(
-                                    text = { Text("Open Dashboard") },
-                                    onClick = { showMenu = false; onClick() },
-                                    leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Edit") },
-                                    onClick = { showMenu = false },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Duplicate") },
-                                    onClick = { showMenu = false },
-                                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                                )
-                                HorizontalDivider()
-                                DropdownMenuItem(
-                                    text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                    onClick = { showMenu = false; onDelete() },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
-                                )
-                            }
-                        }
-                    }
-                }
+                Box(modifier = Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(12.dp).clip(CircleShape).background(statusColor).border(2.dp, MaterialTheme.colorScheme.surface, CircleShape))
             }
 
             Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = server.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = typeInfo.color.copy(alpha = 0.15f)
+            ) {
+                Text(
+                    text = typeInfo.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = typeInfo.color,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+
+            Spacer(Modifier.height(6.dp))
+
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 InfoChip(Icons.Default.Person, if (status == ServerStatus.RUNNING) "${state?.playersOnline ?: 0}" else "—", Modifier.weight(1f))
                 InfoChip(Icons.Default.Memory, "${server.memoryMax}M", Modifier.weight(1f))
-                InfoChip(Icons.Default.Storage, "—", Modifier.weight(1f))
-                InfoChip(
-                    Icons.Default.Cloud,
-                    when (status) {
-                        ServerStatus.RUNNING -> "Online"
-                        ServerStatus.STARTING -> "Starting"
-                        ServerStatus.STOPPING -> "Stopping"
-                        ServerStatus.CRASHED -> "Crashed"
-                        else -> "Offline"
-                    },
-                    Modifier.weight(1f)
-                )
             }
 
-            Spacer(Modifier.height(8.dp))
-            Row(
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = server.version.ifBlank { "Latest" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Spacer(Modifier.height(4.dp))
+
+            FilledTonalButton(
+                onClick = onClick,
+                shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val statusColor = ThemeColors.serverStatusColor(status)
-                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(statusColor))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "${server.version.ifBlank { "Latest" }}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                FilledTonalButton(
-                    onClick = onClick,
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Details", style = MaterialTheme.typography.labelSmall)
+            }
+
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(28.dp)
                 ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Open", style = MaterialTheme.typography.labelMedium)
+                    Icon(Icons.Default.MoreVert, contentDescription = "Options", modifier = Modifier.size(16.dp))
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    offset = DpOffset(x = (-120).dp, y = 0.dp)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Open Dashboard") },
+                        onClick = { showMenu = false; onClick() },
+                        leadingIcon = { Icon(Icons.Default.Dashboard, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = { showMenu = false },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                        onClick = { showMenu = false; onDelete() },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error) }
+                    )
                 }
             }
         }
@@ -412,12 +397,13 @@ private fun InfoChip(icon: ImageVector, text: String, modifier: Modifier = Modif
 private fun CreateServerCard(onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(
                 modifier = Modifier.size(48.dp),
@@ -425,15 +411,13 @@ private fun CreateServerCard(onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Create New Server", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Paper, Fabric, Forge, NeoForge, Vanilla, etc.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text("Create Server", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Spacer(Modifier.height(4.dp))
+            Text("Paper, Fabric, etc.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }

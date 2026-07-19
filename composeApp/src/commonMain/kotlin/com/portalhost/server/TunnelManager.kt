@@ -72,7 +72,9 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
             if (secretMatch != null) {
                 secretKey = secretMatch.groupValues[1]
             }
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to read existing playit config" }
+        }
     }
 
     suspend fun downloadBinary(): Result<Unit> {
@@ -203,20 +205,43 @@ mappings = [$mapping]
                     }
                 }
             } catch (_: IOException) {
+                val logTail = readLogTail()
+                if (logTail.isNotBlank() && _state.value.status != TunnelStatus.CONNECTED) {
+                    _state.value = _state.value.copy(
+                        lastOutput = logTail.take(200)
+                    )
+                }
             } catch (_: Exception) {
             } finally {
                 if (process === proc) {
                     readJob = null
-                    tunnelAddresses.clear()
                     process = null
+                    val logTail = readLogTail()
+                    val errorMsg = if (logTail.isNotBlank()) {
+                        val lines = logTail.lines()
+                        val relevant = lines.takeLast(5).filter { it.isNotBlank() }
+                        if (relevant.isNotEmpty()) relevant.joinToString(" | ") else "Process exited"
+                    } else {
+                        "Process exited"
+                    }
+                    tunnelAddresses.clear()
                     _state.value = _state.value.copy(
                         status = TunnelStatus.ERROR,
                         tunnels = emptyList(),
-                        error = "Process exited",
+                        error = errorMsg,
                     )
                 }
             }
         }
+    }
+
+    private fun readLogTail(): String {
+        return try {
+            val logFile = File(playitDir, "playitd.log")
+            if (logFile.exists()) {
+                logFile.readLines().takeLast(15).joinToString("\n")
+            } else ""
+        } catch (_: Exception) { "" }
     }
 
     private fun parseLine(text: String, serverPort: Int) {

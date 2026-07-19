@@ -66,6 +66,7 @@ class ServerManager(
         _servers.value = serversMap
         _serverStates.value = states
 
+        val consoleMap = mutableMapOf<String, List<String>>()
         for ((id, _) in serversMap) {
             val serverDir = getServerDir(id)
             serverDir.mkdirs()
@@ -74,7 +75,9 @@ class ServerManager(
             if (oldJar.exists() && !newJar.exists()) {
                 oldJar.renameTo(newJar)
             }
+            consoleMap[id] = database.getConsoleLogs(id)
         }
+        _consoleOutputs.value = consoleMap
     }
 
     private fun getServerDir(serverId: String): File {

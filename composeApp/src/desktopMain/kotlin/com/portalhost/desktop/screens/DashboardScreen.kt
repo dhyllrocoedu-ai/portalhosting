@@ -1151,16 +1151,3 @@ private fun formatRam(bytes: Long): String = when {
     else -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024 * 1024))}GB"
 }
 
-private fun consoleLineColor(line: String): Color {
-    return when {
-        line.contains(" ERROR ") || line.contains("FATAL") || line.contains("exception", ignoreCase = true) -> ThemeColors.ConsoleLineColors.Error
-        line.contains(" WARN ") -> ThemeColors.ConsoleLineColors.Warning
-        line.contains(" INFO ") || line.contains("[User Authenticator #") -> ThemeColors.ConsoleLineColors.Info
-        line.contains("joined the game") -> ThemeColors.ConsoleLineColors.PlayerJoin
-        line.contains("left the game") -> ThemeColors.ConsoleLineColors.PlayerLeave
-        line.contains("<") && line.contains(">") -> ThemeColors.ConsoleLineColors.Chat
-        line.contains("DEBUG") || line.contains("TRACE") -> ThemeColors.ConsoleLineColors.Debug
-        line.matches(Regex("""^\s*\[\d+:\d+:\d+\]\[.*\].*""")) -> ThemeColors.ConsoleLineColors.Default
-        else -> ThemeColors.ConsoleLineColors.Default
-    }
-}

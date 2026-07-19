@@ -44,7 +44,9 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.singleWindowApplication
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.WindowState
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.desktop.screens.CreateServerScreen
@@ -62,8 +64,12 @@ import com.portalhost.log.setupLogging
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.ServerManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import mu.KotlinLogging
 import org.koin.compose.koinInject
 import java.io.File
+
+private val logger = KotlinLogging.logger {}
 
 sealed class Screen {
     object Home : Screen()
@@ -87,6 +93,10 @@ fun DesktopApp() {
     val serverManager = koinInject<ServerManager>()
     val themePref by preferences.theme.collectAsState()
     val firstRunCompleted by preferences.firstRunCompleted.collectAsState()
+
+    LaunchedEffect(firstRunCompleted) {
+        logger.info { "firstRunCompleted = $firstRunCompleted" }
+    }
 
     val isDark = when (themePref) {
         "dark" -> true
@@ -132,7 +142,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.17")
+                        Text("Version 5.0.18")
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))
@@ -295,16 +305,54 @@ fun main() {
     }
 
     val prefs = org.koin.core.context.GlobalContext.get().get<com.portalhost.preferences.Preferences>()
+    val serverManager = org.koin.core.context.GlobalContext.get().get<com.portalhost.server.ServerManager>()
     val savedWidth = prefs.windowWidth.value
     val savedHeight = prefs.windowHeight.value
 
-    singleWindowApplication(
-        title = "Portal Host",
-        state = WindowState(
+    application {
+        var isWindowVisible by remember { mutableStateOf(true) }
+        val windowState = rememberWindowState(
             width = savedWidth.dp,
             height = savedHeight.dp,
-        ),
-    ) {
-        AppContent()
+        )
+
+        val trayManager = remember {
+            SystemTrayManager(
+                serverManager = serverManager,
+                onShowWindow = { isWindowVisible = true },
+                onExit = {
+                    runBlocking {
+                        val runningServers = serverManager.servers.value.entries
+                            .filter { (id, _) ->
+                                val state = serverManager.serverStates.value[id]
+                                state?.status == com.portalhost.model.ServerStatus.RUNNING || state?.status == com.portalhost.model.ServerStatus.STARTING
+                            }
+                        for ((id, _) in runningServers) {
+                            serverManager.stopServer(id)
+                        }
+                    }
+                    exitApplication()
+                },
+            )
+        }
+
+        LaunchedEffect(isWindowVisible) {
+            if (!isWindowVisible) {
+                trayManager.install()
+            } else {
+                trayManager.remove()
+            }
+        }
+
+        Window(
+            onCloseRequest = {
+                isWindowVisible = false
+            },
+            state = windowState,
+            title = "Portal Host",
+            visible = isWindowVisible,
+        ) {
+            AppContent()
+        }
     }
 }
