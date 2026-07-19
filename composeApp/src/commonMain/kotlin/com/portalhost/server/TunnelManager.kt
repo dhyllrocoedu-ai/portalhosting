@@ -183,10 +183,8 @@ mappings = [$mapping]
             delay(1000)
             if (!proc.isAlive) {
                 val exitCode = proc.exitValue()
-                val errorOutput = proc.errorStream.bufferedReader().readText()
-                val output = proc.inputStream.bufferedReader().readText()
-                logger.error { "Tunnel process exited immediately with code $exitCode. Output: $output Error: $errorOutput" }
-                _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = "Process exited with code $exitCode: $output")
+                logger.error { "Tunnel process exited immediately with code $exitCode" }
+                _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = "Process exited with code $exitCode")
                 return Result.failure(Exception("Process exited with code $exitCode"))
             }
 

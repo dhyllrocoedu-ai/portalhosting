@@ -324,6 +324,12 @@ fun DashboardScreen(
                     onCommandInputChange = { commandInput = it }
                 )
 
+                PlayerListCard(
+                    players = emptyList<String>(),
+                    maxPlayers = activeState?.maxPlayers ?: 20,
+                    onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
+                )
+
                 ActivityCard(activities = activities)
             }
         }
@@ -689,7 +695,6 @@ private fun PerformanceCard(
                 Surface(
                     modifier = Modifier.weight(1f)
                         .fillMaxWidth()
-                        .clickable { onOpenPlayers() }
                         .padding(vertical = 14.dp),
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
@@ -1054,6 +1059,55 @@ private fun ActivityRow(entry: ActivityEntry) {
         )
         Spacer(Modifier.width(8.dp))
         Text("[${entry.serverName}] ${entry.action}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun PlayerListCard(
+    players: List<String>,
+    maxPlayers: Int = 20,
+    onOpenPlayers: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Online Players (${players.size}/$maxPlayers)", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onOpenPlayers) {
+                    Text("Player Management →")
+                }
+            }
+
+            if (players.isEmpty()) {
+                Row(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                    Text("0 online", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+                players.forEach { player ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(player, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
     }
 }
 

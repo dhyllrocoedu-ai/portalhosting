@@ -16,6 +16,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Shield
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -106,6 +109,8 @@ private fun OnlinePlayersTab(serverId: String) {
     var players by remember { mutableStateOf<List<WhitelistEntry>>(emptyList()) }
     var newPlayerName by remember { mutableStateOf("") }
     var newPlayerUuid by remember { mutableStateOf("") }
+    var currentPage by remember { mutableIntStateOf(0) }
+    val pageSize = 5
 
     LaunchedEffect(usercacheFile) {
         if (usercacheFile.exists()) {
@@ -117,6 +122,9 @@ private fun OnlinePlayersTab(serverId: String) {
             players = emptyList()
         }
     }
+
+    val totalPages = ((players.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+    val pagedPlayers = players.drop(currentPage * pageSize).take(pageSize)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -142,7 +150,7 @@ private fun OnlinePlayersTab(serverId: String) {
             }
         } else {
             LazyColumn {
-                items(players) { player ->
+                items(pagedPlayers) { player ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -161,6 +169,24 @@ private fun OnlinePlayersTab(serverId: String) {
                     }
                 }
             }
+            if (totalPages > 1) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous page")
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Text("${currentPage + 1} / $totalPages", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(16.dp))
+                    IconButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next page")
+                    }
+                }
+            }
         }
     }
 }
@@ -171,6 +197,8 @@ private fun WhitelistTab(serverId: String) {
     var players by remember(file) { mutableStateOf<List<WhitelistEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
     var newUuid by remember { mutableStateOf("") }
+    var currentPage by remember { mutableIntStateOf(0) }
+    val pageSize = 5
 
     LaunchedEffect(file) {
         players = if (file.exists()) {
@@ -178,6 +206,9 @@ private fun WhitelistTab(serverId: String) {
             json.decodeFromString<List<WhitelistEntry>>(file.readText())
         } else emptyList()
     }
+
+    val totalPages = ((players.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+    val pagedPlayers = players.drop(currentPage * pageSize).take(pageSize)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -240,7 +271,7 @@ private fun WhitelistTab(serverId: String) {
             }
         } else {
             LazyColumn {
-                items(players) { player ->
+                items(pagedPlayers) { player ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -265,6 +296,24 @@ private fun WhitelistTab(serverId: String) {
                     }
                 }
             }
+            if (totalPages > 1) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous page")
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Text("${currentPage + 1} / $totalPages", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(16.dp))
+                    IconButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next page")
+                    }
+                }
+            }
         }
     }
 }
@@ -276,6 +325,8 @@ private fun OperatorsTab(serverId: String) {
     var newName by remember { mutableStateOf("") }
     var newUuid by remember { mutableStateOf("") }
     var newLevel by remember { mutableStateOf(4) }
+    var currentPage by remember { mutableIntStateOf(0) }
+    val pageSize = 5
 
     LaunchedEffect(file) {
         players = if (file.exists()) {
@@ -283,6 +334,9 @@ private fun OperatorsTab(serverId: String) {
             json.decodeFromString<List<OpEntry>>(file.readText())
         } else emptyList()
     }
+
+    val totalPages = ((players.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+    val pagedPlayers = players.drop(currentPage * pageSize).take(pageSize)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -352,7 +406,7 @@ private fun OperatorsTab(serverId: String) {
             }
         } else {
             LazyColumn {
-                items(players) { player ->
+                items(pagedPlayers) { player ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -377,6 +431,24 @@ private fun OperatorsTab(serverId: String) {
                     }
                 }
             }
+            if (totalPages > 1) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous page")
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Text("${currentPage + 1} / $totalPages", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(16.dp))
+                    IconButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next page")
+                    }
+                }
+            }
         }
     }
 }
@@ -388,6 +460,8 @@ private fun BannedPlayersTab(serverId: String) {
     var newName by remember { mutableStateOf("") }
     var newUuid by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
+    var currentPage by remember { mutableIntStateOf(0) }
+    val pageSize = 5
 
     LaunchedEffect(file) {
         players = if (file.exists()) {
@@ -395,6 +469,9 @@ private fun BannedPlayersTab(serverId: String) {
             json.decodeFromString<List<BannedPlayerEntry>>(file.readText())
         } else emptyList()
     }
+
+    val totalPages = ((players.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+    val pagedPlayers = players.drop(currentPage * pageSize).take(pageSize)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -472,7 +549,7 @@ private fun BannedPlayersTab(serverId: String) {
             }
         } else {
             LazyColumn {
-                items(players) { player ->
+                items(pagedPlayers) { player ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -497,6 +574,24 @@ private fun BannedPlayersTab(serverId: String) {
                     }
                 }
             }
+            if (totalPages > 1) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous page")
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Text("${currentPage + 1} / $totalPages", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(16.dp))
+                    IconButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next page")
+                    }
+                }
+            }
         }
     }
 }
@@ -507,6 +602,8 @@ private fun BannedIpsTab(serverId: String) {
     var entries by remember(file) { mutableStateOf<List<BannedIpEntry>>(emptyList()) }
     var newIp by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }
+    var currentPage by remember { mutableIntStateOf(0) }
+    val pageSize = 5
 
     LaunchedEffect(file) {
         entries = if (file.exists()) {
@@ -514,6 +611,9 @@ private fun BannedIpsTab(serverId: String) {
             json.decodeFromString<List<BannedIpEntry>>(file.readText())
         } else emptyList()
     }
+
+    val totalPages = ((entries.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+    val pagedEntries = entries.drop(currentPage * pageSize).take(pageSize)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -581,7 +681,7 @@ private fun BannedIpsTab(serverId: String) {
             }
         } else {
             LazyColumn {
-                items(entries) { entry ->
+                items(pagedEntries) { entry ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -603,6 +703,24 @@ private fun BannedIpsTab(serverId: String) {
                                 Text("Unban", color = MaterialTheme.colorScheme.primary)
                             }
                         }
+                    }
+                }
+            }
+            if (totalPages > 1) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous page")
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Text("${currentPage + 1} / $totalPages", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.width(16.dp))
+                    IconButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Next page")
                     }
                 }
             }

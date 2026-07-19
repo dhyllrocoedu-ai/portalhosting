@@ -54,6 +54,7 @@ import com.portalhost.desktop.screens.ServerDetailScreen
 import com.portalhost.desktop.screens.ServersScreen
 import com.portalhost.desktop.screens.SettingsScreen
 import com.portalhost.desktop.screens.ToastHost
+import com.portalhost.desktop.screens.WelcomeScreen
 import com.portalhost.di.desktopModule
 import com.portalhost.di.initKoin
 import com.portalhost.log.setupLogging
@@ -83,6 +84,7 @@ fun DesktopApp() {
     val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
     val serverManager = koinInject<ServerManager>()
     val themePref by preferences.theme.collectAsState()
+    val firstRunCompleted by preferences.firstRunCompleted.collectAsState()
 
     val isDark = when (themePref) {
         "dark" -> true
@@ -91,6 +93,14 @@ fun DesktopApp() {
     }
 
     val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
+
+    // Show welcome screen on first run
+    if (!firstRunCompleted) {
+        WelcomeScreen(onFinish = {
+            preferences.firstRunCompleted.value = true
+        })
+        return
+    }
 
     val showTabs = currentScreen is Screen.Home || currentScreen is Screen.Servers || currentScreen is Screen.Settings
     val showFab = currentScreen is Screen.Servers
@@ -121,7 +131,7 @@ fun DesktopApp() {
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.12")
+                        Text("Version 5.0.13")
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))
@@ -182,7 +192,7 @@ fun DesktopApp() {
                             false
                         }
                     },
-) {
+            ) {
                 if (showTabs) {
                     TabRow(selectedTabIndex = selectedTab) {
                         Tab(
@@ -221,11 +231,15 @@ fun DesktopApp() {
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
                                 onNavigateToCreate = { currentScreen = Screen.Create },
+                                onNavigateToPlayers = { serverId ->
+                                    currentScreen = Screen.ServerDetail(serverId)
+                                },
                             )
                             Screen.Servers -> ServersScreen(
                                 onNavigateToDetail = { serverId ->
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
+                                onNavigateToCreate = { currentScreen = Screen.Create },
                             )
                             is Screen.ServerDetail -> ServerDetailScreen(
                                 serverId = (currentScreen as Screen.ServerDetail).serverId,
@@ -239,6 +253,7 @@ fun DesktopApp() {
                                 onServerCreated = { serverId ->
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
+                                onBack = { currentScreen = Screen.Servers },
                             )
                             Screen.Settings -> SettingsScreen()
                         }

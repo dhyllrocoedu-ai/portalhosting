@@ -94,7 +94,10 @@ private fun serverTypeInfo(type: com.portalhost.model.ServerType): ServerTypeInf
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun ServersScreen(onNavigateToDetail: (String) -> Unit = {}) {
+fun ServersScreen(
+    onNavigateToDetail: (String) -> Unit = {},
+    onNavigateToCreate: () -> Unit = {}
+) {
     val serverManager = koinInject<ServerManager>()
     val servers by serverManager.servers.collectAsState()
     val serverStates by serverManager.serverStates.collectAsState()
@@ -158,7 +161,7 @@ fun ServersScreen(onNavigateToDetail: (String) -> Unit = {}) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
                         FilledTonalButton(
-                            onClick = { onNavigateToDetail("") },
+                            onClick = onNavigateToCreate,
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -222,7 +225,7 @@ fun ServersScreen(onNavigateToDetail: (String) -> Unit = {}) {
 
                         item {
                             Spacer(Modifier.height(4.dp))
-                            CreateServerCard(onClick = { onNavigateToDetail("") })
+                            CreateServerCard(onClick = onNavigateToCreate)
                             Spacer(Modifier.height(8.dp))
                         }
                     }

@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CheckCircle
@@ -191,7 +192,10 @@ private fun parseMotdPreview(motd: String): AnnotatedString {
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("EXPERIMENTAL_API_USAGE")
 @Composable
-fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
+fun CreateServerScreen(
+    onServerCreated: (String) -> Unit = {},
+    onBack: () -> Unit = {}
+) {
     val serverManager = koinInject<ServerManager>()
     val serverDownloader = koinInject<ServerDownloader>()
     val providerRegistry = koinInject<ServerProviderRegistry>()
@@ -741,7 +745,16 @@ fun CreateServerScreen(onServerCreated: (String) -> Unit = {}) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Text("Create New Server", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("Create New Server", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                }
                 Spacer(Modifier.height(16.dp))
                 StepIndicator(current = currentStep, total = totalSteps)
                 Spacer(Modifier.height(16.dp))
