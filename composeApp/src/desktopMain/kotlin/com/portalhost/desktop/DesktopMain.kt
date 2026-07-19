@@ -92,38 +92,36 @@ fun DesktopApp() {
         else -> isSystemInDarkTheme()
     }
 
-    val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
-
-    // Show welcome screen on first run
-    if (!firstRunCompleted) {
-        WelcomeScreen(onFinish = {
-            preferences.firstRunCompleted.value = true
-        })
-        return
-    }
-
-    val showTabs = currentScreen is Screen.Home || currentScreen is Screen.Servers || currentScreen is Screen.Settings
-    val showFab = currentScreen is Screen.Servers
-
-    val selectedTab = when (currentScreen) {
-        Screen.Home -> 0
-        Screen.Servers, is Screen.ServerDetail, is Screen.Console, Screen.Create -> 1
-        Screen.Settings -> 2
-    }
-
-    val title = when (currentScreen) {
-        Screen.Home -> "Home"
-        Screen.Servers -> "Servers"
-        is Screen.ServerDetail -> "Server Details"
-        is Screen.Console -> "Console"
-        Screen.Create -> "New Server"
-        Screen.Settings -> "Settings"
-    }
+val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
 
     MaterialTheme(colorScheme = colorScheme) {
-        val scope = rememberCoroutineScope()
+        // Show welcome screen on first run
+        if (!firstRunCompleted) {
+            WelcomeScreen(onFinish = {
+                preferences.firstRunCompleted.value = true
+            })
+        } else {
+            val showTabs = currentScreen is Screen.Home || currentScreen is Screen.Servers || currentScreen is Screen.Settings
+            val showFab = currentScreen is Screen.Servers
 
-        // About dialog
+            val selectedTab = when (currentScreen) {
+                Screen.Home -> 0
+                Screen.Servers, is Screen.ServerDetail, is Screen.Console, Screen.Create -> 1
+                Screen.Settings -> 2
+            }
+
+            val title = when (currentScreen) {
+                Screen.Home -> "Home"
+                Screen.Servers -> "Servers"
+                is Screen.ServerDetail -> "Server Details"
+                is Screen.Console -> "Console"
+                Screen.Create -> "New Server"
+                Screen.Settings -> "Settings"
+            }
+
+            val scope = rememberCoroutineScope()
+
+            // About dialog
         if (showAboutDialog) {
             AlertDialog(
                 onDismissRequest = { showAboutDialog = false },
@@ -131,7 +129,7 @@ fun DesktopApp() {
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.13")
+                        Text("Version 5.0.14")
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))
@@ -249,7 +247,7 @@ fun DesktopApp() {
                                 serverId = (currentScreen as Screen.Console).serverId,
                                 onBack = { currentScreen = Screen.Home },
                             )
-                            Screen.Create -> CreateServerScreen(
+Screen.Create -> CreateServerScreen(
                                 onServerCreated = { serverId ->
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
@@ -263,8 +261,7 @@ fun DesktopApp() {
         }
     }
 }
-
-// DesktopApp() function ends above
+}
 
 @Composable
 fun AppContent() {

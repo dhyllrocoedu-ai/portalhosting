@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Dns
@@ -26,7 +25,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,10 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.preferences.Preferences
-import com.portalhost.server.ServerManager
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import java.io.File
+import java.awt.FileDialog
+import java.awt.Frame
+import java.util.concurrent.atomic.AtomicReference
 
 @Composable
 fun WelcomeScreen(
@@ -57,14 +55,15 @@ fun WelcomeScreen(
 ) {
     val preferences = koinInject<Preferences>()
     val fileSystem = koinInject<FileSystem>()
-    val scope = rememberCoroutineScope()
 
     var currentStep by remember { mutableStateOf(0) }
-    var dataDir by remember { mutableStateOf("") }
-    var downloadServer by remember { mutableStateOf(false) }
+    var dataDir by remember { mutableStateOf(System.getProperty("user.home") + "/PortalHost") }
     var serverName by remember { mutableStateOf("My First Server") }
     var serverVersion by remember { mutableStateOf("Paper - Latest") }
     var memory by remember { mutableStateOf("2048") }
+
+    var dataDirError by remember { mutableStateOf(false) }
+    var serverNameError by remember { mutableStateOf(false) }
 
     val steps = listOf(
         "Welcome",
@@ -73,120 +72,117 @@ fun WelcomeScreen(
         "All Set!"
     )
 
-    val maxStep = steps.lastIndex
-
-    MaterialTheme {
-        Surface(
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = androidx.compose.material3.MaterialTheme.colorScheme.background
+    ) {
+        Column(
             modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
+            Card(
+                modifier = Modifier
+                    .width(600.dp)
+                    .height(500.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Card(
-                    modifier = Modifier
-                        .width(600.dp)
-                        .height(500.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    shape = RoundedCornerShape(16.dp)
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
+                    // Step indicator
+                    StepIndicator(
+                        currentStep = currentStep,
+                        steps = steps
+                    )
+
+                    // Content
                     Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 48.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        // Step indicator
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 32.dp, vertical = 24.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            steps.forEachIndexed { index, step ->
-                                StepIndicator(
-                                    number = index + 1,
-                                    label = step,
-                                    isActive = index == currentStep,
-                                    isCompleted = index < currentStep,
-                                    isLast = index == steps.lastIndex
-                                )
+                        when (currentStep) {
+                            0 -> WelcomeContent(
+                                title = "Welcome to Portal Host",
+                                description = "Manage your Minecraft Java Edition servers with ease. This quick setup will get you started in minutes.",
+                                subtitle = "Let's get you set up with your first Minecraft server."
+                            )
+                            1 -> DataDirectoryStep(
+                                dataDir = dataDir,
+                                onDataDirChange = { dataDir = it; dataDirError = false },
+                                onBrowse = { onBrowseClicked() },
+                                error = dataDirError,
+                                errorMessage = "Please select a data directory"
+                            )
+                            2 -> CreateServerStep(
+                                serverName = serverName,
+                                onServerNameChange = { serverName = it; serverNameError = false },
+                                serverVersion = serverVersion,
+                                onVersionChange = { serverVersion = it },
+                                memory = memory,
+                                onMemoryChange = { memory = it },
+                                serverNameError = serverNameError,
+                                serverNameErrorMessage = "Please enter a server name"
+                            )
+                            3 -> FinishContent(
+                                title = "All Set!",
+                                description = "You're ready to go!",
+                                subtitle = "Click finish to start managing your server"
+                            )
+                        }
+                    }
+
+                    // Navigation buttons
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 24.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        if (currentStep > 0) {
+                            TextButton(onClick = { currentStep--; dataDirError = false; serverNameError = false }) {
+                                Text("Back")
                             }
                         }
-
-                        // Content
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 48.dp, vertical = 16.dp),
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            when (currentStep) {
-                                0 -> WelcomeContent(
-                                    title = "Welcome to Portal Host",
-                                    description = "Manage your Minecraft Java Edition servers with ease. This quick setup will get you started in minutes.",
-                                    subtitle = "Let's get you set up with your first Minecraft server."
-                                )
-                                1 -> DataDirectoryStep(
-                                    dataDir = dataDir,
-                                    onDataDirChange = { dataDir = it },
-                                    onBrowse = { /* TODO: implement folder picker */ }
-                                )
-                                2 -> CreateServerStep(
-                                    serverName = serverName,
-                                    onServerNameChange = { serverName = it },
-                                    serverVersion = serverVersion,
-                                    onVersionChange = { serverVersion = it },
-                                    memory = memory,
-                                    onMemoryChange = { memory = it },
-                                    onDownloadServer = { downloadServer = true }
-                                )
-                                3 -> FinishContent(
-                                    title = "All Set!",
-                                    description = "You're ready to go!",
-                                    subtitle = "Click finish to start managing your server"
-                                )
-                            }
-                        }
-
-                        // Navigation buttons
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 32.dp, vertical = 24.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            if (currentStep > 0) {
-                                TextButton(onClick = { currentStep-- }) {
-                                    Text("Back")
-                                }
-                            }
-                            Spacer(Modifier.weight(1f))
-                            if (currentStep < 3) {
-                                Button(
-                                    onClick = {
-                                        if (currentStep == 1 && dataDir.isBlank()) {
-                                            // TODO: show error
-                                        } else if (currentStep == 2 && serverName.isBlank()) {
-                                            // TODO: show error
-                                        } else {
-                                            currentStep++
+                        Spacer(Modifier.weight(1f))
+                        if (currentStep < 3) {
+                            Button(
+                                onClick = {
+                                    when (currentStep) {
+                                        1 -> {
+                                            if (dataDir.isBlank()) {
+                                                dataDirError = true
+                                            } else {
+                                                currentStep++
+                                            }
                                         }
+                                        2 -> {
+                                            if (serverName.isBlank()) {
+                                                serverNameError = true
+                                            } else {
+                                                currentStep++
+                                            }
+                                        }
+                                        else -> currentStep++
                                     }
-                                ) {
-                                    Text("Next")
-                                    Icon(
-                                        imageVector = Icons.Filled.ArrowForward,
-                                        contentDescription = null,
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
                                 }
-                            } else {
-                                Button(onClick = {
-                                    onFinish()
-                                }) {
-                                    Text("Get Started")
-                                }
+                            ) {
+                                Text("Next")
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                        } else {
+                            Button(onClick = {
+                                onFinish()
+                            }) {
+                                Text("Get Started")
                             }
                         }
                     }
@@ -198,72 +194,80 @@ fun WelcomeScreen(
 
 @Composable
 private fun StepIndicator(
-    number: Int,
-    label: String,
-    isActive: Boolean,
-    isCompleted: Boolean,
-    isLast: Boolean
+    currentStep: Int,
+    steps: List<String>
 ) {
-    Column(
+    val lastIndex = steps.lastIndex
+    Row(
         modifier = Modifier
-            .fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 24.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        if (!isLast) {
-            Box(
-                modifier = Modifier
-                    .width(48.dp)
-                    .height(2.dp)
-                    .background(
-                        if (isCompleted) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outlineVariant
-                    )
-            )
-        }
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(
-                    if (isActive) MaterialTheme.colorScheme.primary
-                    else if (isCompleted) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
-                .clip(RoundedCornerShape(16.dp))
-        ) {
-            if (isCompleted) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = "Completed",
-                    tint = MaterialTheme.colorScheme.onPrimary,
+        steps.forEachIndexed { index, step ->
+            if (index > 0) {
+                // Connecting line between steps
+                Box(
                     modifier = Modifier
-                        .size(20.dp)
-                        .padding(6.dp)
-                        .align(Alignment.Center)
+                        .weight(1f)
+                        .height(2.dp)
+                        .background(
+                            if (index <= currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
+                            else androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant
+                        )
                 )
-            } else {
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Circle
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            if (index == currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
+                            else if (index < currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
+                            else androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    if (index < currentStep) {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = "Completed",
+                            tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .padding(6.dp)
+                                .align(Alignment.Center)
+                        )
+                    } else {
+                        Text(
+                            text = (index + 1).toString(),
+                            color = if (index == currentStep) androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
+                            else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .align(Alignment.Center)
+                        )
+                    }
+                }
                 Text(
-                    text = number.toString(),
-                    color = if (isActive) MaterialTheme.colorScheme.onPrimary
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .align(Alignment.Center)
+                    text = step,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                    color = if (index == currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
+                    else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.width(80.dp)
                 )
             }
         }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isActive) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            maxLines = 2,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.width(80.dp)
-        )
     }
 }
 
@@ -280,13 +284,13 @@ private fun WelcomeContent(
         Box(
             modifier = Modifier
                 .size(120.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
                 .align(Alignment.CenterHorizontally)
         ) {
             Icon(
                 imageVector = Icons.Filled.Dns,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .size(64.dp)
                     .align(Alignment.Center)
@@ -294,21 +298,21 @@ private fun WelcomeContent(
         }
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
+            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
             text = description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
             text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
@@ -318,7 +322,9 @@ private fun WelcomeContent(
 private fun DataDirectoryStep(
     dataDir: String,
     onDataDirChange: (String) -> Unit,
-    onBrowse: () -> Unit
+    onBrowse: () -> Unit,
+    error: Boolean,
+    errorMessage: String
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(24.dp),
@@ -327,13 +333,13 @@ private fun DataDirectoryStep(
         Box(
             modifier = Modifier
                 .size(120.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
                 .align(Alignment.CenterHorizontally)
         ) {
             Icon(
                 imageVector = Icons.Filled.Folder,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .size(64.dp)
                     .align(Alignment.Center)
@@ -341,15 +347,15 @@ private fun DataDirectoryStep(
         }
         Text(
             text = "Data Directory",
-            style = MaterialTheme.typography.headlineMedium,
+            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
             text = "Choose where to store your server files. This is where all your server data, worlds, and configurations will be saved.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         OutlinedTextField(
@@ -363,12 +369,14 @@ private fun DataDirectoryStep(
                     Text("Browse")
                 }
             },
-            singleLine = true
+            singleLine = true,
+            isError = error,
+            supportingText = { if (error) Text(errorMessage, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) }
         )
         Text(
             text = "Recommended: Use an empty folder on a fast drive (SSD preferred)",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
@@ -382,7 +390,8 @@ private fun CreateServerStep(
     onVersionChange: (String) -> Unit,
     memory: String,
     onMemoryChange: (String) -> Unit,
-    onDownloadServer: () -> Unit
+    serverNameError: Boolean,
+    serverNameErrorMessage: String
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -391,13 +400,13 @@ private fun CreateServerStep(
         Box(
             modifier = Modifier
                 .size(120.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
                 .align(Alignment.CenterHorizontally)
         ) {
             Icon(
                 imageVector = Icons.Filled.FileDownload,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .size(64.dp)
                     .align(Alignment.Center)
@@ -405,15 +414,15 @@ private fun CreateServerStep(
         }
         Text(
             text = "Create Your First Server",
-            style = MaterialTheme.typography.headlineMedium,
+            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
-            text = "Configure your first Minecraft server. We'll download the server JAR for you.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            text = "Configure your first Minecraft server. You can create and download servers after setup.",
+            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
@@ -427,7 +436,9 @@ private fun CreateServerStep(
                 label = { Text("Server Name") },
                 placeholder = { Text("My First Server") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                isError = serverNameError,
+                supportingText = { if (serverNameError) Text(serverNameErrorMessage, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) }
             )
             OutlinedTextField(
                 value = serverVersion,
@@ -448,20 +459,6 @@ private fun CreateServerStep(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
-            Button(
-                onClick = onDownloadServer,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("Download & Create Server", fontWeight = FontWeight.Medium)
-                Icon(
-                    imageVector = Icons.Filled.FileDownload,
-                    contentDescription = null,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
         }
     }
 }
@@ -479,13 +476,13 @@ private fun FinishContent(
         Box(
             modifier = Modifier
                 .size(120.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
+                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
                 .align(Alignment.CenterHorizontally)
         ) {
             Icon(
                 imageVector = Icons.Filled.CheckCircle,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
                     .size(64.dp)
                     .align(Alignment.Center)
@@ -493,28 +490,41 @@ private fun FinishContent(
         }
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
+            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
             text = description,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
             text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
 }
 
-data class WelcomeStep(
-    val title: String,
-    val description: String,
-    val subtitle: String
-)
+private fun onBrowseClicked() {
+    // Use atomic reference to pass result back from EDT
+    val result = AtomicReference<String?>(null)
+    val frame = Frame()
+    frame.isVisible = false
+    
+    val dialog = FileDialog(frame, "Select Data Directory", FileDialog.LOAD)
+    dialog.setDirectory(System.getProperty("user.home"))
+    dialog.setVisible(true)
+    
+    val selectedDir = dialog.directory
+    val selectedFile = dialog.file
+    if (selectedDir != null && selectedFile != null) {
+        val fullPath = java.io.File(selectedDir, selectedFile).absolutePath
+        result.set(fullPath)
+    }
+    frame.dispose()
+}
