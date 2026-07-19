@@ -122,6 +122,7 @@ import com.portalhost.server.getServerIconFile
 import com.portalhost.server.loadServerIcon
 import com.portalhost.server.LogLevel
 import com.portalhost.server.ALL_LOG_LEVELS
+import com.portalhost.theme.ThemeColors
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
@@ -219,13 +220,7 @@ fun DashboardScreen(
                     }
                 }
             } else {
-                val statusColor = when (activeState?.status) {
-                    ServerStatus.RUNNING -> Color(0xFF4CAF50)
-                    ServerStatus.STARTING -> Color(0xFFFFC107)
-                    ServerStatus.STOPPING -> Color(0xFFFF9800)
-                    ServerStatus.CRASHED -> Color(0xFFF44336)
-                    else -> Color(0xFF9E9E9E)
-                }
+                val statusColor = ThemeColors.serverStatusColor(activeState?.status ?: ServerStatus.STOPPED)
 
                 ServerCard(
                     serverIcon = serverIcon,
@@ -353,13 +348,7 @@ private fun ServerCard(
 ) {
     val status = activeState?.status ?: ServerStatus.STOPPED
     val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
-    val statusColorForBadge = when (status) {
-        ServerStatus.RUNNING -> Color(0xFF4CAF50)
-        ServerStatus.STARTING -> Color(0xFFFFC107)
-        ServerStatus.STOPPING -> Color(0xFFFF9800)
-        ServerStatus.CRASHED -> Color(0xFFF44336)
-        else -> Color(0xFFA5D6A7)
-    }
+    val statusColorForBadge = ThemeColors.serverStatusColor(status)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -456,14 +445,14 @@ private fun ServerCard(
                     label = "Start",
                     onClick = onStart,
                     enabled = canStart,
-                    color = Color(0xFF4CAF50)
+                    color = ThemeColors.StatusSuccess
                 )
                 ControlButton(
                     icon = Icons.Default.Stop,
                     label = "Stop",
                     onClick = onStop,
                     enabled = canStop,
-                    color = Color(0xFFF44336)
+                    color = ThemeColors.StatusError
                 )
                 ControlButton(
                     icon = Icons.Default.Refresh,
@@ -1030,15 +1019,15 @@ private fun activityIconAndColor(action: String, defaultTint: Color): Pair<Image
     val lower = action.lowercase()
     return when {
         lower.contains("start") || lower.contains("launch") || lower.contains("join") ->
-            Icons.Default.CheckCircle to Color(0xFF4CAF50)
+            Icons.Default.CheckCircle to ThemeColors.ActivityLogColors.Start
         lower.contains("error") || lower.contains("crash") || lower.contains("fail") ->
-            Icons.Default.Error to Color(0xFFF44336)
+            Icons.Default.Error to ThemeColors.ActivityLogColors.Error
         lower.contains("warn") || lower.contains("warning") ->
-            Icons.Default.Warning to Color(0xFFFFC107)
+            Icons.Default.Warning to ThemeColors.ActivityLogColors.Warning
         lower.contains("leave") || lower.contains("quit") || lower.contains("disconnect") ->
-            Icons.Default.PersonRemove to Color(0xFFFF9800)
+            Icons.Default.PersonRemove to ThemeColors.ActivityLogColors.Leave
         lower.contains("player") || lower.contains("chat") ->
-            Icons.Default.Person to Color(0xFF2196F3)
+            Icons.Default.Person to ThemeColors.ActivityLogColors.Player
         else -> Icons.Default.Info to defaultTint
     }
 }
@@ -1077,14 +1066,14 @@ private fun formatRam(bytes: Long): String = when {
 
 private fun consoleLineColor(line: String): Color {
     return when {
-        line.contains(" ERROR ") || line.contains("FATAL") || line.contains("exception", ignoreCase = true) -> Color(0xFFFF5555)
-        line.contains(" WARN ") -> Color(0xFFFFAA00)
-        line.contains(" INFO ") || line.contains("[User Authenticator #") -> Color(0xFFE0E0E0)
-        line.contains("joined the game") -> Color(0xFF55FF55)
-        line.contains("left the game") -> Color(0xFFFFFF55)
-        line.contains("<") && line.contains(">") -> Color(0xFFAA55FF)
-        line.contains("DEBUG") || line.contains("TRACE") -> Color(0xFF888888)
-        line.matches(Regex("""^\s*\[\d+:\d+:\d+\]\[.*\].*""")) -> Color(0xFFB0BEC5)
-        else -> Color(0xFFCCCCCC)
+        line.contains(" ERROR ") || line.contains("FATAL") || line.contains("exception", ignoreCase = true) -> ThemeColors.ConsoleLineColors.Error
+        line.contains(" WARN ") -> ThemeColors.ConsoleLineColors.Warning
+        line.contains(" INFO ") || line.contains("[User Authenticator #") -> ThemeColors.ConsoleLineColors.Info
+        line.contains("joined the game") -> ThemeColors.ConsoleLineColors.PlayerJoin
+        line.contains("left the game") -> ThemeColors.ConsoleLineColors.PlayerLeave
+        line.contains("<") && line.contains(">") -> ThemeColors.ConsoleLineColors.Chat
+        line.contains("DEBUG") || line.contains("TRACE") -> ThemeColors.ConsoleLineColors.Debug
+        line.matches(Regex("""^\s*\[\d+:\d+:\d+\]\[.*\].*""")) -> ThemeColors.ConsoleLineColors.Default
+        else -> ThemeColors.ConsoleLineColors.Default
     }
 }

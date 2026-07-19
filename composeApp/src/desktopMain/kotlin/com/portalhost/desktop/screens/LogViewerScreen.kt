@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.theme.ThemeColors
 import com.portalhost.filesystem.FileSystem
 import org.koin.compose.koinInject
 import java.io.File

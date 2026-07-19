@@ -76,19 +76,20 @@ import com.portalhost.model.ServerStatus
 import com.portalhost.server.ServerManager
 import com.portalhost.server.getServerIconFile
 import com.portalhost.server.loadServerIcon
+import com.portalhost.theme.ThemeColors
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 private data class ServerTypeInfo(val label: String, val color: Color)
 
 private fun serverTypeInfo(type: com.portalhost.model.ServerType): ServerTypeInfo = when (type) {
-    com.portalhost.model.ServerType.PAPER -> ServerTypeInfo("Paper", Color(0xFF4CAF50))
-    com.portalhost.model.ServerType.FABRIC -> ServerTypeInfo("Fabric", Color(0xFF2196F3))
-    com.portalhost.model.ServerType.FORGE -> ServerTypeInfo("Forge", Color(0xFFFF9800))
-    com.portalhost.model.ServerType.NEOFORGE -> ServerTypeInfo("NeoForge", Color(0xFF9C27B0))
-    com.portalhost.model.ServerType.PURPUR -> ServerTypeInfo("Purpur", Color(0xFFFFEB3B))
-    com.portalhost.model.ServerType.FOLIA -> ServerTypeInfo("Folia", Color(0xFF7B1FA2))
-    com.portalhost.model.ServerType.VANILLA -> ServerTypeInfo("Vanilla", Color(0xFF9E9E9E))
+    com.portalhost.model.ServerType.PAPER -> ServerTypeInfo("Paper", ThemeColors.serverTypeColor(type))
+    com.portalhost.model.ServerType.FABRIC -> ServerTypeInfo("Fabric", ThemeColors.serverTypeColor(type))
+    com.portalhost.model.ServerType.FORGE -> ServerTypeInfo("Forge", ThemeColors.serverTypeColor(type))
+    com.portalhost.model.ServerType.NEOFORGE -> ServerTypeInfo("NeoForge", ThemeColors.serverTypeColor(type))
+    com.portalhost.model.ServerType.PURPUR -> ServerTypeInfo("Purpur", ThemeColors.serverTypeColor(type))
+    com.portalhost.model.ServerType.FOLIA -> ServerTypeInfo("Folia", ThemeColors.serverTypeColor(type))
+    com.portalhost.model.ServerType.VANILLA -> ServerTypeInfo("Vanilla", ThemeColors.serverTypeColor(type))
 }
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -359,13 +360,7 @@ private fun ServerListItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val statusColor = when (status) {
-                        ServerStatus.RUNNING -> Color(0xFF4CAF50)
-                        ServerStatus.STARTING -> Color(0xFFFFC107)
-                        ServerStatus.STOPPING -> Color(0xFFFF9800)
-                        ServerStatus.CRASHED -> Color(0xFFF44336)
-                        else -> Color(0xFF9E9E9E)
-                    }
+                    val statusColor = ThemeColors.serverStatusColor(status)
                     Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(statusColor))
                     Spacer(Modifier.width(6.dp))
                     Text(

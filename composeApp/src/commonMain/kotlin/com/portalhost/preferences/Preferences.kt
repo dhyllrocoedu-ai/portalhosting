@@ -24,6 +24,10 @@ class Preferences {
     var logLevel: MutableStateFlow<String> = stringPref("logLevel", "INFO")
     var tunnelUrl: MutableStateFlow<String> = stringPref("tunnelUrl", "")
     var dataDirectory: MutableStateFlow<String> = stringPref("dataDirectory", "")
+    var windowWidth: MutableStateFlow<Int> = intPref("windowWidth", 1200)
+    var windowHeight: MutableStateFlow<Int> = intPref("windowHeight", 800)
+    var windowX: MutableStateFlow<Int> = intPref("windowX", -1)
+    var windowY: MutableStateFlow<Int> = intPref("windowY", -1)
 
     fun resetToDefaults() {
         theme.value = "system"
@@ -41,6 +45,10 @@ class Preferences {
         showAdvancedSettings.value = false
         logLevel.value = "INFO"
         dataDirectory.value = ""
+        windowWidth.value = 1200
+        windowHeight.value = 800
+        windowX.value = -1
+        windowY.value = -1
     }
 
     private fun stringPref(key: String, default: String): MutableStateFlow<String> {

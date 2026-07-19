@@ -94,6 +94,7 @@ import com.portalhost.server.getServerIconFile
 import com.portalhost.server.loadServerIcon
 import com.portalhost.server.saveServerIcon
 import com.portalhost.util.pickFile
+import com.portalhost.theme.ThemeColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -293,13 +294,14 @@ fun ServerDetailScreen(
 
 @Composable
 private fun StatusBadgeDetail(status: ServerStatus) {
-    val (color, label) = when (status) {
-        ServerStatus.RUNNING -> Color(0xFF4CAF50) to "Running"
-        ServerStatus.STARTING -> Color(0xFFFFC107) to "Starting"
-        ServerStatus.STOPPING -> Color(0xFFFF9800) to "Stopping"
-        ServerStatus.CRASHED -> Color(0xFFF44336) to "Crashed"
-        ServerStatus.RESTARTING -> Color(0xFFFFC107) to "Restarting"
-        ServerStatus.STOPPED -> Color(0xFF9E9E9E) to "Stopped"
+    val color = ThemeColors.serverStatusColor(status)
+    val label = when (status) {
+        ServerStatus.RUNNING -> "Running"
+        ServerStatus.STARTING -> "Starting"
+        ServerStatus.STOPPING -> "Stopping"
+        ServerStatus.CRASHED -> "Crashed"
+        ServerStatus.RESTARTING -> "Restarting"
+        ServerStatus.STOPPED -> "Stopped"
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))

@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.uinotify.ToastType
+import com.portalhost.theme.ThemeColors
 import org.koin.compose.koinInject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,18 +68,8 @@ fun ToastHost() {
 
 @Composable
 private fun ToastCard(toast: com.portalhost.uinotify.Toast) {
-    val iconColor = when (toast.type) {
-        ToastType.Info -> Color(0xFF2196F3)
-        ToastType.Success -> Color(0xFF4CAF50)
-        ToastType.Warning -> Color(0xFFFF9800)
-        ToastType.Error -> Color(0xFFF44336)
-    }
-    val bgColor = when (toast.type) {
-        ToastType.Info -> Color(0xFFE3F2FD)
-        ToastType.Success -> Color(0xFFE8F5E9)
-        ToastType.Warning -> Color(0xFFFFF3E0)
-        ToastType.Error -> Color(0xFFFBE9E7)
-    }
+    val iconColor = ThemeColors.toastIconColor(toast.type)
+    val bgColor = ThemeColors.toastBackground(toast.type)
 
     val visible = true
     AnimatedVisibility(

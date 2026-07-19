@@ -51,6 +51,10 @@ class ServerManager(
         loadServersFromDatabase()
     }
 
+    suspend fun refreshServers() = withContext(Dispatchers.IO) {
+        loadServersFromDatabase()
+    }
+
     private fun getLock(serverId: String): Mutex {
         return serverLocks.getOrPut(serverId) { Mutex() }
     }

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.portalhost.server.ProcessMonitor
 import com.portalhost.server.ProcessStats
 import com.portalhost.server.ServerManager
+import com.portalhost.theme.ThemeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -94,10 +95,10 @@ fun PerformanceScreen(serverId: String, onBack: () -> Unit = {}) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(modifier = Modifier.weight(1f)) { StatValueCard("CPU", "$cpuValue%", Icons.Filled.Speed, Color(0xFF5C6BC0)) }
-            Box(modifier = Modifier.weight(1f)) { StatValueCard("RAM", ramValue, Icons.Filled.Memory, Color(0xFF4CAF50)) }
-            Box(modifier = Modifier.weight(1f)) { StatValueCard("TPS", tpsValue, Icons.Filled.Speed, Color(0xFFFF9800)) }
-            Box(modifier = Modifier.weight(1f)) { StatValueCard("Players", playersValue, Icons.Filled.People, Color(0xFF42A5F5)) }
+            Box(modifier = Modifier.weight(1f)) { StatValueCard("CPU", "$cpuValue%", Icons.Filled.Speed, ThemeColors.PerformanceColors.Cpu) }
+            Box(modifier = Modifier.weight(1f)) { StatValueCard("RAM", ramValue, Icons.Filled.Memory, ThemeColors.PerformanceColors.Ram) }
+            Box(modifier = Modifier.weight(1f)) { StatValueCard("TPS", tpsValue, Icons.Filled.Speed, ThemeColors.PerformanceColors.Tps) }
+            Box(modifier = Modifier.weight(1f)) { StatValueCard("Players", playersValue, Icons.Filled.People, ThemeColors.PerformanceColors.Players) }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -112,7 +113,7 @@ fun PerformanceScreen(serverId: String, onBack: () -> Unit = {}) {
                 LineChart(
                     data = cpuData,
                     maxValue = 100f,
-                    color = Color(0xFF5C6BC0),
+                    color = ThemeColors.PerformanceColors.Cpu,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                 )
             }
@@ -130,7 +131,7 @@ fun PerformanceScreen(serverId: String, onBack: () -> Unit = {}) {
                 LineChart(
                     data = ramData.map { it.toFloat() },
                     maxValue = (stats?.maxRamBytes?.coerceAtLeast(1) ?: 1).toFloat(),
-                    color = Color(0xFF4CAF50),
+                    color = ThemeColors.PerformanceColors.Ram,
                     modifier = Modifier.fillMaxWidth().weight(1f),
                 )
             }
@@ -149,8 +150,8 @@ fun PerformanceScreen(serverId: String, onBack: () -> Unit = {}) {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        Box(modifier = Modifier.weight(1f)) { StatMini("RX", stats!!.rxFormatted, Icons.Filled.Speed, Color(0xFF42A5F5)) }
-                        Box(modifier = Modifier.weight(1f)) { StatMini("TX", stats!!.txFormatted, Icons.Filled.Speed, Color(0xFFFF9800)) }
+                        Box(modifier = Modifier.weight(1f)) { StatMini("RX", stats!!.rxFormatted, Icons.Filled.Speed, ThemeColors.PerformanceColors.NetworkRx) }
+                        Box(modifier = Modifier.weight(1f)) { StatMini("TX", stats!!.txFormatted, Icons.Filled.Speed, ThemeColors.PerformanceColors.NetworkTx) }
                     }
                 }
             }

@@ -1,12 +1,12 @@
 plugins {
     kotlin("multiplatform")
-    id("org.jetbrains.compose") version "1.6.11"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.20"
-    kotlin("plugin.serialization") version "2.0.20"
+    id("org.jetbrains.compose") version "1.11.0"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.20"
+    kotlin("plugin.serialization") version "2.2.20"
 }
 
 group = "com.portalhost"
-version = "5.0.12"
+version = "5.0.13"
 
 kotlin {
     jvm("desktop")
@@ -27,7 +27,7 @@ kotlin {
                 implementation("io.github.microutils:kotlin-logging:3.0.5")
             }
         }
-        val desktopMain by getting {
+val desktopMain by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(compose.material3)
@@ -35,7 +35,7 @@ kotlin {
                 implementation(compose.foundation)
                 implementation(compose.materialIconsExtended)
                 implementation(compose.uiUtil)
-                implementation("org.jetbrains.compose.ui:ui-util:1.6.11")
+                implementation("org.jetbrains.compose.ui:ui-util:1.11.0")
                 implementation("org.xerial:sqlite-jdbc:3.45.3.0")
                 implementation("io.insert-koin:koin-core:4.0.0")
                 implementation("androidx.navigation:navigation-compose:2.9.0")
@@ -57,7 +57,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.0.12"
+            packageVersion = "5.0.13"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             modules("java.sql", "java.naming", "java.management", "java.net.http")

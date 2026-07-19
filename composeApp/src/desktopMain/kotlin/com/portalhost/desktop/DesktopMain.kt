@@ -8,21 +8,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
@@ -58,6 +58,7 @@ import com.portalhost.di.desktopModule
 import com.portalhost.di.initKoin
 import com.portalhost.log.setupLogging
 import com.portalhost.preferences.Preferences
+import com.portalhost.server.ServerManager
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
@@ -75,10 +76,12 @@ sealed class Screen {
 @Composable
 fun DesktopApp() {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val preferences = koinInject<Preferences>()
     val toastManager = koinInject<ToastManager>()
     val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
+    val serverManager = koinInject<ServerManager>()
     val themePref by preferences.theme.collectAsState()
 
     val isDark = when (themePref) {
@@ -108,14 +111,78 @@ fun DesktopApp() {
     }
 
     MaterialTheme(colorScheme = colorScheme) {
+        val scope = rememberCoroutineScope()
+
+        // About dialog
+        if (showAboutDialog) {
+            AlertDialog(
+                onDismissRequest = { showAboutDialog = false },
+                title = { Text("About Portal Host") },
+                text = {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Portal Host")
+                        Text("Version 5.0.12")
+                        Spacer(Modifier.height(8.dp))
+                        Text("Minecraft Java Edition Server Manager")
+                        Spacer(Modifier.height(8.dp))
+                        Text("https://github.com/portalhost/portalhost")
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAboutDialog = false }) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAboutDialog = false }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+
         // Custom window chrome with drag region + controls
         Box(modifier = Modifier.fillMaxSize()) {
-            // Main content area (below title bar)
+            // Main content area
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 40.dp) // Space for title bar
-            ) {
+                    .onKeyEvent { keyEvent ->
+                        if (keyEvent.isCtrlPressed) {
+                            when (keyEvent.key) {
+                                Key.N -> {
+                                    currentScreen = Screen.Create
+                                    true
+                                }
+                                Key.Q -> {
+                                    System.exit(0)
+                                    true
+                                }
+                                Key.R -> {
+                                    scope.launch { serverManager.refreshServers() }
+                                    toastManager.success("Server list refreshed")
+                                    true
+                                }
+                                Key.O -> {
+                                    try {
+                                        val folder = fileSystem.getServersDirBlocking()
+                                        java.awt.Desktop.getDesktop().open(folder)
+                                        true
+                                    } catch (_: Exception) {
+                                        false
+                                    }
+                                }
+                                Key.Comma -> {
+                                    currentScreen = Screen.Settings
+                                    true
+                                }
+                                else -> false
+                            }
+                        } else {
+                            false
+                        }
+                    },
+) {
                 if (showTabs) {
                     TabRow(selectedTabIndex = selectedTab) {
                         Tab(
@@ -140,30 +207,7 @@ fun DesktopApp() {
                 }
 
                 Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .onKeyEvent { keyEvent ->
-                            if (keyEvent.isCtrlPressed) {
-                                when (keyEvent.key) {
-                                    Key.O -> {
-                                        try {
-                                            val folder = fileSystem.getServersDirBlocking()
-                                            java.awt.Desktop.getDesktop().open(folder)
-                                            true
-                                        } catch (_: Exception) {
-                                            false
-                                        }
-                                    }
-                                    Key.S -> {
-                                        toastManager.success("Saved!")
-                                        true
-                                    }
-                                    else -> false
-                                }
-                            } else {
-                                false
-                            }
-                        },
+                    modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -231,11 +275,15 @@ fun main() {
         return
     }
 
+    val prefs = org.koin.core.context.GlobalContext.get().get<com.portalhost.preferences.Preferences>()
+    val savedWidth = prefs.windowWidth.value
+    val savedHeight = prefs.windowHeight.value
+
     singleWindowApplication(
         title = "Portal Host",
         state = WindowState(
-            width = 1200.dp,
-            height = 800.dp,
+            width = savedWidth.dp,
+            height = savedHeight.dp,
         ),
     ) {
         AppContent()

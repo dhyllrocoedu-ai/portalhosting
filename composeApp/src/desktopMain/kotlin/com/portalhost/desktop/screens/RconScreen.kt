@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.portalhost.model.ServerConfig
 import com.portalhost.server.RconClient
 import com.portalhost.server.ServerManager
+import com.portalhost.theme.ThemeColors
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -83,9 +84,9 @@ fun RconScreen(serverId: String, onBack: () -> Unit = {}) {
     }
 
     val connectionStatusColor = when {
-        isConnecting -> Color(0xFFFFC107) // Amber
-        isConnected -> Color(0xFF4CAF50)   // Green
-        else -> Color(0xFF9E9E9E)          // Grey
+        isConnecting -> ThemeColors.RconColors.Connecting
+        isConnected -> ThemeColors.RconColors.Connected
+        else -> ThemeColors.RconColors.Disconnected
     }
     val connectionStatusText = when {
         isConnecting -> "Connecting..."
@@ -195,11 +196,11 @@ fun RconScreen(serverId: String, onBack: () -> Unit = {}) {
                             msg.text,
                             fontFamily = FontFamily.Monospace,
                             fontSize = 13.sp,
-                            color = when {
-                                msg.isError -> Color(0xFFF44336)
-                                msg.isSent -> Color(0xFF64B5F6)
-                                else -> Color(0xFFD4D4D4)
-                            },
+color = when {
+                            msg.isError -> ThemeColors.RconColors.Error
+                            msg.isSent -> ThemeColors.RconColors.SentMessage
+                            else -> ThemeColors.RconColors.Received
+                        },
                         )
                     }
                 }
