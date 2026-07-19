@@ -385,6 +385,7 @@ private fun ServerCard(
     onStop: () -> Unit,
     onRestart: () -> Unit
 ) {
+    val clipboardManager = LocalClipboardManager.current
     val status = activeState?.status ?: ServerStatus.STOPPED
     val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
     val statusColorForBadge = ThemeColors.serverStatusColor(status)
@@ -459,7 +460,13 @@ private fun ServerCard(
                             if (status == ServerStatus.RUNNING) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Filled.Lan, contentDescription = "Local IP", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Text(text = "$localIp:${activeServer.port}", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                                    val localAddress = "$localIp:${activeServer.port}"
+                                    Text(text = localAddress, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                                    IconButton(
+                                        onClick = { clipboardManager.setText(AnnotatedString(localAddress)) }
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
                         }
@@ -682,6 +689,22 @@ private fun TunnelCard(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = onClaim) {
                             Text("Re-claim")
+                        }
+                    }
+                } else if (claimRequired) {
+                    // Waiting for daemon to output claim URL
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                        Text("Waiting for claim URL...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onClaim) {
+                            Text("Cancel")
                         }
                     }
                 } else if (connected && tunnelState.tunnels.isNotEmpty()) {

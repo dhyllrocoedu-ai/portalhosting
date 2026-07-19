@@ -49,6 +49,7 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     private var process: Process? = null
     private var readJob: Job? = null
     private var pollJob: Job? = null
+    private var provisionStartTime: Long = 0
 
     private val _state = MutableStateFlow(TunnelState())
     val state: StateFlow<TunnelState> = _state.asStateFlow()
@@ -144,7 +145,16 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
             if (downloadResult.isFailure) return downloadResult
         }
 
-        _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+        // If no secret, immediately indicate claim flow is needed
+        if (secretKey == null) {
+            _state.value = _state.value.copy(
+                status = TunnelStatus.CLAIM_REQUIRED,
+                claimUrl = null,
+                error = null
+            )
+        } else {
+            _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+        }
         tunnelAddresses.clear()
 
         return try {
@@ -175,10 +185,8 @@ mappings = [$mapping]
             val logFile = File(playitDir, "playitd.log")
             args.add("--log-path")
             args.add(logFile.absolutePath)
-            if (secretKey != null) {
-                args.add("--secret")
-                args.add(secretKey!!)
-            }
+            // NOTE: Don't pass --secret CLI arg; daemon reads secret_key from playit.toml
+            // Passing both causes IPC provisioning conflicts ("Waiting for frontend secret provisioning over IPC")
 
             logger.info { "Starting tunnel with command: ${args.joinToString(" ")}" }
             logger.info { "Working directory: ${playitDir.absolutePath}" }
@@ -190,10 +198,13 @@ mappings = [$mapping]
                 .start()
 
             process = proc
+            // Track provisioning start time when using secret
+            if (secretKey != null) {
+                provisionStartTime = System.currentTimeMillis()
+            }
             startReader(proc, serverPort)
             startTunnelPoller(serverPort)
 
-            _state.value = _state.value.copy(status = TunnelStatus.CONNECTING)
             logger.info { "Tunnel process started with PID: ${proc.pid()}" }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -378,6 +389,18 @@ mappings = [$mapping]
                     }
                 } catch (e: Exception) {
                     logger.debug { "API poll: ${e.message}" }
+                }
+                // Provisioning timeout: if secret was set but no tunnels after 30s, reset secret
+                if (secretKey != null && provisionStartTime > 0 &&
+                    System.currentTimeMillis() - provisionStartTime > 30_000 &&
+                    tunnelAddresses.isEmpty() &&
+                    _state.value.status == TunnelStatus.CONNECTING) {
+                    logger.warn { "Provisioning timeout (30s) - clearing secret and entering claim flow" }
+                    secretKey = null
+                    configFile.delete()
+                    provisionStartTime = 0
+                    _state.value = _state.value.copy(status = TunnelStatus.CLAIM_REQUIRED, claimUrl = null)
+                    break
                 }
                 delay(5000)
             }
