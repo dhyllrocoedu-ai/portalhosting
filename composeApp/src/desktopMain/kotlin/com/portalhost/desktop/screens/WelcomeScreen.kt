@@ -12,27 +12,34 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,151 +48,184 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.portalhost.filesystem.FileSystem
+import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
-import java.awt.FileDialog
-import java.awt.Frame
-import java.util.concurrent.atomic.AtomicReference
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("EXPERIMENTAL_API_USAGE")
 @Composable
 fun WelcomeScreen(
     onFinish: () -> Unit
 ) {
     val preferences = koinInject<Preferences>()
-    val fileSystem = koinInject<FileSystem>()
+    val jdkManager = koinInject<JdkManager>()
+    val scope = rememberCoroutineScope()
 
-    var currentStep by remember { mutableStateOf(0) }
-    var dataDir by remember { mutableStateOf(System.getProperty("user.home") + "/PortalHost") }
-    var serverName by remember { mutableStateOf("My First Server") }
-    var serverVersion by remember { mutableStateOf("Paper - Latest") }
-    var memory by remember { mutableStateOf("2048") }
+    var currentStep by remember { mutableIntStateOf(0) }
+    val totalSteps = 3
 
-    var dataDirError by remember { mutableStateOf(false) }
-    var serverNameError by remember { mutableStateOf(false) }
+    var jdkInstalling by remember { mutableStateOf(false) }
+    var jdkProgress by remember { mutableStateOf(0.0) }
+    var jdkError by remember { mutableStateOf<String?>(null) }
+    var jdkInstalled by remember { mutableStateOf(false) }
 
-    val steps = listOf(
-        "Welcome",
-        "Data Directory",
-        "Create Server",
-        "All Set!"
-    )
+    val scrollState = rememberScrollState()
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = androidx.compose.material3.MaterialTheme.colorScheme.background
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
-            Card(
-                modifier = Modifier
-                    .width(600.dp)
-                    .height(500.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
+            Column(modifier = Modifier.padding(24.dp)) {
+                // Title
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // Step indicator
-                    StepIndicator(
-                        currentStep = currentStep,
-                        steps = steps
+                    Text("Welcome to Portal Host", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(16.dp))
+
+                // Step indicator
+                StepIndicator(current = currentStep, total = totalSteps)
+                Spacer(Modifier.height(16.dp))
+
+                // Step content
+                when (currentStep) {
+                    0 -> WelcomeContent(
+                        title = "Welcome to Portal Host",
+                        description = "Manage your Minecraft Java Edition servers with ease. This quick setup will install the required Java runtime and get you started in minutes.",
+                        subtitle = "Let's begin by installing Java 21, which is required to run Minecraft servers."
                     )
-
-                    // Content
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 48.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        when (currentStep) {
-                            0 -> WelcomeContent(
-                                title = "Welcome to Portal Host",
-                                description = "Manage your Minecraft Java Edition servers with ease. This quick setup will get you started in minutes.",
-                                subtitle = "Let's get you set up with your first Minecraft server."
-                            )
-                            1 -> DataDirectoryStep(
-                                dataDir = dataDir,
-                                onDataDirChange = { dataDir = it; dataDirError = false },
-                                onBrowse = { onBrowseClicked() },
-                                error = dataDirError,
-                                errorMessage = "Please select a data directory"
-                            )
-                            2 -> CreateServerStep(
-                                serverName = serverName,
-                                onServerNameChange = { serverName = it; serverNameError = false },
-                                serverVersion = serverVersion,
-                                onVersionChange = { serverVersion = it },
-                                memory = memory,
-                                onMemoryChange = { memory = it },
-                                serverNameError = serverNameError,
-                                serverNameErrorMessage = "Please enter a server name"
-                            )
-                            3 -> FinishContent(
-                                title = "All Set!",
-                                description = "You're ready to go!",
-                                subtitle = "Click finish to start managing your server"
-                            )
-                        }
-                    }
-
-                    // Navigation buttons
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 32.dp, vertical = 24.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        if (currentStep > 0) {
-                            TextButton(onClick = { currentStep--; dataDirError = false; serverNameError = false }) {
-                                Text("Back")
+                    1 -> JdkInstallStep(
+                        isInstalling = jdkInstalling,
+                        progress = jdkProgress,
+                        error = jdkError,
+                        onInstall = {
+                            scope.launch {
+                                jdkInstalling = true
+                                jdkProgress = 0.0
+                                jdkError = null
+                                jdkManager.installJdk(21).onFailure { e ->
+                                    jdkError = e.message ?: "Failed to install JDK"
+                                    jdkInstalling = false
+                                }.onSuccess {
+                                    jdkInstalled = true
+                                    jdkProgress = 1.0
+                                    jdkInstalling = false
+                                }
                             }
                         }
-                        Spacer(Modifier.weight(1f))
-                        if (currentStep < 3) {
-                            Button(
-                                onClick = {
-                                    when (currentStep) {
-                                        1 -> {
-                                            if (dataDir.isBlank()) {
-                                                dataDirError = true
-                                            } else {
-                                                currentStep++
-                                            }
+                    )
+                    2 -> FinishContent(
+                        title = "All Set!",
+                        description = "Java 21 is installed and ready. You can now create and manage your Minecraft servers.",
+                        subtitle = "Click Get Started to open the dashboard"
+                    )
+                }
+
+                // Error message
+                jdkError?.let { msg ->
+                    Spacer(Modifier.height(12.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.Error,
+                                contentDescription = null,
+                                tint = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(msg, color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(16.dp))
+
+                // Navigation buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (currentStep > 0) {
+                        OutlinedButton(
+                            onClick = { currentStep--; jdkError = null },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Back") }
+                    }
+
+                    if (currentStep < totalSteps - 1) {
+                        Button(
+                            onClick = {
+                                when (currentStep) {
+                                    0 -> currentStep++
+                                    1 -> {
+                                        if (!jdkInstalling && !jdkInstalled) {
+                                            // Trigger install
                                         }
-                                        2 -> {
-                                            if (serverName.isBlank()) {
-                                                serverNameError = true
-                                            } else {
-                                                currentStep++
-                                            }
-                                        }
-                                        else -> currentStep++
                                     }
                                 }
-                            ) {
-                                Text("Next")
-                                Icon(
-                                    imageVector = Icons.Filled.ArrowForward,
-                                    contentDescription = null,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                            }
-                        } else {
-                            Button(onClick = {
-                                onFinish()
-                            }) {
-                                Text("Get Started")
-                            }
+                                jdkError = null
+                            },
+                            enabled = when (currentStep) {
+                                0 -> true
+                                1 -> jdkInstalled
+                                else -> true
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(if (currentStep == 1 && jdkInstalling) "Installing..." else "Next")
+                            Icon(
+                                imageVector = Icons.Filled.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = { onFinish() },
+                            modifier = Modifier.weight(1f).height(48.dp)
+                        ) {
+                            Text("Get Started")
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // Auto-advance when JDK install completes
+    LaunchedEffect(jdkInstalled) {
+        if (jdkInstalled) {
+            currentStep = 2
+        }
+    }
+
+    // Trigger JDK install when entering step 1
+    LaunchedEffect(currentStep) {
+        if (currentStep == 1 && !jdkInstalling && !jdkInstalled) {
+            scope.launch {
+                jdkInstalling = true
+                jdkProgress = 0.0
+                jdkError = null
+                jdkManager.installJdk(21).onFailure { e ->
+                    jdkError = e.message ?: "Failed to install JDK"
+                    jdkInstalling = false
+                }.onSuccess {
+                    jdkInstalled = true
+                    jdkProgress = 1.0
+                    jdkInstalling = false
                 }
             }
         }
@@ -193,82 +233,26 @@ fun WelcomeScreen(
 }
 
 @Composable
-private fun StepIndicator(
-    currentStep: Int,
-    steps: List<String>
-) {
-    val lastIndex = steps.lastIndex
+private fun StepIndicator(current: Int, total: Int) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 24.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        steps.forEachIndexed { index, step ->
-            if (index > 0) {
-                // Connecting line between steps
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(2.dp)
-                        .background(
-                            if (index <= currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
-                            else androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant
-                        )
-                )
-            }
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // Circle
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(
-                            if (index == currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
-                            else if (index < currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
-                            else androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        .clip(RoundedCornerShape(16.dp))
-                ) {
-                    if (index < currentStep) {
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = "Completed",
-                            tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .padding(6.dp)
-                                .align(Alignment.Center)
-                        )
-                    } else {
-                        Text(
-                            text = (index + 1).toString(),
-                            color = if (index == currentStep) androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
-                            else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .align(Alignment.Center)
-                        )
-                    }
-                }
-                Text(
-                    text = step,
-                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
-                    color = if (index == currentStep) androidx.compose.material3.MaterialTheme.colorScheme.primary
-                    else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.width(80.dp)
-                )
-            }
+        for (i in 0 until total) {
+            Surface(
+                modifier = Modifier.weight(1f).height(4.dp),
+                shape = RoundedCornerShape(2.dp),
+                color = if (i <= current) androidx.compose.material3.MaterialTheme.colorScheme.primary
+                else androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
+            ) {}
         }
     }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "Step ${current + 1} of $total",
+        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
@@ -319,79 +303,11 @@ private fun WelcomeContent(
 }
 
 @Composable
-private fun DataDirectoryStep(
-    dataDir: String,
-    onDataDirChange: (String) -> Unit,
-    onBrowse: () -> Unit,
-    error: Boolean,
-    errorMessage: String
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(120.dp)
-                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
-                .align(Alignment.CenterHorizontally)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Folder,
-                contentDescription = null,
-                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .size(64.dp)
-                    .align(Alignment.Center)
-            )
-        }
-        Text(
-            text = "Data Directory",
-            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        Text(
-            text = "Choose where to store your server files. This is where all your server data, worlds, and configurations will be saved.",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        OutlinedTextField(
-            value = dataDir,
-            onValueChange = onDataDirChange,
-            label = { Text("Data Directory Path") },
-            placeholder = { Text("Select a folder...") },
-            modifier = Modifier.fillMaxWidth(),
-            trailingIcon = {
-                TextButton(onClick = onBrowse) {
-                    Text("Browse")
-                }
-            },
-            singleLine = true,
-            isError = error,
-            supportingText = { if (error) Text(errorMessage, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) }
-        )
-        Text(
-            text = "Recommended: Use an empty folder on a fast drive (SSD preferred)",
-            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun CreateServerStep(
-    serverName: String,
-    onServerNameChange: (String) -> Unit,
-    serverVersion: String,
-    onVersionChange: (String) -> Unit,
-    memory: String,
-    onMemoryChange: (String) -> Unit,
-    serverNameError: Boolean,
-    serverNameErrorMessage: String
+private fun JdkInstallStep(
+    isInstalling: Boolean,
+    progress: Double,
+    error: String?,
+    onInstall: () -> Unit
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -404,7 +320,7 @@ private fun CreateServerStep(
                 .align(Alignment.CenterHorizontally)
         ) {
             Icon(
-                imageVector = Icons.Filled.FileDownload,
+                imageVector = Icons.Filled.Download,
                 contentDescription = null,
                 tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier
@@ -413,52 +329,67 @@ private fun CreateServerStep(
             )
         }
         Text(
-            text = "Create Your First Server",
+            text = "Install Java 21",
             style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
-            text = "Configure your first Minecraft server. You can create and download servers after setup.",
+            text = "Minecraft servers require Java 21 to run. Portal Host will download and install it automatically.",
             style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
             color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            OutlinedTextField(
-                value = serverName,
-                onValueChange = onServerNameChange,
-                label = { Text("Server Name") },
-                placeholder = { Text("My First Server") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                isError = serverNameError,
-                supportingText = { if (serverNameError) Text(serverNameErrorMessage, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) }
+        if (isInstalling) {
+            Spacer(Modifier.height(16.dp))
+            LinearProgressIndicator(
+                progress = progress.toFloat(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
             )
-            OutlinedTextField(
-                value = serverVersion,
-                onValueChange = onVersionChange,
-                label = { Text("Version") },
-                placeholder = { Text("Paper - Latest") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                trailingIcon = {
-                    // TODO: dropdown for versions
-                }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Downloading and installing Java 21... ${(progress * 100).toInt()}%",
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            OutlinedTextField(
-                value = memory,
-                onValueChange = onMemoryChange,
-                label = { Text("Memory (MB)") },
-                placeholder = { Text("2048") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+        } else if (!isInstalling && progress == 0.0) {
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onInstall,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+            ) {
+                Text("Install Java 21")
+                Icon(
+                    imageVector = Icons.Filled.Download,
+                    contentDescription = null,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+
+        if (progress >= 1.0) {
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Java 21 installed successfully!",
+                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
@@ -508,23 +439,4 @@ private fun FinishContent(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
-}
-
-private fun onBrowseClicked() {
-    // Use atomic reference to pass result back from EDT
-    val result = AtomicReference<String?>(null)
-    val frame = Frame()
-    frame.isVisible = false
-    
-    val dialog = FileDialog(frame, "Select Data Directory", FileDialog.LOAD)
-    dialog.setDirectory(System.getProperty("user.home"))
-    dialog.setVisible(true)
-    
-    val selectedDir = dialog.directory
-    val selectedFile = dialog.file
-    if (selectedDir != null && selectedFile != null) {
-        val fullPath = java.io.File(selectedDir, selectedFile).absolutePath
-        result.set(fullPath)
-    }
-    frame.dispose()
 }

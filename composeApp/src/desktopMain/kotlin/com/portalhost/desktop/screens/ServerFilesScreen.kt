@@ -309,7 +309,10 @@ if (renameTarget != null) {
         confirmButton = {
             TextButton(onClick = {
                 if (renameText.isNotBlank()) {
-                    renameTarget?.renameTo(File(renameTarget!!.parentFile, renameText))
+                    renameTarget?.let { target ->
+                        val parent = target.parentFile ?: currentDir
+                        target.renameTo(File(parent, renameText))
+                    }
                     renameTarget = null
                     renameText = ""
                     refresh(currentDir)

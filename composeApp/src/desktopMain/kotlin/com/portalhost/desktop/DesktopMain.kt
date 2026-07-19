@@ -49,6 +49,7 @@ import androidx.compose.ui.window.WindowState
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
+import com.portalhost.desktop.screens.PlayerManagementScreen
 import com.portalhost.desktop.screens.ServerConsoleScreen
 import com.portalhost.desktop.screens.ServerDetailScreen
 import com.portalhost.desktop.screens.ServersScreen
@@ -71,6 +72,7 @@ sealed class Screen {
     data class Console(val serverId: String) : Screen()
     object Create : Screen()
     object Settings : Screen()
+    data class Players(val serverId: String) : Screen()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -106,7 +108,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
 
             val selectedTab = when (currentScreen) {
                 Screen.Home -> 0
-                Screen.Servers, is Screen.ServerDetail, is Screen.Console, Screen.Create -> 1
+                Screen.Servers, is Screen.ServerDetail, is Screen.Console, Screen.Create, is Screen.Players -> 1
                 Screen.Settings -> 2
             }
 
@@ -116,6 +118,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                 is Screen.ServerDetail -> "Server Details"
                 is Screen.Console -> "Console"
                 Screen.Create -> "New Server"
+                is Screen.Players -> "Player Management"
                 Screen.Settings -> "Settings"
             }
 
@@ -129,7 +132,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.14")
+                        Text("Version 5.0.16")
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))
@@ -229,9 +232,9 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
                                 onNavigateToCreate = { currentScreen = Screen.Create },
-                                onNavigateToPlayers = { serverId ->
-                                    currentScreen = Screen.ServerDetail(serverId)
-                                },
+onNavigateToPlayers = { serverId ->
+    currentScreen = Screen.Players(serverId)
+},
                             )
                             Screen.Servers -> ServersScreen(
                                 onNavigateToDetail = { serverId ->
@@ -253,7 +256,11 @@ Screen.Create -> CreateServerScreen(
                                 },
                                 onBack = { currentScreen = Screen.Servers },
                             )
-                            Screen.Settings -> SettingsScreen()
+                            is Screen.Players -> PlayerManagementScreen(
+    serverId = (currentScreen as Screen.Players).serverId,
+    onBack = { currentScreen = Screen.ServerDetail((currentScreen as Screen.Players).serverId) }
+)
+Screen.Settings -> SettingsScreen()
                         }
                     }
                 }
