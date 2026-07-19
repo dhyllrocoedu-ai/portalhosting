@@ -653,11 +653,18 @@ private fun TunnelCard(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                Text(
-                                    text = "Local: $localIp:${tunnel.localPort} (${tunnel.type.uppercase()})",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Local: $localIp:${tunnel.localPort} (${tunnel.type.uppercase()})",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    IconButton(onClick = {
+                                        clipboardManager.setText(AnnotatedString("$localIp:${tunnel.localPort}"))
+                                    }, modifier = Modifier.size(28.dp)) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(14.dp))
+                                    }
+                                }
                             }
                             IconButton(onClick = {
                                 clipboardManager.setText(AnnotatedString(tunnel.publicAddress))
@@ -667,13 +674,21 @@ private fun TunnelCard(
                         }
                     }
                     if (tunnelState.claimUrl != null) {
-                        Text(
-                            text = "Claim URL: ${tunnelState.claimUrl}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Claim URL: ${tunnelState.claimUrl}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(tunnelState.claimUrl))
+                            }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(14.dp))
+                            }
+                        }
                     }
                 }
             }

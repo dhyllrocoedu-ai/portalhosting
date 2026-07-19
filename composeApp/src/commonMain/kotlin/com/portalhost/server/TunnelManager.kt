@@ -150,10 +150,17 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
         return try {
             playitDir.mkdirs()
             val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
-            configFile.writeText("""secret_key = "${secretKey ?: ""}"
+            val configContent = if (secretKey != null) {
+                """secret_key = "${secretKey}"
 refresh_from_api = true
 mappings = [$mapping]
-""".trimIndent())
+"""
+            } else {
+                """refresh_from_api = true
+mappings = [$mapping]
+"""
+            }
+            configFile.writeText(configContent.trimIndent())
 
             // Ensure binary is executable on Windows
             if (daemonBinary.exists()) {

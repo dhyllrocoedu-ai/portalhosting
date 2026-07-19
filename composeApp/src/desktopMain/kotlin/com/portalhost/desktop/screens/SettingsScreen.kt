@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
@@ -36,6 +37,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +55,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,6 +92,7 @@ fun SettingsScreen() {
 
     var themeExpanded by remember { mutableStateOf(false) }
     var logLevelExpanded by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -242,11 +247,26 @@ fun SettingsScreen() {
                     Text("Status: $statusLabel", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     if (tunnelState.status == TunnelStatus.CONNECTED) {
                         tunnelState.tunnels.forEach { tunnel ->
-                            Text("Tunnel: ${tunnel.publicAddress} (port ${tunnel.localPort})", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Tunnel: ${tunnel.publicAddress} (port ${tunnel.localPort})", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(tunnel.publicAddress))
+                                }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy address", modifier = Modifier.size(14.dp))
+                                }
+                            }
                         }
                     }
-                    if (tunnelState.status == TunnelStatus.CLAIM_REQUIRED && tunnelState.claimUrl != null) {
-                        Text("Claim URL: ${tunnelState.claimUrl}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    val claimUrl = tunnelState.claimUrl
+                    if (tunnelState.status == TunnelStatus.CLAIM_REQUIRED && claimUrl != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Claim URL: $claimUrl", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                            IconButton(onClick = {
+                                clipboardManager.setText(AnnotatedString(claimUrl))
+                            }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(14.dp))
+                            }
+                        }
                     }
                 }
                 Text(tunnelState.error ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
@@ -423,7 +443,7 @@ fun SettingsScreen() {
                 Spacer(Modifier.width(8.dp))
                 Text("Portal Host", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text("Version 5.0.18", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Version 5.0.19", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     if (aboutExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,

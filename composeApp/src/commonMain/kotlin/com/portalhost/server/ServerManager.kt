@@ -257,20 +257,24 @@ class ServerManager(
             delay(1000)
         }
 
-        if (!exited) {
-            logger.warn { "Server $serverId did not exit after stop command, destroying..." }
-            processManager.stopProcess(process)
-            delay(2000)
-            if (processManager.isRunning(process)) {
-                processManager.killProcess(process)
-            }
-        }
-
         activeProcesses.remove(serverId)
         val newState = ServerState(id = serverId, status = ServerStatus.STOPPED, pid = null)
         database.updateServerState(serverId, newState)
         _serverStates.update { current -> current + (serverId to newState) }
         logger.info { "Server stopped: ${config?.name ?: serverId}" }
+
+        if (!exited) {
+            try {
+                logger.warn { "Server $serverId did not exit after stop command, destroying..." }
+                processManager.stopProcess(process)
+                delay(2000)
+                if (processManager.isRunning(process)) {
+                    processManager.killProcess(process)
+                }
+            } catch (e: Exception) {
+                logger.warn(e) { "Failed to force-stop server $serverId" }
+            }
+        }
 
         Result.success(Unit)
     }
