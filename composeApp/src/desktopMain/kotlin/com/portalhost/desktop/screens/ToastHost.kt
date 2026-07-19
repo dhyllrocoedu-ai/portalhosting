@@ -6,19 +6,16 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
@@ -27,26 +24,19 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.uinotify.ToastType
-import com.portalhost.theme.ThemeColors
 import org.koin.compose.koinInject
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @Composable
 fun ToastHost() {
@@ -56,9 +46,9 @@ fun ToastHost() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.End
+            .padding(top = 8.dp, start = 48.dp, end = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         toasts.forEach { toast ->
             ToastCard(toast = toast)
@@ -66,51 +56,77 @@ fun ToastHost() {
     }
 }
 
+private data class ToastStyle(
+    val icon: ImageVector,
+    val containerColor: Color,
+    val contentColor: Color,
+    val iconTint: Color,
+)
+
+private fun styleForType(type: ToastType, colors: androidx.compose.material3.ColorScheme): ToastStyle = when (type) {
+    ToastType.Info -> ToastStyle(
+        icon = Icons.Filled.Info,
+        containerColor = colors.surfaceVariant,
+        contentColor = colors.onSurfaceVariant,
+        iconTint = colors.primary,
+    )
+    ToastType.Success -> ToastStyle(
+        icon = Icons.Filled.CheckCircle,
+        containerColor = colors.primaryContainer,
+        contentColor = colors.onPrimaryContainer,
+        iconTint = colors.primary,
+    )
+    ToastType.Warning -> ToastStyle(
+        icon = Icons.Filled.Warning,
+        containerColor = colors.tertiaryContainer,
+        contentColor = colors.onTertiaryContainer,
+        iconTint = colors.tertiary,
+    )
+    ToastType.Error -> ToastStyle(
+        icon = Icons.Filled.Error,
+        containerColor = colors.errorContainer,
+        contentColor = colors.onErrorContainer,
+        iconTint = colors.error,
+    )
+}
+
 @Composable
 private fun ToastCard(toast: com.portalhost.uinotify.Toast) {
-    val iconColor = ThemeColors.toastIconColor(toast.type)
-    val bgColor = ThemeColors.toastBackground(toast.type)
+    val style = styleForType(toast.type, MaterialTheme.colorScheme)
 
-    val visible = true
     AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn() + slideInVertically(),
-        exit = fadeOut() + slideOutVertically(),
+        visible = true,
+        enter = fadeIn() + slideInVertically { -it },
+        exit = fadeOut() + slideOutVertically { -it },
     ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(vertical = 2.dp),
             colors = CardDefaults.cardColors(
-                containerColor = bgColor,
+                containerColor = style.containerColor,
             ),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         ) {
             Row(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = when (toast.type) {
-                        ToastType.Info -> Icons.Filled.Info
-                        ToastType.Success -> Icons.Filled.CheckCircle
-                        ToastType.Warning -> Icons.Filled.Warning
-                        ToastType.Error -> Icons.Filled.Error
-                    },
+                    imageVector = style.icon,
                     contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(24.dp)
+                    tint = style.iconTint,
+                    modifier = Modifier.size(20.dp),
                 )
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        toast.message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    toast.message,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = style.contentColor,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }

@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +46,7 @@ import org.koin.compose.koinInject
 import java.io.File
 import java.util.zip.GZIPInputStream
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
     val fileSystem = koinInject<FileSystem>()
@@ -92,16 +95,17 @@ fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
 
     Row(modifier = Modifier.fillMaxSize()) {
         Surface(
-            modifier = Modifier.width(250.dp).fillMaxSize(),
+            modifier = Modifier.width(280.dp).fillMaxSize(),
             color = MaterialTheme.colorScheme.surfaceContainerLowest,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Text("Log Files", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
                 
                 // Log level filters
-                Row(
+                FlowRow(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     val logLevels = listOf("INFO", "WARN", "ERROR", "DEBUG", "FATAL")
                     logLevels.forEach { level ->

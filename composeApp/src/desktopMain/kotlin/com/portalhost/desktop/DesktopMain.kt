@@ -37,6 +37,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
@@ -68,6 +71,7 @@ import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.koin.compose.koinInject
 import java.io.File
+import org.jetbrains.skia.Image
 
 private val logger = KotlinLogging.logger {}
 
@@ -231,10 +235,9 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        ToastHost()
-                        when (currentScreen) {
-                            Screen.Home -> DashboardScreen(
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (currentScreen) {
+                    Screen.Home -> DashboardScreen(
                                 onNavigateToConsole = { serverId ->
                                     currentScreen = Screen.Console(serverId)
                                 },
@@ -272,6 +275,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                             )
 Screen.Settings -> SettingsScreen()
                         }
+                        ToastHost()
                     }
                 }
             }
@@ -344,6 +348,15 @@ fun main() {
             }
         }
 
+        val iconPainter = remember {
+            val logoFile = File("app_icon_logo/portalhost_logo.png")
+            if (logoFile.exists()) {
+                try {
+                    BitmapPainter(Image.makeFromEncoded(logoFile.readBytes()).toComposeImageBitmap())
+                } catch (_: Exception) { null }
+            } else null
+        }
+
         Window(
             onCloseRequest = {
                 isWindowVisible = false
@@ -351,6 +364,7 @@ fun main() {
             state = windowState,
             title = "Portal Host",
             visible = isWindowVisible,
+            icon = iconPainter,
         ) {
             AppContent()
         }

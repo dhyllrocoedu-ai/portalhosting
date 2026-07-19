@@ -43,6 +43,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,6 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -61,6 +66,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -74,6 +80,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -100,6 +108,7 @@ import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import java.io.File
 import java.util.zip.ZipFile
+import kotlin.math.roundToInt
 
 private val motdColorMap = mapOf(
     '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
@@ -208,16 +217,6 @@ fun ServerDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-            // Back button at the top
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            }
             Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
@@ -228,6 +227,9 @@ fun ServerDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
                     if (serverIcon != null) {
                         Image(bitmap = serverIcon, contentDescription = "Server Icon", modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)))
                         Spacer(Modifier.width(16.dp))
@@ -313,6 +315,7 @@ private fun StatusBadgeDetail(status: ServerStatus) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.ServerState?, serverManager: ServerManager, serverId: String, onDeleteRequest: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
@@ -320,11 +323,11 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
     val fileSystem = koinInject<FileSystem>()
     var name by remember(config) { mutableStateOf<String>(config.name) }
     var port by remember(config) { mutableStateOf<String>(config.port.toString()) }
-    var memoryMin by remember(config) { mutableStateOf<String>(config.memoryMin.toString()) }
-    var memoryMax by remember(config) { mutableStateOf<String>(config.memoryMax.toString()) }
+    var memoryMinGb by remember(config) { mutableFloatStateOf((config.memoryMin / 1024f).coerceIn(0.5f, 16f)) }
+    var memoryMaxGb by remember(config) { mutableFloatStateOf((config.memoryMax / 1024f).coerceIn(0.5f, 16f)) }
     var gamemode by remember(config) { mutableStateOf<String>(config.properties["gamemode"] ?: "survival") }
     var difficulty by remember(config) { mutableStateOf<String>(config.properties["difficulty"] ?: "easy") }
-    var motd by remember(config) { mutableStateOf<String>(config.properties["motd"] ?: "A Minecraft Server") }
+    var motd by remember(config) { mutableStateOf(TextFieldValue(config.properties["motd"] ?: "A Minecraft Server")) }
     var pvp by remember(config) { mutableStateOf<Boolean>(config.properties["pvp"]?.toBooleanStrictOrNull() ?: true) }
     var onlineMode by remember(config) { mutableStateOf<Boolean>(config.properties["online-mode"]?.toBooleanStrictOrNull() ?: true) }
     var whitelist by remember(config) { mutableStateOf<Boolean>(config.properties["white-list"]?.toBooleanStrictOrNull() ?: false) }
@@ -334,6 +337,26 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
     var autoRestart by remember(config) { mutableStateOf<Boolean>(config.autoRestart) }
     var savedMessage by remember { mutableStateOf<String?>(null) }
     var iconPreview by remember(config) { mutableStateOf<ImageBitmap?>(loadServerIcon(getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), config.id)))) }
+
+    val gamemodes = listOf("survival", "creative", "adventure", "spectator")
+    val difficulties = listOf("peaceful", "easy", "normal", "hard")
+
+    fun writeServerPropertiesFile(props: Map<String, String>) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val propsFile = File(fileSystem.getServersDirBlocking(), "$serverId/server.properties")
+                if (propsFile.exists()) {
+                    val lines = propsFile.readLines().toMutableList()
+                    for ((key, value) in props) {
+                        val idx = lines.indexOfFirst { it.startsWith("$key=") }
+                        if (idx >= 0) lines[idx] = "$key=$value"
+                        else lines.add("$key=$value")
+                    }
+                    propsFile.writeText(lines.joinToString("\n") + "\n")
+                }
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) {
         Card(
@@ -346,10 +369,26 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Server Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = port, onValueChange = { port = it.filter { c -> c.isDigit() } }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = memoryMin, onValueChange = { memoryMin = it.filter { c -> c.isDigit() } }, label = { Text("Min Memory (MB)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = memoryMax, onValueChange = { memoryMax = it.filter { c -> c.isDigit() } }, label = { Text("Max Memory (MB)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(12.dp))
+                Text("Min Memory: ${"%.1f".format(memoryMinGb)} GB", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                Slider(
+                    value = memoryMinGb,
+                    onValueChange = { v -> memoryMinGb = (v / 0.5f).roundToInt() * 0.5f },
+                    valueRange = 0.5f..memoryMaxGb,
+                    steps = ((memoryMaxGb - 0.5f) / 0.5f).roundToInt() - 1,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Max Memory: ${"%.1f".format(memoryMaxGb)} GB", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                Slider(
+                    value = memoryMaxGb,
+                    onValueChange = { v -> memoryMaxGb = (v / 0.5f).roundToInt() * 0.5f },
+                    valueRange = 0.5f..16f,
+                    steps = 30,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
@@ -363,7 +402,12 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                 }
                 if (showMotdColors) {
                     val insertCode: (String) -> Unit = { code ->
-                        motd = motd + code
+                        val cursor = motd.selection.start
+                        val text = motd.text
+                        motd = TextFieldValue(
+                            text = text.substring(0, cursor) + code + text.substring(cursor),
+                            selection = TextRange(cursor + code.length)
+                        )
                     }
                     val mcColors = listOf(
                         '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
@@ -395,7 +439,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                     Spacer(Modifier.height(4.dp))
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B))) {
                         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            val parsed = remember(motd) { parseMotdPreview(motd) }
+                            val parsed = remember(motd.text) { parseMotdPreview(motd.text) }
                             Text(text = if (parsed.text.isEmpty()) buildAnnotatedString { withStyle(SpanStyle(color = Color(0xFFAAAAAA))) { append("MOTD preview will appear here") } } else parsed, fontSize = 15.sp, lineHeight = 22.sp)
                         }
                     }
@@ -425,25 +469,76 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
 
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = gamemode, onValueChange = { gamemode = it }, label = { Text("Gamemode") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = difficulty, onValueChange = { difficulty = it }, label = { Text("Difficulty") }, singleLine = true, modifier = Modifier.weight(1f))
+                    Column(modifier = Modifier.weight(1f)) {
+                        var expandedGm by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(expanded = expandedGm, onExpandedChange = { expandedGm = it }) {
+                            OutlinedTextField(
+                                value = gamemode.replaceFirstChar { it.uppercase() },
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Gamemode") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedGm) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            )
+                            ExposedDropdownMenu(expanded = expandedGm, onDismissRequest = { expandedGm = false }) {
+                                gamemodes.forEach { gm ->
+                                    DropdownMenuItem(
+                                        text = { Text(gm.replaceFirstChar { it.uppercase() }) },
+                                        onClick = { gamemode = gm; expandedGm = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        var expandedDiff by remember { mutableStateOf(false) }
+                        ExposedDropdownMenuBox(expanded = expandedDiff, onExpandedChange = { expandedDiff = it }) {
+                            OutlinedTextField(
+                                value = difficulty.replaceFirstChar { it.uppercase() },
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Difficulty") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDiff) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            )
+                            ExposedDropdownMenu(expanded = expandedDiff, onDismissRequest = { expandedDiff = false }) {
+                                difficulties.forEach { diff ->
+                                    DropdownMenuItem(
+                                        text = { Text(diff.replaceFirstChar { it.uppercase() }) },
+                                        onClick = { difficulty = diff; expandedDiff = false },
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = spawnProtection, onValueChange = { spawnProtection = it.filter { c -> c.isDigit() } }, label = { Text("Spawn Protection") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("PvP", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = pvp, onCheckedChange = { pvp = it })
+                    Switch(checked = pvp, onCheckedChange = {
+                        pvp = it
+                        writeServerPropertiesFile(mapOf("pvp" to it.toString()))
+                    })
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Online Mode", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = onlineMode, onCheckedChange = { onlineMode = it })
+                    Switch(checked = onlineMode, onCheckedChange = {
+                        onlineMode = it
+                        writeServerPropertiesFile(mapOf("online-mode" to it.toString()))
+                    })
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Whitelist", style = MaterialTheme.typography.bodyMedium)
-                    Switch(checked = whitelist, onCheckedChange = { whitelist = it })
+                    Switch(checked = whitelist, onCheckedChange = {
+                        whitelist = it
+                        writeServerPropertiesFile(mapOf("white-list" to it.toString()))
+                    })
                 }
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
@@ -472,12 +567,12 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                             val updatedConfig = config.copy(
                                 name = name.trim(),
                                 port = port.toIntOrNull() ?: config.port,
-                                memoryMin = memoryMin.toIntOrNull() ?: config.memoryMin,
-                                memoryMax = memoryMax.toIntOrNull() ?: config.memoryMax,
+                                memoryMin = (memoryMinGb * 1024).roundToInt(),
+                                memoryMax = (memoryMaxGb * 1024).roundToInt(),
                                 properties = config.properties + mapOf(
                                     "gamemode" to gamemode,
                                     "difficulty" to difficulty,
-                                    "motd" to motd,
+                                    "motd" to motd.text,
                                     "pvp" to pvp.toString(),
                                     "online-mode" to onlineMode.toString(),
                                     "white-list" to whitelist.toString(),
@@ -494,8 +589,8 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                             ))
                             name = updatedConfig.name
                             port = updatedConfig.port.toString()
-                            memoryMin = updatedConfig.memoryMin.toString()
-                            memoryMax = updatedConfig.memoryMax.toString()
+                            memoryMinGb = (updatedConfig.memoryMin / 1024f).coerceIn(0.5f, 16f)
+                            memoryMaxGb = (updatedConfig.memoryMax / 1024f).coerceIn(0.5f, 16f)
                             savedMessage = "Properties saved to database"
                         }
                     },
@@ -649,15 +744,37 @@ private fun importWorldZip(serversDir: File, serverId: String, zipPath: String) 
 @Composable
 private fun PluginsTab(serverId: String) {
     val fileSystem = koinInject<FileSystem>()
+    val scope = rememberCoroutineScope()
     var plugins by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
-    LaunchedEffect(serverId) {
+    fun refreshPlugins() {
         val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
         plugins = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
+    LaunchedEffect(serverId) { refreshPlugins() }
+
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        Text("Plugins (${plugins.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Plugins (${plugins.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Button(onClick = {
+                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"))
+                if (files.isNotEmpty()) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
+                            dir.mkdirs()
+                            File(files[0].absolutePath).copyTo(File(dir, files[0].name), overwrite = true)
+                        }
+                        refreshPlugins()
+                    }
+                }
+            }) {
+                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Import JAR")
+            }
+        }
         Spacer(Modifier.height(12.dp))
         if (plugins.isEmpty()) {
             Text("No plugins installed", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -692,15 +809,37 @@ private fun PluginsTab(serverId: String) {
 @Composable
 private fun ModsTab(serverId: String) {
     val fileSystem = koinInject<FileSystem>()
+    val scope = rememberCoroutineScope()
     var mods by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
-    LaunchedEffect(serverId) {
+    fun refreshMods() {
         val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
         mods = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
+    LaunchedEffect(serverId) { refreshMods() }
+
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        Text("Mods (${mods.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Mods (${mods.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Button(onClick = {
+                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"))
+                if (files.isNotEmpty()) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
+                            dir.mkdirs()
+                            File(files[0].absolutePath).copyTo(File(dir, files[0].name), overwrite = true)
+                        }
+                        refreshMods()
+                    }
+                }
+            }) {
+                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Import JAR")
+            }
+        }
         Spacer(Modifier.height(12.dp))
         if (mods.isEmpty()) {
             Text("No mods installed", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
@@ -735,15 +874,37 @@ private fun ModsTab(serverId: String) {
 @Composable
 private fun DatapacksTab(serverId: String) {
     val fileSystem = koinInject<FileSystem>()
+    val scope = rememberCoroutineScope()
     var datapacks by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
-    LaunchedEffect(serverId) {
+    fun refreshDatapacks() {
         val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
         datapacks = if (dir.exists()) dir.listFiles()?.filter { it.isDirectory || it.name.endsWith(".zip") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
+    LaunchedEffect(serverId) { refreshDatapacks() }
+
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Button(onClick = {
+                val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"))
+                if (files.isNotEmpty()) {
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
+                            dir.mkdirs()
+                            File(files[0].absolutePath).copyTo(File(dir, files[0].name), overwrite = true)
+                        }
+                        refreshDatapacks()
+                    }
+                }
+            }) {
+                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Import ZIP")
+            }
+        }
         Spacer(Modifier.height(12.dp))
         if (datapacks.isEmpty()) {
             Text("No datapacks installed", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

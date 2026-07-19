@@ -93,12 +93,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -230,7 +232,7 @@ fun CreateServerScreen(
     var port by remember { mutableStateOf("25565") }
     var gamemode by remember { mutableStateOf("survival") }
     var difficulty by remember { mutableStateOf("easy") }
-    var motd by remember { mutableStateOf("A Minecraft Server") }
+    var motd by remember { mutableStateOf(TextFieldValue("A Minecraft Server")) }
     var iconPath by remember { mutableStateOf<String?>(null) }
     var eulaAccepted by remember { mutableStateOf(false) }
     var creating by remember { mutableStateOf(false) }
@@ -560,26 +562,46 @@ fun CreateServerScreen(
         Spacer(Modifier.height(12.dp))
         Text("Gamemode", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            gamemodes.forEach { gm ->
-                FilterChip(
-                    selected = gamemode == gm,
-                    onClick = { gamemode = gm },
-                    label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
-                )
+        var gamemodeExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(expanded = gamemodeExpanded, onExpandedChange = { gamemodeExpanded = it }) {
+            OutlinedTextField(
+                value = gamemode.replaceFirstChar { it.uppercase() },
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gamemodeExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+            )
+            ExposedDropdownMenu(expanded = gamemodeExpanded, onDismissRequest = { gamemodeExpanded = false }) {
+                gamemodes.forEach { gm ->
+                    DropdownMenuItem(
+                        text = { Text(gm.replaceFirstChar { it.uppercase() }) },
+                        onClick = { gamemode = gm; gamemodeExpanded = false }
+                    )
+                }
             }
         }
 
         Spacer(Modifier.height(12.dp))
         Text("Difficulty", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            difficulties.forEach { diff ->
-                FilterChip(
-                    selected = difficulty == diff,
-                    onClick = { difficulty = diff },
-                    label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
-                )
+        var difficultyExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(expanded = difficultyExpanded, onExpandedChange = { difficultyExpanded = it }) {
+            OutlinedTextField(
+                value = difficulty.replaceFirstChar { it.uppercase() },
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = difficultyExpanded) },
+                modifier = Modifier.fillMaxWidth().menuAnchor(),
+            )
+            ExposedDropdownMenu(expanded = difficultyExpanded, onDismissRequest = { difficultyExpanded = false }) {
+                difficulties.forEach { diff ->
+                    DropdownMenuItem(
+                        text = { Text(diff.replaceFirstChar { it.uppercase() }) },
+                        onClick = { difficulty = diff; difficultyExpanded = false }
+                    )
+                }
             }
         }
 
@@ -587,7 +609,7 @@ fun CreateServerScreen(
         var showMotdColors by remember { mutableStateOf(false) }
         OutlinedTextField(
             value = motd,
-            onValueChange = { motd = it.take(60) },
+            onValueChange = { motd = if (it.text.length <= 60) it else it.copy(text = it.text.take(60)) },
             label = { Text("MOTD (Message of the Day)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
@@ -600,7 +622,12 @@ fun CreateServerScreen(
         }
         if (showMotdColors) {
             val insertCode: (String) -> Unit = { code ->
-                motd = motd + code
+                val cursor = motd.selection.start
+                val text = motd.text
+                motd = TextFieldValue(
+                    text = text.substring(0, cursor) + code + text.substring(cursor),
+                    selection = TextRange(cursor + code.length)
+                )
             }
             val mcColors = listOf(
                 '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
@@ -632,7 +659,7 @@ fun CreateServerScreen(
             Spacer(Modifier.height(4.dp))
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B))) {
                 Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    val parsed = remember(motd) { parseMotdPreview(motd) }
+                    val parsed = remember(motd.text) { parseMotdPreview(motd.text) }
                     Text(text = if (parsed.text.isEmpty()) buildAnnotatedString { withStyle(SpanStyle(color = Color(0xFFAAAAAA))) { append("MOTD preview will appear here") } } else parsed, fontSize = 15.sp, lineHeight = 22.sp)
                 }
             }
@@ -911,6 +938,15 @@ fun CreateServerScreen(
                                         autoRestart = true,
                                         rconEnabled = false,
                                         rconPort = 25575,
+                                        properties = mapOf(
+                                            "gamemode" to gamemode,
+                                            "difficulty" to difficulty,
+                                            "motd" to motd.text,
+                                            "pvp" to "true",
+                                            "online-mode" to "true",
+                                            "white-list" to "false",
+                                            "spawn-protection" to "0",
+                                        ),
                                     )
 
                                     if (jarPath != null) {
@@ -937,6 +973,30 @@ fun CreateServerScreen(
                                         }
                                         toastManager.success("Server \"${config.name}\" created!")
                                         onServerCreated(config.id)
+                                    }
+                                    withContext(Dispatchers.IO) {
+                                        val propsFile = java.io.File(fileSystem.getServersDirBlocking(), "${config.id}/server.properties")
+                                        val propsToWrite = mapOf(
+                                            "gamemode" to gamemode,
+                                            "difficulty" to difficulty,
+                                            "motd" to motd.text,
+                                            "pvp" to "true",
+                                            "online-mode" to "true",
+                                            "white-list" to "false",
+                                            "spawn-protection" to "0",
+                                        )
+                                        if (propsFile.exists()) {
+                                            val lines = propsFile.readLines().toMutableList()
+                                            for ((key, value) in propsToWrite) {
+                                                val idx = lines.indexOfFirst { it.startsWith("$key=") }
+                                                if (idx >= 0) lines[idx] = "$key=$value"
+                                                else lines.add("$key=$value")
+                                            }
+                                            propsFile.writeText(lines.joinToString("\n") + "\n")
+                                        } else {
+                                            propsFile.parentFile.mkdirs()
+                                            propsFile.writeText(propsToWrite.entries.joinToString("\n") { "${it.key}=${it.value}" } + "\n")
+                                        }
                                     }
                                     creating = false
                                     serverName = ""
