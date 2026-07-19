@@ -30,8 +30,9 @@ import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SaveAlt
-
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.WrapText
+import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -57,9 +58,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -71,6 +77,7 @@ import com.portalhost.server.consoleLineColor
 import com.portalhost.server.LogLevel
 import com.portalhost.server.ALL_LOG_LEVELS
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
 
@@ -89,9 +96,12 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     var searchResults by remember { mutableStateOf(listOf<Int>()) }
     var currentSearchIdx by remember { mutableIntStateOf(0) }
     var activeLevel by remember { mutableStateOf(LogLevel.ALL) }
+    var wrapLines by remember { mutableStateOf(false) }
+    var showTimestamps by remember { mutableStateOf(true) }
 
     val isUserScrolling = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
 
     val levelFiltered = if (activeLevel == LogLevel.ALL) allLines
         else allLines.filter { classifyLogLevel(it) == activeLevel }
@@ -135,7 +145,19 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.isCtrlPressed && keyEvent.key == Key.L) {
+                    val map = serverManager.consoleOutputs.value.toMutableMap()
+                    map[serverId] = emptyList()
+                    true
+                } else {
+                    false
+                }
+            }
+    ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.surface,
@@ -164,6 +186,18 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                                 activeLevel = if (activeLevel == LogLevel.ALL) LogLevel.ERROR else LogLevel.ALL
                             }) {
                                 Icon(Icons.Filled.FilterAlt, contentDescription = "Filter", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = {
+                                val lines = displayLines.joinToString("\n")
+                                clipboard.setText(AnnotatedString(lines))
+                            }) {
+                                Icon(Icons.Filled.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { wrapLines = !wrapLines }) {
+                                Icon(Icons.Filled.WrapText, contentDescription = if (wrapLines) "Disable line wrap" else "Enable line wrap", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { showTimestamps = !showTimestamps }) {
+                                Icon(Icons.Filled.AccessTime, contentDescription = if (showTimestamps) "Hide timestamps" else "Show timestamps", modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = {
                                 val lines = displayLines.joinToString("\n")

@@ -28,6 +28,7 @@ class Preferences {
     var windowHeight: MutableStateFlow<Int> = intPref("windowHeight", 800)
     var windowX: MutableStateFlow<Int> = intPref("windowX", -1)
     var windowY: MutableStateFlow<Int> = intPref("windowY", -1)
+    var firstRunCompleted: MutableStateFlow<Boolean> = boolPref("firstRunCompleted", false)
 
     fun resetToDefaults() {
         theme.value = "system"
@@ -49,6 +50,7 @@ class Preferences {
         windowHeight.value = 800
         windowX.value = -1
         windowY.value = -1
+        firstRunCompleted.value = false
     }
 
     private fun stringPref(key: String, default: String): MutableStateFlow<String> {

@@ -27,7 +27,7 @@ kotlin {
                 implementation("io.github.microutils:kotlin-logging:3.0.5")
             }
         }
-val desktopMain by getting {
+        val desktopMain by getting {
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(compose.material3)
@@ -40,6 +40,12 @@ val desktopMain by getting {
                 implementation("io.insert-koin:koin-core:4.0.0")
                 implementation("androidx.navigation:navigation-compose:2.9.0")
                 implementation("ch.qos.logback:logback-classic:1.5.6")
+                implementation("androidx.compose.ui:ui-text:1.7.2")
+            }
+        }
+        configurations.all {
+            resolutionStrategy {
+                force("androidx.compose.ui:ui-text:1.7.2")
             }
         }
     }
@@ -65,9 +71,6 @@ compose.desktop {
                 menuGroup = "PortalHost"
                 menu = true
                 shortcut = true
-                dirChooser = true
-                perUserInstall = false
-                upgradeUuid = "c7a3b8e1-4d2f-4a9e-8b6c-1d3e5f7a9b0c"
             }
         }
     }
