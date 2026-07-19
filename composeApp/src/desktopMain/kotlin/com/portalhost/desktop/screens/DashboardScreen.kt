@@ -116,6 +116,10 @@ import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelStatus
+import com.portalhost.network.NetworkInfo
+import com.portalhost.network.NetworkManager
+import com.portalhost.server.ProcessMonitor
+import com.portalhost.server.ProcessStats
 import com.portalhost.server.classifyLogLevel
 import com.portalhost.server.consoleLineColor
 import com.portalhost.server.getServerIconFile
@@ -123,6 +127,8 @@ import com.portalhost.server.loadServerIcon
 import com.portalhost.server.LogLevel
 import com.portalhost.server.ALL_LOG_LEVELS
 import com.portalhost.theme.ThemeColors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
@@ -154,6 +160,22 @@ fun DashboardScreen(
     val previousServerCount by remember { mutableStateOf(servers.size) }
     var expanded by remember { mutableStateOf(false) }
     var commandInput by remember { mutableStateOf("") }
+    val processMonitor = remember { ProcessMonitor() }
+    var processStats by remember { mutableStateOf(ProcessStats()) }
+    val networkManager = remember { NetworkManager() }
+    val localIpInfo = remember { mutableStateOf(networkManager.getLocalIpAddress()) }
+
+    LaunchedEffect(selectedServerId) {
+        processMonitor.resetNetworkStats()
+    }
+
+    LaunchedEffect(selectedServerId) {
+        while (isActive) {
+            val pid = selectedServerId?.let { serverManager.getProcessForServer(it) }
+            processStats = processMonitor.getStats(pid)
+            delay(2000)
+        }
+    }
 
     LaunchedEffect(servers) {
         if (selectedServerId == null && servers.isNotEmpty()) {
@@ -228,6 +250,7 @@ fun DashboardScreen(
                     serverConfigs = servers.values.toList(),
                     activeState = activeState,
                     statusColor = statusColor,
+                    localIp = localIpInfo.value.localIp,
                     expanded = expanded,
                     onToggleExpand = { expanded = !expanded },
                     onSelectServer = { id ->
@@ -293,12 +316,14 @@ fun DashboardScreen(
 
                 TunnelCard(
                     tunnelState = tunnelState,
+                    localIp = localIpInfo.value.localIp,
                     onStart = { scope.launch { tunnelManager.start(activeServer?.port ?: 25565) } },
                     onStop = { scope.launch { tunnelManager.stop() } }
                 )
 
                 PerformanceCard(
                     activeState = activeState,
+                    processStats = processStats,
                     onOpenPerformance = { selectedServerId?.let { onNavigateToServer(it) } },
                     onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
                 )
@@ -343,6 +368,7 @@ private fun ServerCard(
     serverConfigs: List<ServerConfig>,
     activeState: ServerState?,
     statusColor: Color,
+    localIp: String = "Unknown",
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     onSelectServer: (String) -> Unit,
@@ -422,6 +448,12 @@ private fun ServerCard(
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Filled.Settings, contentDescription = "RAM", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                 Text(text = "${activeServer.memoryMax}M", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                            }
+                            if (status == ServerStatus.RUNNING) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Lan, contentDescription = "Local IP", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Text(text = "$localIp:${activeServer.port}", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                                }
                             }
                         }
                     }
@@ -548,6 +580,7 @@ private fun RowScope.ControlButton(
 @Composable
 private fun TunnelCard(
     tunnelState: com.portalhost.server.TunnelState,
+    localIp: String = "0.0.0.0",
     onStart: () -> Unit,
     onStop: () -> Unit
 ) {
@@ -621,7 +654,7 @@ private fun TunnelCard(
                                     )
                                 }
                                 Text(
-                                    text = "Local: 0.0.0.0:${tunnel.localPort} (${tunnel.type.uppercase()})",
+                                    text = "Local: $localIp:${tunnel.localPort} (${tunnel.type.uppercase()})",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -651,6 +684,7 @@ private fun TunnelCard(
 @Composable
 private fun PerformanceCard(
     activeState: ServerState?,
+    processStats: ProcessStats = ProcessStats(),
     onOpenPerformance: () -> Unit,
     onOpenPlayers: () -> Unit
 ) {
@@ -694,8 +728,7 @@ private fun PerformanceCard(
             ) {
                 Surface(
                     modifier = Modifier.weight(1f)
-                        .fillMaxWidth()
-                        .padding(vertical = 14.dp),
+                        .fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
@@ -712,8 +745,8 @@ private fun PerformanceCard(
                         Text(text = "Players", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                StatMiniCard(value = "—", label = "Download")
-                StatMiniCard(value = "—", label = "Upload")
+                StatMiniCard(value = if (live) processStats.rxFormatted else "—", label = "Download")
+                StatMiniCard(value = if (live) processStats.txFormatted else "—", label = "Upload")
             }
         }
     }

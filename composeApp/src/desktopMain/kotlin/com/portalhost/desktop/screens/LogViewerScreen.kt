@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.server.consoleLineColor
 import com.portalhost.theme.ThemeColors
 import com.portalhost.filesystem.FileSystem
 import org.koin.compose.koinInject
@@ -164,13 +165,7 @@ fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                 ) {
                     items(filteredContent) { line ->
-                        val lineColor = when {
-                            line.contains("[ERROR]", ignoreCase = true) || line.contains("FATAL") -> Color(0xFFF44336)
-                            line.contains("[WARN]", ignoreCase = true) -> Color(0xFFFF9800)
-                            line.contains("[INFO]", ignoreCase = true) -> Color(0xFF4CAF50)
-                            else -> Color(0xFFD4D4D4)
-                        }
-                        Text(line, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = lineColor)
+                        Text(line, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = consoleLineColor(line))
                     }
                 }
             }

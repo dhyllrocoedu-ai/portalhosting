@@ -25,17 +25,25 @@ fun classifyLogLevel(line: String): LogLevel {
 fun consoleLineColor(line: String): Color {
     val upper = line.uppercase()
     return when {
-        upper.contains("[SEVERE]") || upper.contains("[ERROR]") || upper.contains("[FATAL]") ->
+        upper.contains("[SEVERE]") || upper.contains("[ERROR]") || upper.contains("[FATAL]") ||
+            Regex("""\[.*?/ERROR\]""").containsMatchIn(line) ->
             ThemeColors.ConsoleLineColors.Error
-        upper.contains("[WARN]") || upper.contains("[WARNING]") -> ThemeColors.ConsoleLineColors.Warning
+        upper.contains("[WARN]") || upper.contains("[WARNING]") ||
+            Regex("""\[.*?/WARN\]""").containsMatchIn(line) ->
+            ThemeColors.ConsoleLineColors.Warning
         upper.contains("JOINED THE GAME") -> ThemeColors.ConsoleLineColors.PlayerJoin
         upper.contains("LEFT THE GAME") -> ThemeColors.ConsoleLineColors.PlayerLeave
         line.contains("<") && line.contains(">") -> ThemeColors.ConsoleLineColors.Chat
+        upper.contains("DONE") || upper.contains("! FOR HELP") ->
+            ThemeColors.ConsoleLineColors.Success
+        upper.contains("PREPARING") || upper.contains("LOADING") || upper.contains("STARTING") ->
+            ThemeColors.ConsoleLineColors.Warning
         upper.contains("[DEBUG]") || upper.contains("[FINE]") || upper.contains("[FINER]") ||
             upper.contains("[FINEST]") || upper.contains("[TRACE]") || upper.contains("[VERBOSE]") ->
             ThemeColors.ConsoleLineColors.Debug
         upper.contains("[INFO]") || upper.contains("[NOTICE]") || upper.contains("[CONFIG]") ||
-            upper.contains("]: ") -> ThemeColors.ConsoleLineColors.Info
+            upper.contains("]: ") || Regex("""\[.*?/INFO\]""").containsMatchIn(line) ->
+            ThemeColors.ConsoleLineColors.Info
         else -> ThemeColors.ConsoleLineColors.Default
     }
 }

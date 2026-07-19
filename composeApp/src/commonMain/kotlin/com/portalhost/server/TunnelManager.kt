@@ -178,15 +178,7 @@ mappings = [$mapping]
 
             process = proc
             startReader(proc, serverPort)
-
-            // Wait briefly to check if process crashes immediately
-            delay(1000)
-            if (!proc.isAlive) {
-                val exitCode = proc.exitValue()
-                logger.error { "Tunnel process exited immediately with code $exitCode" }
-                _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = "Process exited with code $exitCode")
-                return Result.failure(Exception("Process exited with code $exitCode"))
-            }
+            startTunnelPoller(serverPort)
 
             _state.value = _state.value.copy(status = TunnelStatus.CONNECTING)
             logger.info { "Tunnel process started with PID: ${proc.pid()}" }
@@ -260,9 +252,62 @@ mappings = [$mapping]
             return
         }
 
-        if (text.contains("error", ignoreCase = true) || text.contains("failed", ignoreCase = true)) {
-            if (_state.value.status == TunnelStatus.CONNECTING) {
+        if (text.contains("failed to connect", ignoreCase = true) ||
+            text.contains("unable to", ignoreCase = true) ||
+            (text.contains("error", ignoreCase = true) && text.contains("exit", ignoreCase = true))) {
+            if (_state.value.status == TunnelStatus.CONNECTING || _state.value.status == TunnelStatus.CONNECTED) {
                 _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = text.take(200))
+            }
+        }
+    }
+
+    private fun startTunnelPoller(serverPort: Int) {
+        pollJob?.cancel()
+        pollJob = scope.launch {
+            delay(5000)
+            while (isActive) {
+                val key = secretKey ?: break
+                try {
+                    val conn = URL("https://api.playit.gg/v1/agents/rundata").openConnection() as HttpURLConnection
+                    conn.requestMethod = "POST"
+                    conn.setRequestProperty("Authorization", "Agent-Key $key")
+                    conn.setRequestProperty("Content-Type", "application/json")
+                    conn.doOutput = true
+                    conn.connectTimeout = 10000
+                    conn.readTimeout = 10000
+                    OutputStreamWriter(conn.outputStream).use { it.write("{}") }
+                    val body = conn.inputStream.bufferedReader().readText()
+                    conn.disconnect()
+
+                    if (body.contains("\"status\":\"success\"") || body.contains("\"status\": \"success\"")) {
+                        val addrPattern = Regex(""""display_address"\s*:\s*"([^"]+)"""")
+                        val addrs = addrPattern.findAll(body).map { it.groupValues[1] }.toList()
+                        for (addr in addrs) {
+                            if (tunnelAddresses.none { it.publicAddress == addr }) {
+                                val typeMatch = Regex(""""port_type"\s*:\s*"([^"]+)"""").find(body)
+                                val tunnelType = if (typeMatch != null) typeMatch.groupValues[1] else "tcp"
+                                val tunnel = TunnelInfo(
+                                    tunnelId = tunnelAddresses.size.toString(),
+                                    type = tunnelType,
+                                    localPort = serverPort,
+                                    publicAddress = addr
+                                )
+                                tunnelAddresses.add(tunnel)
+                                logger.info { "Tunnel from API: $addr (type=$tunnelType)" }
+                            }
+                        }
+                        if (tunnelAddresses.isNotEmpty()) {
+                            _state.value = _state.value.copy(
+                                status = TunnelStatus.CONNECTED,
+                                tunnels = tunnelAddresses.toList()
+                            )
+                            break
+                        }
+                    }
+                } catch (e: Exception) {
+                    logger.debug { "API poll: ${e.message}" }
+                }
+                delay(5000)
             }
         }
     }

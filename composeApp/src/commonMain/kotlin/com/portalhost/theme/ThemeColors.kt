@@ -104,6 +104,7 @@ object ThemeColors {
         val Debug = Color(0xFF888888)
         val Info = Color(0xFFE0E0E0)
         val Default = Color(0xFFCCCCCC)
+        val Success = Color(0xFF4CAF50)
     }
 
     // MOTD color codes (Minecraft formatting codes)

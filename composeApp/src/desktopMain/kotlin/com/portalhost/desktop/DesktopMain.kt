@@ -132,7 +132,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.16")
+                        Text("Version 5.0.17")
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))
@@ -232,9 +232,9 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
                                 onNavigateToCreate = { currentScreen = Screen.Create },
-onNavigateToPlayers = { serverId ->
-    currentScreen = Screen.Players(serverId)
-},
+                                onNavigateToPlayers = { serverId ->
+                                    currentScreen = Screen.Players(serverId)
+                                },
                             )
                             Screen.Servers -> ServersScreen(
                                 onNavigateToDetail = { serverId ->
@@ -250,16 +250,16 @@ onNavigateToPlayers = { serverId ->
                                 serverId = (currentScreen as Screen.Console).serverId,
                                 onBack = { currentScreen = Screen.Home },
                             )
-Screen.Create -> CreateServerScreen(
+                            Screen.Create -> CreateServerScreen(
                                 onServerCreated = { serverId ->
                                     currentScreen = Screen.ServerDetail(serverId)
                                 },
                                 onBack = { currentScreen = Screen.Servers },
                             )
                             is Screen.Players -> PlayerManagementScreen(
-    serverId = (currentScreen as Screen.Players).serverId,
-    onBack = { currentScreen = Screen.ServerDetail((currentScreen as Screen.Players).serverId) }
-)
+                                serverId = (currentScreen as Screen.Players).serverId,
+                                onBack = { currentScreen = Screen.Home }
+                            )
 Screen.Settings -> SettingsScreen()
                         }
                     }
