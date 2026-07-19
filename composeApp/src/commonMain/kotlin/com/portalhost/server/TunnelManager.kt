@@ -281,7 +281,16 @@ mappings = [$mapping]
             return
         }
         if (claimMatch != null && secretKey != null) {
-            logger.debug { "Claim URL found but ignored because secretKey is set" }
+            logger.warn { "Claim URL found but secretKey already set - treating as invalid/expired secret, resetting" }
+            // Secret is likely invalid/expired - clear it and re-enter claim flow
+            secretKey = null
+            configFile.delete()
+            val url = claimMatch.value
+            _state.value = _state.value.copy(
+                status = TunnelStatus.CLAIM_REQUIRED,
+                claimUrl = url
+            )
+            return
         }
 
         val tunnelMatch = Regex("""([\w.-]+\.(?:playit\.gg|ply\.gg|at\.ply\.gg|joinmc\.link)):(\d+)""").find(text)
@@ -310,6 +319,16 @@ mappings = [$mapping]
             (text.contains("error", ignoreCase = true) && text.contains("exit", ignoreCase = true))) {
             if (_state.value.status == TunnelStatus.CONNECTING || _state.value.status == TunnelStatus.CONNECTED) {
                 _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = text.take(200))
+                // Detect invalid/expired secret - reset and re-enter claim flow
+                if (secretKey != null && (text.contains("unauthorized", ignoreCase = true) ||
+                    text.contains("invalid secret", ignoreCase = true) ||
+                    text.contains("authentication", ignoreCase = true) ||
+                    text.contains("secret", ignoreCase = true) && text.contains("fail", ignoreCase = true))) {
+                    logger.warn { "Auth error detected, clearing secret and entering claim flow" }
+                    secretKey = null
+                    configFile.delete()
+                    _state.value = _state.value.copy(status = TunnelStatus.CLAIM_REQUIRED, claimUrl = null)
+                }
             }
         }
     }

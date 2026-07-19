@@ -319,7 +319,13 @@ fun DashboardScreen(
                     tunnelState = tunnelState,
                     localIp = localIpInfo.value.localIp,
                     onStart = { scope.launch { tunnelManager.start(activeServer?.port ?: 25565) } },
-                    onStop = { scope.launch { tunnelManager.stop() } }
+                    onStop = { scope.launch { tunnelManager.stop() } },
+                    onClaim = { scope.launch { tunnelManager.startClaimFlow() } },
+                    onOpenClaimUrl = {
+                        tunnelState.claimUrl?.let { url ->
+                            try { java.awt.Desktop.getDesktop().browse(java.net.URI(url)) } catch (_: Exception) {}
+                        }
+                    }
                 )
 
                 PerformanceCard(
@@ -583,11 +589,14 @@ private fun TunnelCard(
     tunnelState: com.portalhost.server.TunnelState,
     localIp: String = "0.0.0.0",
     onStart: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    onClaim: () -> Unit = {},
+    onOpenClaimUrl: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
     val status = tunnelState.status
     val connected = status == TunnelStatus.CONNECTED
+    val claimRequired = status == TunnelStatus.CLAIM_REQUIRED
     val statusText = when (status) {
         TunnelStatus.IDLE -> "Not Connected"
         TunnelStatus.DOWNLOADING -> "Downloading..."
@@ -619,13 +628,24 @@ private fun TunnelCard(
                     Text("Tunnel", style = MaterialTheme.typography.titleMedium)
                     Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
                 }
-                Button(
-                    onClick = { if (connected) onStop() else onStart() },
-                    enabled = enabled,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(if (connected) "Disconnect" else "Connect")
+                if (claimRequired) {
+                    Button(
+                        onClick = onOpenClaimUrl,
+                        enabled = enabled,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text("Open Claim URL")
+                    }
+                } else {
+                    Button(
+                        onClick = { if (connected) onStop() else onStart() },
+                        enabled = enabled,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(if (connected) "Disconnect" else "Connect")
+                    }
                 }
             }
 
@@ -636,7 +656,35 @@ private fun TunnelCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (connected && tunnelState.tunnels.isNotEmpty()) {
+                if (claimRequired && tunnelState.claimUrl != null) {
+                    val claimUrl = tunnelState.claimUrl!!
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Claim URL", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = claimUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(onClick = { clipboardManager.setText(AnnotatedString(claimUrl)) }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = onOpenClaimUrl) {
+                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open claim URL in browser", modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onClaim) {
+                            Text("Re-claim")
+                        }
+                    }
+                } else if (connected && tunnelState.tunnels.isNotEmpty()) {
                     tunnelState.tunnels.forEach { tunnel ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -660,63 +708,58 @@ private fun TunnelCard(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    IconButton(onClick = {
-                                        clipboardManager.setText(AnnotatedString("$localIp:${tunnel.localPort}"))
-                                    }, modifier = Modifier.size(28.dp)) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(14.dp))
-                                    }
                                 }
                             }
-                            IconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(tunnel.publicAddress))
-                            }, modifier = Modifier.size(36.dp)) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy address", modifier = Modifier.size(18.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(onClick = { clipboardManager.setText(AnnotatedString(tunnel.publicAddress)) }) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy public address", modifier = Modifier.size(20.dp))
+                                }
+                                IconButton(onClick = { clipboardManager.setText(AnnotatedString("$localIp:${tunnel.localPort}")) }) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(20.dp))
+                                }
                             }
                         }
                     }
-                }
-
-                if (status == TunnelStatus.CLAIM_REQUIRED && tunnelState.claimUrl != null) {
-                    val claimUrl = tunnelState.claimUrl
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
+                } else if (status == TunnelStatus.ERROR) {
+                    if (tunnelState.error != null) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = "Claim URL: $claimUrl",
+                                text = tunnelState.error!!,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
+                                color = MaterialTheme.colorScheme.error,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        IconButton(onClick = {
-                            clipboardManager.setText(AnnotatedString(claimUrl))
-                        }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(14.dp))
-                        }
-                        IconButton(onClick = {
-                            try { java.awt.Desktop.getDesktop().browse(java.net.URI(claimUrl)) } catch (_: Exception) {}
-                        }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open claim URL", modifier = Modifier.size(14.dp))
+                    }
+                    if (tunnelState.lastOutput.isNotBlank()) {
+                        Text(
+                            text = tunnelState.lastOutput,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onClaim) {
+                            Text("Retry")
                         }
                     }
-                }
-
-                if (status == TunnelStatus.ERROR && tunnelState.error != null) {
-                    Text(
-                        text = tunnelState.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-
-                if (status == TunnelStatus.CONNECTING && tunnelState.lastOutput.isNotBlank()) {
-                    Text(
-                        text = tunnelState.lastOutput,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                } else if (status == TunnelStatus.CONNECTING || status == TunnelStatus.DOWNLOADING) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.weight(1f),
+                            progress = if (status == TunnelStatus.DOWNLOADING) 0.5f else 0f,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
+                    }
+                } else {
+                    Text("Not connected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
