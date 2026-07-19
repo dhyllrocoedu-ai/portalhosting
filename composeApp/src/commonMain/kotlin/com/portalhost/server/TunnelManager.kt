@@ -161,6 +161,10 @@ mappings = [$mapping]
 """
             }
             configFile.writeText(configContent.trimIndent())
+            logger.info { "Config written to ${configFile.absolutePath}: secretKey=${secretKey != null}, size=${configFile.length()}" }
+            if (secretKey != null) {
+                logger.info { "Config content (first 200 chars): ${configContent.trimIndent().take(200)}" }
+            }
 
             // Ensure binary is executable on Windows
             if (daemonBinary.exists()) {
@@ -205,11 +209,17 @@ mappings = [$mapping]
             try {
                 proc.inputStream.bufferedReader().use { reader ->
                     var line: String?
+                    var lineCount = 0
                     while (reader.readLine().also { line = it } != null) {
                         val text = line!!
+                        lineCount++
+                        if (lineCount <= 5 || lineCount % 10 == 0) {
+                            logger.debug { "playit line $lineCount: ${text.take(100)}" }
+                        }
                         _state.value = _state.value.copy(lastOutput = text.take(200))
                         parseLine(text, serverPort)
                     }
+                    logger.info { "playit process stdout ended after $lineCount lines" }
                 }
             } catch (_: IOException) {
                 val logTail = readLogTail()
@@ -218,9 +228,11 @@ mappings = [$mapping]
                         lastOutput = logTail.take(200)
                     )
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                logger.warn(e) { "playit reader exception" }
             } finally {
                 if (process === proc) {
+                    logger.info { "playit reader finally block: process=${process?.isAlive}, status=${_state.value.status}" }
                     readJob = null
                     process = null
                     val logTail = readLogTail()
@@ -232,11 +244,15 @@ mappings = [$mapping]
                         "Process exited"
                     }
                     tunnelAddresses.clear()
-                    _state.value = _state.value.copy(
-                        status = TunnelStatus.ERROR,
-                        tunnels = emptyList(),
-                        error = errorMsg,
-                    )
+                    if (_state.value.status != TunnelStatus.CLAIM_REQUIRED && _state.value.status != TunnelStatus.CONNECTED) {
+                        _state.value = _state.value.copy(
+                            status = TunnelStatus.ERROR,
+                            tunnels = emptyList(),
+                            error = errorMsg,
+                        )
+                    } else {
+                        logger.info { "Not overwriting status ${_state.value.status} on process exit" }
+                    }
                 }
             }
         }
@@ -252,6 +268,8 @@ mappings = [$mapping]
     }
 
     private fun parseLine(text: String, serverPort: Int) {
+        logger.debug { "playit output: $text" }
+
         val claimMatch = Regex("""https://playit\.gg/claim/[\w-]+""").find(text)
         if (claimMatch != null && secretKey == null) {
             val url = claimMatch.value
@@ -261,6 +279,9 @@ mappings = [$mapping]
                 claimUrl = url
             )
             return
+        }
+        if (claimMatch != null && secretKey != null) {
+            logger.debug { "Claim URL found but ignored because secretKey is set" }
         }
 
         val tunnelMatch = Regex("""([\w.-]+\.(?:playit\.gg|ply\.gg|at\.ply\.gg|joinmc\.link)):(\d+)""").find(text)

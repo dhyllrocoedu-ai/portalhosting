@@ -142,7 +142,7 @@ val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.19")
+                        Text("Version 5.0.20")
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))

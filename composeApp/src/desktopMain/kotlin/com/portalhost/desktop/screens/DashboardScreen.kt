@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
@@ -628,14 +629,14 @@ private fun TunnelCard(
                 }
             }
 
-            if (connected && tunnelState.tunnels.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(8.dp))
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (connected && tunnelState.tunnels.isNotEmpty()) {
                     tunnelState.tunnels.forEach { tunnel ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -673,23 +674,49 @@ private fun TunnelCard(
                             }
                         }
                     }
-                    if (tunnelState.claimUrl != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                }
+
+                if (status == TunnelStatus.CLAIM_REQUIRED && tunnelState.claimUrl != null) {
+                    val claimUrl = tunnelState.claimUrl
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Claim URL: ${tunnelState.claimUrl}",
+                                text = "Claim URL: $claimUrl",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            IconButton(onClick = {
-                                clipboardManager.setText(AnnotatedString(tunnelState.claimUrl))
-                            }, modifier = Modifier.size(28.dp)) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(14.dp))
-                            }
+                        }
+                        IconButton(onClick = {
+                            clipboardManager.setText(AnnotatedString(claimUrl))
+                        }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(14.dp))
+                        }
+                        IconButton(onClick = {
+                            try { java.awt.Desktop.getDesktop().browse(java.net.URI(claimUrl)) } catch (_: Exception) {}
+                        }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open claim URL", modifier = Modifier.size(14.dp))
                         }
                     }
+                }
+
+                if (status == TunnelStatus.ERROR && tunnelState.error != null) {
+                    Text(
+                        text = tunnelState.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                if (status == TunnelStatus.CONNECTING && tunnelState.lastOutput.isNotBlank()) {
+                    Text(
+                        text = tunnelState.lastOutput,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
