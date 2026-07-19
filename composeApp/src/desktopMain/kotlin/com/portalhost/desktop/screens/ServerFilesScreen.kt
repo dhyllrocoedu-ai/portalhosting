@@ -18,10 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -114,7 +114,7 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
 
     // Breadcrumbs
     val breadcrumbs = buildList {
-        var dir = currentDir
+        var dir: File? = currentDir
         while (dir != null) {
             add(dir)
             dir = dir.parentFile
@@ -135,7 +135,7 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(8.dp))
                     Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
