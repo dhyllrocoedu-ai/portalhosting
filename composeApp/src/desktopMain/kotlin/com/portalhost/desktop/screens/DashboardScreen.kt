@@ -749,7 +749,7 @@ private fun TunnelCard(
                             style = MaterialTheme.typography.bodySmall,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
+                            maxLines = 8,
                             overflow = TextOverflow.Ellipsis
                         )
                     }

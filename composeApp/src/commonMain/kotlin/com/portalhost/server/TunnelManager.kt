@@ -18,9 +18,12 @@ import java.io.IOException
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.SecureRandom
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
+
+private const val MAX_OUTPUT_LINES = 8
 
 data class TunnelInfo(
     val tunnelId: String = "",
@@ -45,10 +48,9 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     private val playitDir: File get() = File(fileSystem.getAppDirBlocking(), "playit")
     private val configFile: File get() = File(playitDir, "playit.toml")
     private val daemonBinary: File get() = File(playitDir, if (System.getProperty("os.name").lowercase().contains("win")) "playitd.exe" else "playitd")
-    private val cliBinary: File get() = File(playitDir, if (System.getProperty("os.name").lowercase().contains("win")) "playit-cli.exe" else "playit-cli")
+    private val apiBase = "https://api.playit.gg"
 
     private var process: Process? = null
-    private var exchangeProcess: Process? = null
     private var readJob: Job? = null
     private var pollJob: Job? = null
     private var exchangeJob: Job? = null
@@ -61,6 +63,7 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     private var tunnelAddresses = mutableListOf<TunnelInfo>()
     private var secretKey: String? = null
     private var currentServerPort: Int = 25565
+    private val outputBuffer = ArrayDeque<String>(MAX_OUTPUT_LINES)
 
     val isRunning: Boolean get() = process?.isAlive == true
 
@@ -96,31 +99,17 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
 
             playitDir.mkdirs()
 
-            // Download daemon
             val daemonUrl = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-$suffix"
-            logger.info { "Downloading playit daemon from $daemonUrl" }
-            var conn = URL(daemonUrl).openConnection()
+            logger.info { "Downloading playit agent from $daemonUrl" }
+            val conn = URL(daemonUrl).openConnection()
             conn.connectTimeout = 30000
             conn.readTimeout = 120000
             conn.connect()
-            var input = conn.getInputStream()
+            val input = conn.getInputStream()
             val targetDaemon = if (isWindows) File(playitDir, "playitd.exe") else daemonBinary
             targetDaemon.outputStream().use { output -> input.copyTo(output) }
             targetDaemon.setExecutable(true)
-            logger.info { "Downloaded playit daemon (${targetDaemon.length()} bytes)" }
-
-            // Download CLI
-            val cliUrl = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-cli-$suffix"
-            logger.info { "Downloading playit CLI from $cliUrl" }
-            conn = URL(cliUrl).openConnection()
-            conn.connectTimeout = 30000
-            conn.readTimeout = 120000
-            conn.connect()
-            input = conn.getInputStream()
-            val targetCli = if (isWindows) File(playitDir, "playit-cli.exe") else cliBinary
-            targetCli.outputStream().use { output -> input.copyTo(output) }
-            targetCli.setExecutable(true)
-            logger.info { "Downloaded playit CLI (${targetCli.length()} bytes)" }
+            logger.info { "Downloaded playit agent (${targetDaemon.length()} bytes)" }
 
             _state.value = _state.value.copy(status = TunnelStatus.IDLE)
             Result.success(Unit)
@@ -142,12 +131,36 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     }
 
     fun startClaimFlow() {
-        logger.info { "Starting CLI claim flow from UI" }
+        logger.info { "Starting API claim flow from UI" }
         scope.launch {
             forceStop()
             _state.value = TunnelState(status = TunnelStatus.CONNECTING)
             start(currentServerPort)
         }
+    }
+
+    private fun generateClaimCode(): String {
+        val bytes = ByteArray(5)
+        SecureRandom().nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun claimUrl(code: String): String = "https://playit.gg/claim/$code"
+
+    private suspend fun apiPost(path: String, jsonBody: String, authHeader: String? = null): String? {
+        return try {
+            val conn = URL("$apiBase$path").openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            if (authHeader != null) conn.setRequestProperty("Authorization", authHeader)
+            conn.doOutput = true
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
+            OutputStreamWriter(conn.outputStream).use { it.write(jsonBody) }
+            val body = conn.inputStream.bufferedReader().readText().trim()
+            conn.disconnect()
+            body
+        } catch (_: Exception) { null }
     }
 
     private suspend fun startClaimFlowInternal(): Result<Unit> = withContext(Dispatchers.IO) {
@@ -161,21 +174,10 @@ mappings = []
 """.trimIndent())
             }
 
-            val fullArgs = mutableListOf(cliBinary.absolutePath, "claim", "generate")
-            val genProc = ProcessBuilder(fullArgs).directory(playitDir).redirectErrorStream(false).start()
-            val code = genProc.inputStream.bufferedReader().readText().trim()
-            if (genProc.waitFor() != 0 || code.isEmpty()) {
-                throw IOException("claim generate failed: ${genProc.errorStream.bufferedReader().readText().trim()}")
-            }
+            val code = generateClaimCode()
+            val url = claimUrl(code)
+            logger.info { "Claim code: $code, URL: $url" }
 
-            val urlArgs = mutableListOf(cliBinary.absolutePath, "claim", "url", code)
-            val urlProc = ProcessBuilder(urlArgs).directory(playitDir).redirectErrorStream(false).start()
-            val url = urlProc.inputStream.bufferedReader().readText().trim()
-            if (urlProc.waitFor() != 0 || url.isEmpty()) {
-                throw IOException("claim url failed: ${urlProc.errorStream.bufferedReader().readText().trim()}")
-            }
-
-            logger.info { "Claim URL: $url" }
             _state.value = _state.value.copy(
                 status = TunnelStatus.CLAIM_REQUIRED,
                 claimUrl = url
@@ -202,39 +204,75 @@ mappings = [$mapping]
 
         exchangeJob = scope.launch {
             try {
-                val args = mutableListOf(cliBinary.absolutePath, "--stdout", "claim", "exchange", claimCode)
-                val proc = ProcessBuilder(args).directory(playitDir).redirectErrorStream(false).start()
-                exchangeProcess = proc
-                val output = proc.inputStream.bufferedReader().readText().trim()
-                val exitCode = proc.waitFor()
-                exchangeProcess = null
+                val setupPayload = """{"code":"$claimCode","agent_type":"self-managed","version":"playit 1.0.10"}"""
+                val exchangePayload = """{"code":"$claimCode"}"""
 
-                if (exitCode != 0) {
-                    val err = proc.errorStream.bufferedReader().readText().trim()
-                    throw IOException("claim exchange exited $exitCode: $err")
+                logger.info { "Polling claim setup for code $claimCode" }
+
+                var userVisited = false
+                while (isActive) {
+                    val resp = apiPost("/claim/setup", setupPayload) ?: run {
+                        delay(2000)
+                        continue
+                    }
+
+                    when {
+                        resp.contains("\"status\":\"success\"") -> {
+                            when {
+                                resp.contains("UserAccepted") -> {
+                                    logger.info { "Claim accepted, exchanging for secret key" }
+                                    break
+                                }
+                                resp.contains("UserRejected") -> {
+                                    throw IOException("Claim was rejected in the browser")
+                                }
+                                resp.contains("WaitingForUser") -> {
+                                    if (!userVisited) {
+                                        userVisited = true
+                                        logger.info { "User visited claim URL, waiting for approval" }
+                                    }
+                                }
+                                else -> { /* WaitingForUserVisit */ }
+                            }
+                        }
+                        resp.contains("\"status\":\"fail\"") -> {
+                            val failData = resp.substringAfter("\"data\":\"").substringBefore("\"")
+                            throw IOException("Claim setup failed: $failData")
+                        }
+                        resp.contains("\"status\":\"error\"") -> {
+                            logger.warn { "Claim setup API error: ${resp.take(200)}" }
+                        }
+                    }
+                    delay(2000)
                 }
 
-                val secretMatch = Regex("""secret_key\s*=\s*['"](.+)['"]""").find(configFile.readText())
-                val newSecret = secretMatch?.groupValues?.get(1)
+                val exchangeResp = apiPost("/claim/exchange", exchangePayload)
+                    ?: throw IOException("No response from claim exchange")
 
-                if (newSecret != null && newSecret.isNotEmpty()) {
+                if (!exchangeResp.contains("\"status\":\"success\"")) {
+                    throw IOException("Claim exchange failed: ${exchangeResp.take(200)}")
+                }
+
+                val newSecret = exchangeResp.substringAfter("\"secret_key\":\"")
+                    .substringBefore("\"")
+
+                if (newSecret.isNotEmpty()) {
                     secretKey = newSecret
                     logger.info { "Claim confirmed, secret key stored" }
                     configFile.writeText("""secret_key = "$newSecret"
 refresh_from_api = true
 mappings = [$mapping]
 """.trimIndent())
+                } else {
+                    throw IOException("Empty secret key from exchange")
                 }
 
                 _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
                 start(currentServerPort)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                if (exchangeProcess != null) {
-                    logger.error(e) { "Failed to exchange claim" }
-                    _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
-                    exchangeProcess = null
-                }
+                logger.error(e) { "Failed to exchange claim" }
+                _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
             }
         }
     }
@@ -258,6 +296,7 @@ mappings = [$mapping]
 
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         tunnelAddresses.clear()
+        outputBuffer.clear()
 
         return try {
             playitDir.mkdirs()
@@ -302,6 +341,14 @@ mappings = [$mapping]
         }
     }
 
+    private fun pushOutput(text: String) {
+        if (outputBuffer.size >= MAX_OUTPUT_LINES) {
+            outputBuffer.removeFirst()
+        }
+        outputBuffer.addLast(text.take(200))
+        _state.value = _state.value.copy(lastOutput = outputBuffer.joinToString("\n"))
+    }
+
     private fun startReader(proc: Process, serverPort: Int) {
         readJob?.cancel()
         readJob = scope.launch {
@@ -315,7 +362,7 @@ mappings = [$mapping]
                         if (lineCount <= 5 || lineCount % 10 == 0) {
                             logger.debug { "playit line $lineCount: ${text.take(100)}" }
                         }
-                        _state.value = _state.value.copy(lastOutput = text.take(200))
+                        pushOutput(text)
                         parseLine(text, serverPort)
                     }
                     logger.info { "playit process stdout ended after $lineCount lines" }
@@ -323,9 +370,8 @@ mappings = [$mapping]
             } catch (_: IOException) {
                 val logTail = readLogTail()
                 if (logTail.isNotBlank() && _state.value.status != TunnelStatus.CONNECTED) {
-                    _state.value = _state.value.copy(
-                        lastOutput = logTail.take(200)
-                    )
+                    val lines = logTail.lines().filter { it.isNotBlank() }.takeLast(MAX_OUTPUT_LINES)
+                    _state.value = _state.value.copy(lastOutput = lines.joinToString("\n"))
                 }
             } catch (e: Exception) {
                 logger.warn(e) { "playit reader exception" }
@@ -381,7 +427,6 @@ mappings = [$mapping]
         }
         if (claimMatch != null && secretKey != null) {
             logger.warn { "Claim URL found but secretKey already set - treating as invalid/expired secret, resetting" }
-            // Secret is likely invalid/expired - clear it and re-enter claim flow
             secretKey = null
             configFile.delete()
             val url = claimMatch.value
@@ -392,7 +437,6 @@ mappings = [$mapping]
             return
         }
 
-        // Detect "Waiting for frontend secret provisioning over IPC" - indicates stale/invalid secret
         if (text.contains("Waiting for frontend secret provisioning over IPC", ignoreCase = true) && secretKey != null) {
             logger.warn { "Detected IPC provisioning wait - clearing stale secret and re-entering claim flow" }
             secretKey = null
@@ -401,7 +445,6 @@ mappings = [$mapping]
                 status = TunnelStatus.CLAIM_REQUIRED,
                 claimUrl = null
             )
-            // Restart tunnel to trigger claim flow
             scope.launch { start(currentServerPort) }
             return
         }
@@ -432,7 +475,6 @@ mappings = [$mapping]
             (text.contains("error", ignoreCase = true) && text.contains("exit", ignoreCase = true))) {
             if (_state.value.status == TunnelStatus.CONNECTING || _state.value.status == TunnelStatus.CONNECTED) {
                 _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = text.take(200))
-                // Detect invalid/expired secret - reset and re-enter claim flow
                 if (secretKey != null && (text.contains("unauthorized", ignoreCase = true) ||
                     text.contains("invalid secret", ignoreCase = true) ||
                     text.contains("authentication", ignoreCase = true) ||
@@ -492,7 +534,6 @@ mappings = [$mapping]
                 } catch (e: Exception) {
                     logger.debug { "API poll: ${e.message}" }
                 }
-                // Provisioning timeout: if secret was set but no tunnels after 30s, reset secret and restart
                 if (secretKey != null && provisionStartTime > 0 &&
                     System.currentTimeMillis() - provisionStartTime > 30_000 &&
                     tunnelAddresses.isEmpty() &&
@@ -501,10 +542,8 @@ mappings = [$mapping]
                     secretKey = null
                     configFile.delete()
                     provisionStartTime = 0
-                    // Kill stuck process
                     try { process?.destroyForcibly() } catch (_: Exception) {}
                     process = null
-                    // Restart tunnel without secret (will enter claim flow)
                     _state.value = _state.value.copy(status = TunnelStatus.CLAIM_REQUIRED, claimUrl = null)
                     kotlinx.coroutines.runBlocking { start(serverPort) }
                     break
@@ -523,13 +562,12 @@ mappings = [$mapping]
         exchangeJob?.cancel()
         exchangeJob = null
         try {
-            exchangeProcess?.destroyForcibly()
-            exchangeProcess = null
             process?.destroyForcibly()
             process?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
         } catch (_: Exception) {}
         process = null
         tunnelAddresses.clear()
+        outputBuffer.clear()
         provisionStartTime = 0
         _state.value = TunnelState()
     }
@@ -537,7 +575,6 @@ mappings = [$mapping]
     fun forceStop() {
         logger.info { "Force stopping tunnel (cancel)" }
         stop()
-        // Also ensure config is cleared
         configFile.delete()
         secretKey = null
     }
