@@ -19,11 +19,20 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.SecureRandom
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonArray
 import mu.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
 private const val MAX_OUTPUT_LINES = 8
+
+private val json = Json { isLenient = true; ignoreUnknownKeys = true }
 
 data class TunnelInfo(
     val tunnelId: String = "",
@@ -163,6 +172,25 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
         } catch (_: Exception) { null }
     }
 
+    private fun parseStatus(resp: String): String? {
+        return try {
+            json.parseToJsonElement(resp).jsonObject["status"]?.jsonPrimitive?.contentOrNull
+        } catch (_: Exception) { null }
+    }
+
+    private fun parseDataString(resp: String): String? {
+        return try {
+            val data = json.parseToJsonElement(resp).jsonObject["data"] ?: return null
+            data.jsonPrimitive.contentOrNull
+        } catch (_: Exception) { null }
+    }
+
+    private fun parseDataObject(resp: String): JsonObject? {
+        return try {
+            json.parseToJsonElement(resp).jsonObject["data"]?.jsonObject
+        } catch (_: Exception) { null }
+    }
+
     private suspend fun startClaimFlowInternal(): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         try {
@@ -216,17 +244,17 @@ mappings = [$mapping]
                         continue
                     }
 
-                    when {
-                        resp.contains("\"status\":\"success\"") -> {
-                            when {
-                                resp.contains("UserAccepted") -> {
+                    when (parseStatus(resp)) {
+                        "success" -> {
+                            when (parseDataString(resp)) {
+                                "UserAccepted" -> {
                                     logger.info { "Claim accepted, exchanging for secret key" }
                                     break
                                 }
-                                resp.contains("UserRejected") -> {
+                                "UserRejected" -> {
                                     throw IOException("Claim was rejected in the browser")
                                 }
-                                resp.contains("WaitingForUser") -> {
+                                "WaitingForUser" -> {
                                     if (!userVisited) {
                                         userVisited = true
                                         logger.info { "User visited claim URL, waiting for approval" }
@@ -235,12 +263,15 @@ mappings = [$mapping]
                                 else -> { /* WaitingForUserVisit */ }
                             }
                         }
-                        resp.contains("\"status\":\"fail\"") -> {
-                            val failData = resp.substringAfter("\"data\":\"").substringBefore("\"")
+                        "fail" -> {
+                            val failData = parseDataString(resp) ?: "unknown"
                             throw IOException("Claim setup failed: $failData")
                         }
-                        resp.contains("\"status\":\"error\"") -> {
+                        "error" -> {
                             logger.warn { "Claim setup API error: ${resp.take(200)}" }
+                        }
+                        null -> {
+                            logger.warn { "Claim setup: unexpected response: ${resp.take(200)}" }
                         }
                     }
                     delay(2000)
@@ -249,14 +280,14 @@ mappings = [$mapping]
                 val exchangeResp = apiPost("/claim/exchange", exchangePayload)
                     ?: throw IOException("No response from claim exchange")
 
-                if (!exchangeResp.contains("\"status\":\"success\"")) {
+                if (parseStatus(exchangeResp) != "success") {
                     throw IOException("Claim exchange failed: ${exchangeResp.take(200)}")
                 }
 
-                val newSecret = exchangeResp.substringAfter("\"secret_key\":\"")
-                    .substringBefore("\"")
+                val dataObj = parseDataObject(exchangeResp)
+                val newSecret = dataObj?.get("secret_key")?.jsonPrimitive?.contentOrNull
 
-                if (newSecret.isNotEmpty()) {
+                if (!newSecret.isNullOrEmpty()) {
                     secretKey = newSecret
                     logger.info { "Claim confirmed, secret key stored" }
                     configFile.writeText("""secret_key = "$newSecret"

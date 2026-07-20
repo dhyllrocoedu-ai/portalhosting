@@ -78,6 +78,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
@@ -297,12 +298,10 @@ fun DashboardScreen(
                     localIp = localIpInfo.value.localIp,
                     onStart = { scope.launch { tunnelManager.start(activeServer?.port ?: 25565) } },
                     onStop = { scope.launch { tunnelManager.stop() } },
-                    onClaim = { scope.launch { 
+                    onClaim = { scope.launch {
                         if (tunnelState.status == TunnelStatus.CLAIM_REQUIRED && tunnelState.claimUrl == null) {
-                            // Waiting for claim URL - cancel by force stopping
                             tunnelManager.forceStop()
                         } else {
-                            // Normal claim flow
                             tunnelManager.startClaimFlow()
                         }
                     } },
@@ -310,7 +309,8 @@ fun DashboardScreen(
                         tunnelState.claimUrl?.let { url ->
                             try { java.awt.Desktop.getDesktop().browse(java.net.URI(url)) } catch (_: Exception) {}
                         }
-                    }
+                    },
+                    onReset = { scope.launch { tunnelManager.resetKey() } }
                 )
 
                 PerformanceCard(
@@ -585,7 +585,8 @@ private fun TunnelCard(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onClaim: () -> Unit = {},
-    onOpenClaimUrl: () -> Unit = {}
+    onOpenClaimUrl: () -> Unit = {},
+    onReset: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -623,23 +624,65 @@ private fun TunnelCard(
                     Text("Tunnel", style = MaterialTheme.typography.titleMedium)
                     Text(statusText, style = MaterialTheme.typography.bodySmall, color = statusColor)
                 }
-                if (claimRequired) {
-                    Button(
-                        onClick = onOpenClaimUrl,
-                        enabled = enabled,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text("Open Claim URL")
+                when (status) {
+                    TunnelStatus.IDLE -> {
+                        Button(
+                            onClick = onStart,
+                            enabled = enabled,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) { Text("Connect") }
                     }
-                } else {
-                    Button(
-                        onClick = { if (connected) onStop() else onStart() },
-                        enabled = enabled,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(if (connected) "Disconnect" else "Connect")
+                    TunnelStatus.CONNECTED -> {
+                        Button(
+                            onClick = onStop,
+                            enabled = enabled,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) { Text("Disconnect") }
+                    }
+                    TunnelStatus.CLAIM_REQUIRED -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = onOpenClaimUrl,
+                                enabled = enabled,
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) { Text("Open Claim URL") }
+                            OutlinedButton(
+                                onClick = onStop,
+                                enabled = enabled,
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) { Text("Stop") }
+                        }
+                    }
+                    TunnelStatus.ERROR -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = onClaim,
+                                enabled = enabled,
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) { Text("Retry") }
+                            OutlinedButton(
+                                onClick = onStop,
+                                enabled = enabled,
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) { Text("Stop") }
+                        }
+                    }
+                    TunnelStatus.CONNECTING, TunnelStatus.DOWNLOADING -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            OutlinedButton(
+                                onClick = onStop,
+                                enabled = enabled,
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) { Text("Stop") }
+                        }
                     }
                 }
             }
@@ -675,9 +718,8 @@ private fun TunnelCard(
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = onClaim) {
-                            Text("Re-claim")
-                        }
+                        TextButton(onClick = onClaim) { Text("Re-claim") }
+                        TextButton(onClick = onReset) { Text("Reset") }
                     }
                 } else if (claimRequired) {
                     // Waiting for daemon to output claim URL
@@ -691,9 +733,8 @@ private fun TunnelCard(
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = onClaim) {
-                            Text("Cancel")
-                        }
+                        TextButton(onClick = onClaim) { Text("Cancel") }
+                        TextButton(onClick = onReset) { Text("Reset") }
                     }
                 } else if (connected && tunnelState.tunnels.isNotEmpty()) {
                     tunnelState.tunnels.forEach { tunnel ->
@@ -755,9 +796,8 @@ private fun TunnelCard(
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = onClaim) {
-                            Text("Retry")
-                        }
+                        TextButton(onClick = onClaim) { Text("Retry") }
+                        TextButton(onClick = onReset) { Text("Reset") }
                     }
                 } else if (status == TunnelStatus.CONNECTING || status == TunnelStatus.DOWNLOADING) {
                     Row(modifier = Modifier.fillMaxWidth()) {
