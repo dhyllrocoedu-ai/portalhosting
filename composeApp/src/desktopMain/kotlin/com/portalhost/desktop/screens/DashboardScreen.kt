@@ -847,13 +847,13 @@ private fun PerformanceCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                StatMiniCard(value = if (live) "${activeState?.cpuUsage?.toInt()}%" else "—", label = "CPU")
+                StatMiniCard(value = if (live) "${processStats.cpuPercent.toInt()}%" else "—", label = "CPU")
                 StatMiniCard(
-                    value = if (live) formatRam(activeState?.memoryUsage ?: 0) else "—",
+                    value = if (live) processStats.ramFormatted else "—",
                     label = "RAM"
                 )
                 StatMiniCard(
-                    value = if (live && activeState?.cpuUsage != null) "%.1f".format(20.0 - (activeState.cpuUsage / 5.0)) else "—",
+                    value = if (live) "%.1f".format(processStats.tps) else "—",
                     label = "TPS"
                 )
             }

@@ -523,8 +523,10 @@ mappings = [$mapping]
         pollJob?.cancel()
         pollJob = scope.launch {
             delay(5000)
+            var lastSuccessfulPoll = System.currentTimeMillis()
             while (isActive) {
                 val key = secretKey ?: break
+                var pollSucceeded = false
                 try {
                     val conn = URL("https://api.playit.gg/v1/agents/rundata").openConnection() as HttpURLConnection
                     conn.requestMethod = "POST"
@@ -536,6 +538,8 @@ mappings = [$mapping]
                     OutputStreamWriter(conn.outputStream).use { it.write("{}") }
                     val body = conn.inputStream.bufferedReader().readText()
                     conn.disconnect()
+                    pollSucceeded = true
+                    lastSuccessfulPoll = System.currentTimeMillis()
 
                     if (body.contains("\"status\":\"success\"") || body.contains("\"status\": \"success\"")) {
                         val addrPattern = Regex(""""display_address"\s*:\s*"([^"]+)"""")
@@ -563,21 +567,25 @@ mappings = [$mapping]
                         }
                     }
                 } catch (e: Exception) {
-                    logger.debug { "API poll: ${e.message}" }
+                    logger.warn { "API poll failed: ${e.message}" }
                 }
+
                 if (secretKey != null && provisionStartTime > 0 &&
-                    System.currentTimeMillis() - provisionStartTime > 30_000 &&
+                    System.currentTimeMillis() - provisionStartTime > 120_000 &&
                     tunnelAddresses.isEmpty() &&
                     _state.value.status == TunnelStatus.CONNECTING) {
-                    logger.warn { "Provisioning timeout (30s) - killing process, clearing secret, restarting claim flow" }
-                    secretKey = null
-                    configFile.delete()
-                    provisionStartTime = 0
-                    try { process?.destroyForcibly() } catch (_: Exception) {}
-                    process = null
-                    _state.value = _state.value.copy(status = TunnelStatus.CLAIM_REQUIRED, claimUrl = null)
-                    kotlinx.coroutines.runBlocking { start(serverPort) }
-                    break
+                    val elapsedSinceSuccess = System.currentTimeMillis() - lastSuccessfulPoll
+                    if (elapsedSinceSuccess > 60_000) {
+                        logger.error { "Provisioning timeout (120s) and no successful API poll for 60s - stopping tunnel" }
+                        secretKey = null
+                        provisionStartTime = 0
+                        try { process?.destroyForcibly() } catch (_: Exception) {}
+                        process = null
+                        _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = "Provisioning timed out - no tunnels established after 120s")
+                        break
+                    } else {
+                        logger.warn { "Provisioning taking longer than expected (120s), but API polls still succeeding - continuing to wait..." }
+                    }
                 }
                 delay(5000)
             }
