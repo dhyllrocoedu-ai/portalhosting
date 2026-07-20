@@ -125,9 +125,7 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     }
 
     fun startClaimFlow() {
-        stop()
-        configFile.delete()
-        secretKey = null
+        forceStop()
         _state.value = TunnelState(status = TunnelStatus.CONNECTING)
         kotlinx.coroutines.runBlocking { start(currentServerPort) }
     }
@@ -390,16 +388,21 @@ mappings = [$mapping]
                 } catch (e: Exception) {
                     logger.debug { "API poll: ${e.message}" }
                 }
-                // Provisioning timeout: if secret was set but no tunnels after 30s, reset secret
+                // Provisioning timeout: if secret was set but no tunnels after 30s, reset secret and restart
                 if (secretKey != null && provisionStartTime > 0 &&
                     System.currentTimeMillis() - provisionStartTime > 30_000 &&
                     tunnelAddresses.isEmpty() &&
                     _state.value.status == TunnelStatus.CONNECTING) {
-                    logger.warn { "Provisioning timeout (30s) - clearing secret and entering claim flow" }
+                    logger.warn { "Provisioning timeout (30s) - killing process, clearing secret, restarting claim flow" }
                     secretKey = null
                     configFile.delete()
                     provisionStartTime = 0
+                    // Kill stuck process
+                    try { process?.destroyForcibly() } catch (_: Exception) {}
+                    process = null
+                    // Restart tunnel without secret (will enter claim flow)
                     _state.value = _state.value.copy(status = TunnelStatus.CLAIM_REQUIRED, claimUrl = null)
+                    kotlinx.coroutines.runBlocking { start(serverPort) }
                     break
                 }
                 delay(5000)
@@ -413,11 +416,22 @@ mappings = [$mapping]
         pollJob?.cancel()
         readJob = null
         pollJob = null
-        try { process?.destroyForcibly() } catch (_: Exception) {}
-        try { process?.waitFor(5, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+        try {
+            process?.destroyForcibly()
+            process?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (_: Exception) {}
         process = null
         tunnelAddresses.clear()
+        provisionStartTime = 0
         _state.value = TunnelState()
+    }
+
+    fun forceStop() {
+        logger.info { "Force stopping tunnel (cancel)" }
+        stop()
+        // Also ensure config is cleared
+        configFile.delete()
+        secretKey = null
     }
 
     fun dispose() {
