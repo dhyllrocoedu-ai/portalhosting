@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -763,69 +765,71 @@ fun CreateServerScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
                 StepIndicator(current = currentStep, total = totalSteps)
                 Spacer(Modifier.height(16.dp))
 
-                when (currentStep) {
-                    0 -> StepChooseSource()
-                    1 -> StepServerName()
-                    2 -> StepRamConfig()
-                    3 -> StepProperties()
-                    4 -> StepStorageCheck()
-                    5 -> StepEula()
-                }
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    when (currentStep) {
+                        0 -> StepChooseSource()
+                        1 -> StepServerName()
+                        2 -> StepRamConfig()
+                        3 -> StepProperties()
+                        4 -> StepStorageCheck()
+                        5 -> StepEula()
+                    }
 
-                if (creating) {
-                    Spacer(Modifier.height(16.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    text = downloadStatus.ifBlank { "Preparing..." },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = "${(downloadProgress * 100).toInt()}%",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold
+                    if (creating) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        text = downloadStatus.ifBlank { "Preparing..." },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = "${(downloadProgress * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                LinearProgressIndicator(
+                                    progress = { downloadProgress.toFloat().coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
-                            Spacer(Modifier.height(8.dp))
-                            LinearProgressIndicator(
-                                progress = { downloadProgress.toFloat().coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        }
+                    }
+
+                    errorMessage?.let { msg ->
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                Spacer(Modifier.width(8.dp))
+                                Text(msg, color = MaterialTheme.colorScheme.onErrorContainer)
+                            }
                         }
                     }
                 }
 
-                errorMessage?.let { msg ->
-                    Spacer(Modifier.height(12.dp))
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.width(8.dp))
-                            Text(msg, color = MaterialTheme.colorScheme.onErrorContainer)
-                        }
-                    }
-                }
-
-                Spacer(Modifier.weight(1f))
                 Spacer(Modifier.height(16.dp))
 
                 Row(

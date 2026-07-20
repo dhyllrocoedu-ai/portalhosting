@@ -1,11 +1,6 @@
 package com.portalhost.desktop.window
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -382,16 +377,10 @@ fun PortalHostWindow(
                 )
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn() + slideInVertically(),
-                        exit = slideOutVertically() + fadeOut()
-                    ) {
-                        ScreenContent(
-                            screen = currentScreen,
-                            onNavigate = onScreenChange
-                        )
-                    }
+                    ScreenContent(
+                        screen = currentScreen,
+                        onNavigate = onScreenChange
+                    )
 
                     ToastHost()
                 }

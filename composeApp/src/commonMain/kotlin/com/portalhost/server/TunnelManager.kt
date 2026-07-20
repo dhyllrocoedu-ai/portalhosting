@@ -45,10 +45,13 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     private val playitDir: File get() = File(fileSystem.getAppDirBlocking(), "playit")
     private val configFile: File get() = File(playitDir, "playit.toml")
     private val daemonBinary: File get() = File(playitDir, if (System.getProperty("os.name").lowercase().contains("win")) "playitd.exe" else "playitd")
+    private val cliBinary: File get() = File(playitDir, if (System.getProperty("os.name").lowercase().contains("win")) "playit-cli.exe" else "playit-cli")
 
     private var process: Process? = null
+    private var exchangeProcess: Process? = null
     private var readJob: Job? = null
     private var pollJob: Job? = null
+    private var exchangeJob: Job? = null
     private var provisionStartTime: Long = 0
 
     private val _state = MutableStateFlow(TunnelState())
@@ -90,21 +93,35 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
                 os.contains("mac") -> if (arch.contains("aarch64")) "darwin-arm64" else "darwin-amd64"
                 else -> if (is64) "linux-amd64" else "linux-386"
             }
-            val downloadUrl = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-$suffix"
-            logger.info { "Downloading playit agent from $downloadUrl" }
 
             playitDir.mkdirs()
-            val conn = URL(downloadUrl).openConnection()
+
+            // Download daemon
+            val daemonUrl = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-$suffix"
+            logger.info { "Downloading playit daemon from $daemonUrl" }
+            var conn = URL(daemonUrl).openConnection()
             conn.connectTimeout = 30000
             conn.readTimeout = 120000
             conn.connect()
-            val input = conn.getInputStream()
-            
-            val targetBinary = if (isWindows) File(playitDir, "playitd.exe") else daemonBinary
-            targetBinary.outputStream().use { output -> input.copyTo(output) }
-            targetBinary.setExecutable(true)
+            var input = conn.getInputStream()
+            val targetDaemon = if (isWindows) File(playitDir, "playitd.exe") else daemonBinary
+            targetDaemon.outputStream().use { output -> input.copyTo(output) }
+            targetDaemon.setExecutable(true)
+            logger.info { "Downloaded playit daemon (${targetDaemon.length()} bytes)" }
 
-            logger.info { "Downloaded playit agent (${targetBinary.length()} bytes) to ${targetBinary.absolutePath}" }
+            // Download CLI
+            val cliUrl = "https://github.com/playit-cloud/playit-agent/releases/latest/download/playit-cli-$suffix"
+            logger.info { "Downloading playit CLI from $cliUrl" }
+            conn = URL(cliUrl).openConnection()
+            conn.connectTimeout = 30000
+            conn.readTimeout = 120000
+            conn.connect()
+            input = conn.getInputStream()
+            val targetCli = if (isWindows) File(playitDir, "playit-cli.exe") else cliBinary
+            targetCli.outputStream().use { output -> input.copyTo(output) }
+            targetCli.setExecutable(true)
+            logger.info { "Downloaded playit CLI (${targetCli.length()} bytes)" }
+
             _state.value = _state.value.copy(status = TunnelStatus.IDLE)
             Result.success(Unit)
         } catch (e: Exception) {
@@ -125,9 +142,101 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     }
 
     fun startClaimFlow() {
-        forceStop()
-        _state.value = TunnelState(status = TunnelStatus.CONNECTING)
-        kotlinx.coroutines.runBlocking { start(currentServerPort) }
+        logger.info { "Starting CLI claim flow from UI" }
+        scope.launch {
+            forceStop()
+            _state.value = TunnelState(status = TunnelStatus.CONNECTING)
+            start(currentServerPort)
+        }
+    }
+
+    private suspend fun startClaimFlowInternal(): Result<Unit> = withContext(Dispatchers.IO) {
+        _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+        try {
+            playitDir.mkdirs()
+            if (!configFile.exists()) {
+                configFile.writeText("""secret_key = ""
+refresh_from_api = true
+mappings = []
+""".trimIndent())
+            }
+
+            val fullArgs = mutableListOf(cliBinary.absolutePath, "claim", "generate")
+            val genProc = ProcessBuilder(fullArgs).directory(playitDir).redirectErrorStream(false).start()
+            val code = genProc.inputStream.bufferedReader().readText().trim()
+            if (genProc.waitFor() != 0 || code.isEmpty()) {
+                throw IOException("claim generate failed: ${genProc.errorStream.bufferedReader().readText().trim()}")
+            }
+
+            val urlArgs = mutableListOf(cliBinary.absolutePath, "claim", "url", code)
+            val urlProc = ProcessBuilder(urlArgs).directory(playitDir).redirectErrorStream(false).start()
+            val url = urlProc.inputStream.bufferedReader().readText().trim()
+            if (urlProc.waitFor() != 0 || url.isEmpty()) {
+                throw IOException("claim url failed: ${urlProc.errorStream.bufferedReader().readText().trim()}")
+            }
+
+            logger.info { "Claim URL: $url" }
+            _state.value = _state.value.copy(
+                status = TunnelStatus.CLAIM_REQUIRED,
+                claimUrl = url
+            )
+
+            exchangeAndStartDaemon(code)
+            Result.success(Unit)
+        } catch (e: Exception) {
+            logger.error(e) { "Claim flow failed" }
+            _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
+            Result.failure(e)
+        }
+    }
+
+    private fun exchangeAndStartDaemon(claimCode: String) {
+        tunnelAddresses.clear()
+        val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$currentServerPort", public_address = ""}"""
+        try {
+            configFile.writeText("""secret_key = ""
+refresh_from_api = true
+mappings = [$mapping]
+""".trimIndent())
+        } catch (_: Exception) {}
+
+        exchangeJob = scope.launch {
+            try {
+                val args = mutableListOf(cliBinary.absolutePath, "--stdout", "claim", "exchange", claimCode)
+                val proc = ProcessBuilder(args).directory(playitDir).redirectErrorStream(false).start()
+                exchangeProcess = proc
+                val output = proc.inputStream.bufferedReader().readText().trim()
+                val exitCode = proc.waitFor()
+                exchangeProcess = null
+
+                if (exitCode != 0) {
+                    val err = proc.errorStream.bufferedReader().readText().trim()
+                    throw IOException("claim exchange exited $exitCode: $err")
+                }
+
+                val secretMatch = Regex("""secret_key\s*=\s*['"](.+)['"]""").find(configFile.readText())
+                val newSecret = secretMatch?.groupValues?.get(1)
+
+                if (newSecret != null && newSecret.isNotEmpty()) {
+                    secretKey = newSecret
+                    logger.info { "Claim confirmed, secret key stored" }
+                    configFile.writeText("""secret_key = "$newSecret"
+refresh_from_api = true
+mappings = [$mapping]
+""".trimIndent())
+                }
+
+                _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+                start(currentServerPort)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (exchangeProcess != null) {
+                    logger.error(e) { "Failed to exchange claim" }
+                    _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
+                    exchangeProcess = null
+                }
+            }
+        }
     }
 
     fun getSecretKey(): String? = secretKey
@@ -143,38 +252,23 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
             if (downloadResult.isFailure) return downloadResult
         }
 
-        // If no secret, immediately indicate claim flow is needed
         if (secretKey == null) {
-            _state.value = _state.value.copy(
-                status = TunnelStatus.CLAIM_REQUIRED,
-                claimUrl = null,
-                error = null
-            )
-        } else {
-            _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+            return startClaimFlowInternal()
         }
+
+        _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         tunnelAddresses.clear()
 
         return try {
             playitDir.mkdirs()
             val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
-            val configContent = if (secretKey != null) {
-                """secret_key = "${secretKey}"
+            val configContent = """secret_key = "${secretKey}"
 refresh_from_api = true
 mappings = [$mapping]
 """
-            } else {
-                """refresh_from_api = true
-mappings = [$mapping]
-"""
-            }
             configFile.writeText(configContent.trimIndent())
-            logger.info { "Config written to ${configFile.absolutePath}: secretKey=${secretKey != null}, size=${configFile.length()}" }
-            if (secretKey != null) {
-                logger.info { "Config content (first 200 chars): ${configContent.trimIndent().take(200)}" }
-            }
+            logger.info { "Config written to ${configFile.absolutePath}" }
 
-            // Ensure binary is executable on Windows
             if (daemonBinary.exists()) {
                 daemonBinary.setExecutable(true)
             }
@@ -183,12 +277,11 @@ mappings = [$mapping]
             val logFile = File(playitDir, "playitd.log")
             args.add("--log-path")
             args.add(logFile.absolutePath)
-            // NOTE: Don't pass --secret CLI arg; daemon reads secret_key from playit.toml
-            // Passing both causes IPC provisioning conflicts ("Waiting for frontend secret provisioning over IPC")
+            args.add("--secret")
+            args.add(secretKey!!)
 
             logger.info { "Starting tunnel with command: ${args.joinToString(" ")}" }
             logger.info { "Working directory: ${playitDir.absolutePath}" }
-            logger.info { "Binary exists: ${daemonBinary.exists()}, executable: ${daemonBinary.canExecute()}" }
 
             val proc = ProcessBuilder(args)
                 .directory(playitDir)
@@ -196,10 +289,7 @@ mappings = [$mapping]
                 .start()
 
             process = proc
-            // Track provisioning start time when using secret
-            if (secretKey != null) {
-                provisionStartTime = System.currentTimeMillis()
-            }
+            provisionStartTime = System.currentTimeMillis()
             startReader(proc, serverPort)
             startTunnelPoller(serverPort)
 
@@ -430,7 +520,11 @@ mappings = [$mapping]
         pollJob?.cancel()
         readJob = null
         pollJob = null
+        exchangeJob?.cancel()
+        exchangeJob = null
         try {
+            exchangeProcess?.destroyForcibly()
+            exchangeProcess = null
             process?.destroyForcibly()
             process?.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
         } catch (_: Exception) {}
