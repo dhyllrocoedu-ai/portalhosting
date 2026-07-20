@@ -31,7 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CheckCircle
@@ -62,6 +62,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -404,7 +405,7 @@ fun CreateServerScreen(
                                 readOnly = true,
                                 label = { Text("Build") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = buildExpanded) },
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
                                 singleLine = true
                             )
                             ExposedDropdownMenu(expanded = buildExpanded, onDismissRequest = { buildExpanded = false }) {
@@ -570,7 +571,7 @@ fun CreateServerScreen(
                 readOnly = true,
                 singleLine = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gamemodeExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
             )
             ExposedDropdownMenu(expanded = gamemodeExpanded, onDismissRequest = { gamemodeExpanded = false }) {
                 gamemodes.forEach { gm ->
@@ -593,7 +594,7 @@ fun CreateServerScreen(
                 readOnly = true,
                 singleLine = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = difficultyExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
             )
             ExposedDropdownMenu(expanded = difficultyExpanded, onDismissRequest = { difficultyExpanded = false }) {
                 difficulties.forEach { diff ->
@@ -777,7 +778,7 @@ fun CreateServerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
                     }
                     Spacer(Modifier.width(8.dp))
                     Text("Create New Server", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)

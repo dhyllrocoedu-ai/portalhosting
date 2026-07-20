@@ -54,7 +54,7 @@ import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
@@ -320,7 +320,15 @@ fun DashboardScreen(
                     localIp = localIpInfo.value.localIp,
                     onStart = { scope.launch { tunnelManager.start(activeServer?.port ?: 25565) } },
                     onStop = { scope.launch { tunnelManager.stop() } },
-                    onClaim = { scope.launch { tunnelManager.startClaimFlow() } },
+                    onClaim = { scope.launch { 
+                        if (tunnelState.status == TunnelStatus.CLAIM_REQUIRED && tunnelState.claimUrl == null) {
+                            // Waiting for claim URL - cancel by force stopping
+                            tunnelManager.forceStop()
+                        } else {
+                            // Normal claim flow
+                            tunnelManager.startClaimFlow()
+                        }
+                    } },
                     onOpenClaimUrl = {
                         tunnelState.claimUrl?.let { url ->
                             try { java.awt.Desktop.getDesktop().browse(java.net.URI(url)) } catch (_: Exception) {}
@@ -368,6 +376,7 @@ fun DashboardScreen(
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 private fun ServerCard(
     serverIcon: ImageBitmap?,
@@ -386,6 +395,7 @@ private fun ServerCard(
     onRestart: () -> Unit
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val status = activeState?.status ?: ServerStatus.STOPPED
     val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
     val statusColorForBadge = ThemeColors.serverStatusColor(status)
@@ -463,7 +473,7 @@ private fun ServerCard(
                                     val localAddress = "$localIp:${activeServer.port}"
                                     Text(text = localAddress, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
                                     IconButton(
-                                        onClick = { clipboardManager.setText(AnnotatedString(localAddress)) }
+                                        onClick = { scope.launch { clipboardManager.setText(AnnotatedString(localAddress)) } }
                                     ) {
                                         Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
@@ -591,6 +601,7 @@ private fun RowScope.ControlButton(
     }
 }
 
+@Suppress("DEPRECATION")
 @Composable
 private fun TunnelCard(
     tunnelState: com.portalhost.server.TunnelState,
@@ -601,6 +612,7 @@ private fun TunnelCard(
     onOpenClaimUrl: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val status = tunnelState.status
     val connected = status == TunnelStatus.CONNECTED
     val claimRequired = status == TunnelStatus.CLAIM_REQUIRED
@@ -677,7 +689,7 @@ private fun TunnelCard(
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            IconButton(onClick = { clipboardManager.setText(AnnotatedString(claimUrl)) }) {
+                            IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString(claimUrl)) } }) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy claim URL", modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = onOpenClaimUrl) {
@@ -734,10 +746,10 @@ private fun TunnelCard(
                                 }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                IconButton(onClick = { clipboardManager.setText(AnnotatedString(tunnel.publicAddress)) }) {
+                                IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString(tunnel.publicAddress)) } }) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = "Copy public address", modifier = Modifier.size(20.dp))
                                 }
-                                IconButton(onClick = { clipboardManager.setText(AnnotatedString("$localIp:${tunnel.localPort}")) }) {
+                                IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString("$localIp:${tunnel.localPort}")) } }) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(20.dp))
                                 }
                             }
@@ -775,7 +787,7 @@ private fun TunnelCard(
                     Row(modifier = Modifier.fillMaxWidth()) {
                         LinearProgressIndicator(
                             modifier = Modifier.weight(1f),
-                            progress = if (status == TunnelStatus.DOWNLOADING) 0.5f else 0f,
+                            progress = { if (status == TunnelStatus.DOWNLOADING) 0.5f else 0f },
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(Modifier.width(12.dp))
@@ -1118,7 +1130,7 @@ private fun ConsoleCard(
                             onCommandInputChange("")
                         }
                     }) {
-                        Icon(Icons.Default.Send, contentDescription = "Send")
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
                     }
                 }
             }

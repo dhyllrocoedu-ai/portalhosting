@@ -19,38 +19,30 @@ class ForgeProvider : ServerProvider {
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> {
-        return try {
-            val url = URL("$baseUrl/maven-metadata.xml")
-            val response = url.readTextWithTimeout()
-            val versions = parseMavenMetadata(response)
-                .filter { it.startsWith("1.") }
-                .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
-                .sortedWith(compareByDescending { parseSemver(it.version) })
-            Result.success(versions)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return HttpCache.fetchWithCache("$baseUrl/maven-metadata.xml")
+            .map { response ->
+                parseMavenMetadata(response)
+                    .filter { it.startsWith("1.") }
+                    .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
+                    .sortedWith(compareByDescending { parseSemver(it.version) })
+            }
     }
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> {
-        return try {
-            val url = URL("$baseUrl/$version/maven-metadata.xml")
-            val response = url.readTextWithTimeout()
-            val builds = parseMavenMetadataBuilds(response)
-                .filter { it.contains(version) && it.length > version.length }
-                .map { build ->
-                    ServerBuild(
-                        id = build,
-                        url = "$baseUrl/$build/forge-$build-installer.jar",
-                        sha256 = null,
-                        size = 0
-                    )
-                }
-                .sortedWith(compareByDescending { parseSemver(it.id) })
-            Result.success(builds)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        return HttpCache.fetchWithCache("$baseUrl/$version/maven-metadata.xml")
+            .map { response ->
+                parseMavenMetadataBuilds(response)
+                    .filter { it.contains(version) && it.length > version.length }
+                    .map { build ->
+                        ServerBuild(
+                            id = build,
+                            url = "$baseUrl/$build/forge-$build-installer.jar",
+                            sha256 = null,
+                            size = 0
+                        )
+                    }
+                    .sortedWith(compareByDescending { parseSemver(it.id) })
+            }
     }
 
     override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = runCatching {
@@ -59,9 +51,17 @@ class ForgeProvider : ServerProvider {
         val conn = url.openConnection()
         conn.connectTimeout = 30000
         conn.readTimeout = 300000
+        val contentLength = conn.contentLengthLong
+        var downloaded = 0L
         conn.getInputStream().use { input ->
             FileOutputStream(destination).use { output ->
-                input.copyTo(output)
+                val buffer = ByteArray(8192)
+                var bytesRead = input.read(buffer)
+                while (bytesRead != -1) {
+                    output.write(buffer, 0, bytesRead)
+                    downloaded += bytesRead
+                    bytesRead = input.read(buffer)
+                }
             }
         }
         destination

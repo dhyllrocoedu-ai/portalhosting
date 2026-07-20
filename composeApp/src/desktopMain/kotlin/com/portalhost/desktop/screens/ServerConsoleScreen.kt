@@ -31,9 +31,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.WrapText
+import androidx.compose.material.icons.automirrored.filled.WrapText
 import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -82,6 +82,7 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
 
+@Suppress("DEPRECATION")
 @Composable
 fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     val serverManager = koinInject<ServerManager>()
@@ -171,7 +172,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
                         }
                         Spacer(Modifier.width(8.dp))
                         Text("Server Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -194,12 +195,12 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                             }
                             IconButton(onClick = {
                                 val lines = displayLines.joinToString("\n")
-                                clipboard.setText(AnnotatedString(lines))
+                                scope.launch { clipboard.setText(AnnotatedString(lines)) }
                             }) {
                                 Icon(Icons.Filled.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = { wrapLines = !wrapLines }) {
-                                Icon(Icons.Filled.WrapText, contentDescription = if (wrapLines) "Disable line wrap" else "Enable line wrap", modifier = Modifier.size(20.dp))
+                                Icon(Icons.AutoMirrored.Filled.WrapText, contentDescription = if (wrapLines) "Disable line wrap" else "Enable line wrap", modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = { showTimestamps = !showTimestamps }) {
                                 Icon(Icons.Filled.AccessTime, contentDescription = if (showTimestamps) "Hide timestamps" else "Show timestamps", modifier = Modifier.size(20.dp))

@@ -19,58 +19,50 @@ class NeoForgeProvider : ServerProvider {
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> {
-        return try {
-            val url = URL("$baseUrl/maven-metadata.xml")
-            val response = url.readTextWithTimeout()
-            val allVersions = parseMavenMetadata(response)
-            val mcVersions = mutableSetOf<String>()
-            for (v in allVersions) {
-                when {
-                    Regex("""1\.\d+(\.\d+)?-.+""").matches(v) -> {
-                        mcVersions.add(v.substringBefore('-'))
-                    }
-                    else -> {
-                        val match = Regex("""^(\d+)\.(\d+)""").find(v)
-                        if (match != null) {
-                            mcVersions.add("1.${match.groupValues[1]}")
+        return HttpCache.fetchWithCache("$baseUrl/maven-metadata.xml")
+            .map { response ->
+                val allVersions = parseMavenMetadata(response)
+                val mcVersions = mutableSetOf<String>()
+                for (v in allVersions) {
+                    when {
+                        Regex("""1\.\d+(\.\d+)?-.+""").matches(v) -> {
+                            mcVersions.add(v.substringBefore('-'))
+                        }
+                        else -> {
+                            val match = Regex("""^(\d+)\.(\d+)""").find(v)
+                            if (match != null) {
+                                mcVersions.add("1.${match.groupValues[1]}")
+                            }
                         }
                     }
                 }
+                mcVersions
+                    .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
+                    .sortedWith(compareByDescending { parseSemver(it.version) })
             }
-            Result.success(mcVersions
-                .map { ServerVersion(version = it, stable = !it.contains("-"), releaseDate = null) }
-                .sortedWith(compareByDescending { parseSemver(it.version) })
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
     }
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> {
-        return try {
-            val url = URL("$baseUrl/maven-metadata.xml")
-            val response = url.readTextWithTimeout()
-            val allVersions = parseMavenMetadataBuilds(response)
-            val neoPrefix = version.removePrefix("1.")
-            val matchingBuilds = allVersions.filter { v ->
-                v.startsWith("$version-") ||
-                    (neoPrefix.isNotEmpty() && neoPrefix.all { it.isDigit() || it == '.' } &&
-                        v.startsWith(neoPrefix + "."))
-            }
-            Result.success(matchingBuilds
-                .map { build ->
-                    ServerBuild(
-                        id = build,
-                        url = "$baseUrl/$build/neoforge-$build-installer.jar",
-                        sha256 = null,
-                        size = 0
-                    )
+        return HttpCache.fetchWithCache("$baseUrl/maven-metadata.xml")
+            .map { response ->
+                val allVersions = parseMavenMetadataBuilds(response)
+                val neoPrefix = version.removePrefix("1.")
+                val matchingBuilds = allVersions.filter { v ->
+                    v.startsWith("$version-") ||
+                        (neoPrefix.isNotEmpty() && neoPrefix.all { it.isDigit() || it == '.' } &&
+                            v.startsWith(neoPrefix + "."))
                 }
-                .sortedWith(compareByDescending { parseSemver(it.id) })
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+                matchingBuilds
+                    .map { build ->
+                        ServerBuild(
+                            id = build,
+                            url = "$baseUrl/$build/neoforge-$build-installer.jar",
+                            sha256 = null,
+                            size = 0
+                        )
+                    }
+                    .sortedWith(compareByDescending { parseSemver(it.id) })
+            }
     }
 
     override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = runCatching {
@@ -79,16 +71,23 @@ class NeoForgeProvider : ServerProvider {
         val conn = url.openConnection()
         conn.connectTimeout = 30000
         conn.readTimeout = 300000
+        val contentLength = conn.contentLengthLong
+        var downloaded = 0L
         conn.getInputStream().use { input ->
             FileOutputStream(destination).use { output ->
-                input.copyTo(output)
+                val buffer = ByteArray(8192)
+                var bytesRead = input.read(buffer)
+                while (bytesRead != -1) {
+                    output.write(buffer, 0, bytesRead)
+                    downloaded += bytesRead
+                    bytesRead = input.read(buffer)
+                }
             }
         }
         destination
     }
     
     private fun parseMavenMetadata(xml: String): List<String> {
-        // Simple XML parsing for <version> tags
         val versions = mutableListOf<String>()
         val pattern = "<version>([^<]+)</version>".toRegex()
         pattern.findAll(xml).forEach { match ->

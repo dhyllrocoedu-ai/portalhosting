@@ -48,6 +48,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,7 +60,7 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -272,7 +273,7 @@ fun ServerDetailScreen(
         }
 
         val tabs = listOf("Properties", "Files", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
-        ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
+        SecondaryScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
             tabs.forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
@@ -479,7 +480,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                                 label = { Text("Gamemode") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedGm) },
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
                             )
                             ExposedDropdownMenu(expanded = expandedGm, onDismissRequest = { expandedGm = false }) {
                                 gamemodes.forEach { gm ->
@@ -501,7 +502,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                                 label = { Text("Difficulty") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDiff) },
                                 singleLine = true,
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
                             )
                             ExposedDropdownMenu(expanded = expandedDiff, onDismissRequest = { expandedDiff = false }) {
                                 difficulties.forEach { diff ->

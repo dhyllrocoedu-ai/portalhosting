@@ -302,6 +302,20 @@ mappings = [$mapping]
             return
         }
 
+        // Detect "Waiting for frontend secret provisioning over IPC" - indicates stale/invalid secret
+        if (text.contains("Waiting for frontend secret provisioning over IPC", ignoreCase = true) && secretKey != null) {
+            logger.warn { "Detected IPC provisioning wait - clearing stale secret and re-entering claim flow" }
+            secretKey = null
+            configFile.delete()
+            _state.value = _state.value.copy(
+                status = TunnelStatus.CLAIM_REQUIRED,
+                claimUrl = null
+            )
+            // Restart tunnel to trigger claim flow
+            scope.launch { start(currentServerPort) }
+            return
+        }
+
         val tunnelMatch = Regex("""([\w.-]+\.(?:playit\.gg|ply\.gg|at\.ply\.gg|joinmc\.link)):(\d+)""").find(text)
         if (tunnelMatch != null) {
             val host = tunnelMatch.groupValues[1]

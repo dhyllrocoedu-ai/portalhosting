@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.0.20"
+version = "5.0.25"
 
 kotlin {
     jvm("desktop")
@@ -41,6 +41,8 @@ kotlin {
                 implementation("androidx.navigation:navigation-compose:2.9.0")
                 implementation("ch.qos.logback:logback-classic:1.5.6")
                 implementation("androidx.compose.ui:ui-text:1.7.2")
+                implementation("net.java.dev.jna:jna:5.14.0")
+                implementation("net.java.dev.jna:jna-platform:5.14.0")
             }
         }
         configurations.all {
@@ -63,7 +65,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.0.20"
+            packageVersion = "5.0.25"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             modules("java.sql", "java.naming", "java.management", "java.net.http", "java.desktop")
