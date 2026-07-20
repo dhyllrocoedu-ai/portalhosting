@@ -95,10 +95,9 @@ fun SettingsScreen() {
     val clipboardManager = LocalClipboardManager.current
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(24.dp))
 
         SettingsSection("General") {

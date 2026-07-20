@@ -9,7 +9,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Dns
@@ -49,6 +49,8 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
@@ -76,41 +78,50 @@ sealed class Screen {
 
 @Composable
 fun TitleBar(
-    sidebarExpanded: Boolean,
-    onSidebarToggle: () -> Unit
+    iconPainter: Painter? = null,
+    window: java.awt.Frame? = null,
+    onMinimize: () -> Unit = {},
+    onMaximizeRestore: () -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
     val isDark = (MaterialTheme.colorScheme.surface.red * 0.299 + MaterialTheme.colorScheme.surface.green * 0.587 + MaterialTheme.colorScheme.surface.blue * 0.114) < 128
-    val titleBarColor = if (isDark) Color(0xFF1E1E2E) else Color.White
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainer),
+            .height(40.dp),
         color = if (isDark) Color(0xFF1E1E2E) else Color.White
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
-                .padding(horizontal = 12.dp),
+                .height(40.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(start = 12.dp)
+                    .pointerInput(window) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            window?.let { w ->
+                                w.setLocation(w.x + dragAmount.x.toInt(), w.y + dragAmount.y.toInt())
+                            }
+                        }
+                    },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onSidebarToggle) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        contentDescription = "Toggle sidebar",
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
+                if (iconPainter != null) {
+                    Image(
+                        painter = iconPainter,
+                        contentDescription = "Portal Host",
+                        modifier = Modifier.size(24.dp)
                     )
+                    Spacer(Modifier.width(8.dp))
                 }
-
                 Text(
                     text = "Portal Host",
                     style = MaterialTheme.typography.titleMedium,
@@ -121,9 +132,10 @@ fun TitleBar(
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(end = 4.dp)
             ) {
-                IconButton(onClick = { }) {
+                IconButton(onClick = onMinimize) {
                     Icon(
                         imageVector = Icons.Default.Minimize,
                         contentDescription = "Minimize",
@@ -131,7 +143,7 @@ fun TitleBar(
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                IconButton(onClick = { }) {
+                IconButton(onClick = onMaximizeRestore) {
                     Icon(
                         imageVector = Icons.Default.Maximize,
                         contentDescription = "Maximize",
@@ -139,7 +151,7 @@ fun TitleBar(
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                IconButton(onClick = { }) {
+                IconButton(onClick = onClose) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close",
@@ -160,7 +172,7 @@ fun NavSidebar(
     onExpandToggle: () -> Unit
 ) {
     val sidebarWidth = if (expanded) 240.dp else 64.dp
-    
+
     Surface(
         modifier = Modifier
             .fillMaxHeight()
@@ -185,7 +197,10 @@ fun NavSidebar(
 
             Spacer(Modifier.height(8.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 NavItem(
                     label = "Home",
                     icon = Icons.Default.Dashboard,
@@ -201,13 +216,6 @@ fun NavSidebar(
                     onClick = { onScreenChange(Screen.Servers) }
                 )
                 NavItem(
-                    label = "Create",
-                    icon = Icons.Default.Add,
-                    selected = currentScreen is Screen.Create,
-                    expanded = expanded,
-                    onClick = { onScreenChange(Screen.Create) }
-                )
-                NavItem(
                     label = "Settings",
                     icon = Icons.Default.Settings,
                     selected = currentScreen is Screen.Settings,
@@ -215,6 +223,7 @@ fun NavSidebar(
                     onClick = { onScreenChange(Screen.Settings) }
                 )
             }
+
         }
     }
 }
@@ -227,9 +236,7 @@ fun NavItem(
     expanded: Boolean,
     onClick: () -> Unit
 ) {
-    val isDark = (MaterialTheme.colorScheme.surface.red * 0.299 + MaterialTheme.colorScheme.surface.green * 0.587 + MaterialTheme.colorScheme.surface.blue * 0.114) < 128
     val backgroundColor = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
 
     Surface(
         modifier = Modifier
@@ -254,7 +261,7 @@ fun NavItem(
                 modifier = Modifier.size(24.dp),
                 tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
-            
+
             if (expanded) {
                 Text(
                     text = label,
@@ -307,12 +314,17 @@ fun PortalHostWindow(
     serverManager: ServerManager,
     fileSystem: FileSystem,
     toastManager: ToastManager,
-    preferences: Preferences
+    preferences: Preferences,
+    iconPainter: Painter? = null,
+    window: java.awt.Frame? = null,
+    onMinimize: () -> Unit = {},
+    onMaximizeRestore: () -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
     var sidebarExpanded by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
 
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxSize()
             .onKeyEvent { keyEvent ->
@@ -349,34 +361,40 @@ fun PortalHostWindow(
                 } else {
                     false
                 }
-            }
+            },
+        color = MaterialTheme.colorScheme.surface
     ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            NavSidebar(
-                currentScreen = currentScreen,
-                onScreenChange = onScreenChange,
-                expanded = sidebarExpanded,
-                onExpandToggle = { sidebarExpanded = !sidebarExpanded }
+        Column(modifier = Modifier.fillMaxSize()) {
+            TitleBar(
+                iconPainter = iconPainter,
+                window = window,
+                onMinimize = onMinimize,
+                onMaximizeRestore = onMaximizeRestore,
+                onClose = onClose
             )
 
-            Column(modifier = Modifier.fillMaxSize()) {
-                TitleBar(
-                    sidebarExpanded = sidebarExpanded,
-                    onSidebarToggle = { sidebarExpanded = !sidebarExpanded }
+            Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                NavSidebar(
+                    currentScreen = currentScreen,
+                    onScreenChange = onScreenChange,
+                    expanded = sidebarExpanded,
+                    onExpandToggle = { sidebarExpanded = !sidebarExpanded }
                 )
 
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn() + slideInVertically(),
-                    exit = slideOutVertically() + fadeOut()
-                ) {
-                    ScreenContent(
-                        screen = currentScreen,
-                        onNavigate = onScreenChange
-                    )
-                }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn() + slideInVertically(),
+                        exit = slideOutVertically() + fadeOut()
+                    ) {
+                        ScreenContent(
+                            screen = currentScreen,
+                            onNavigate = onScreenChange
+                        )
+                    }
 
-                ToastHost()
+                    ToastHost()
+                }
             }
         }
     }

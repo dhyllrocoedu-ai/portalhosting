@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -42,11 +43,18 @@ import mu.KotlinLogging
 import org.koin.core.context.GlobalContext
 import org.koin.compose.koinInject
 import org.jetbrains.skia.Image
+import java.awt.Frame
 
 private val logger = KotlinLogging.logger {}
 
 @Composable
-fun DesktopApp() {
+fun DesktopApp(
+    iconPainter: Painter? = null,
+    window: java.awt.Frame? = null,
+    onMinimize: () -> Unit = {},
+    onMaximizeRestore: () -> Unit = {},
+    onClose: () -> Unit = {}
+) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     var showAboutDialog by remember { mutableStateOf(false) }
 
@@ -54,70 +62,57 @@ fun DesktopApp() {
     val toastManager = koinInject<ToastManager>()
     val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
     val serverManager = koinInject<ServerManager>()
-    val themePref by preferences.theme.collectAsState()
     val firstRunCompleted by preferences.firstRunCompleted.collectAsState()
 
     LaunchedEffect(firstRunCompleted) {
         logger.info { "firstRunCompleted = $firstRunCompleted" }
     }
 
-    val isDark = when (themePref) {
-        "dark" -> true
-        "light" -> false
-        else -> isSystemInDarkTheme()
-    }
-
-    val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
-
-    MaterialTheme(colorScheme = colorScheme) {
-        if (!firstRunCompleted) {
-            WelcomeScreen(onFinish = {
-                preferences.firstRunCompleted.value = true
-            })
-        } else {
-            if (showAboutDialog) {
-                AlertDialog(
-                    onDismissRequest = { showAboutDialog = false },
-                    title = { Text("About Portal Host") },
-                    text = {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("Portal Host")
-                            Text("Version 5.0.20")
-                            Spacer(Modifier.height(8.dp))
-                            Text("Minecraft Java Edition Server Manager")
-                            Spacer(Modifier.height(8.dp))
-                            Text("https://github.com/portalhost/portalhost")
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showAboutDialog = false }) {
-                            Text("OK")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showAboutDialog = false }) {
-                            Text("Close")
-                        }
+    if (!firstRunCompleted) {
+        WelcomeScreen(onFinish = {
+            preferences.firstRunCompleted.value = true
+        })
+    } else {
+        if (showAboutDialog) {
+            AlertDialog(
+                onDismissRequest = { showAboutDialog = false },
+                title = { Text("About Portal Host") },
+                text = {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Portal Host")
+                        Text("Version 5.0.25")
+                        Spacer(Modifier.height(8.dp))
+                        Text("Minecraft Java Edition Server Manager")
+                        Spacer(Modifier.height(8.dp))
+                        Text("https://github.com/portalhost/portalhost")
                     }
-                )
-            }
-
-            PortalHostWindow(
-                currentScreen = currentScreen,
-                onScreenChange = { currentScreen = it },
-                serverManager = serverManager,
-                fileSystem = fileSystem,
-                toastManager = toastManager,
-                preferences = preferences
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAboutDialog = false }) {
+                        Text("OK")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAboutDialog = false }) {
+                        Text("Close")
+                    }
+                }
             )
         }
-    }
-}
 
-@Composable
-fun AppContent() {
-    MaterialTheme {
-        DesktopApp()
+        PortalHostWindow(
+            currentScreen = currentScreen,
+            onScreenChange = { currentScreen = it },
+            serverManager = serverManager,
+            fileSystem = fileSystem,
+            toastManager = toastManager,
+            preferences = preferences,
+            iconPainter = iconPainter,
+            window = window,
+            onMinimize = onMinimize,
+            onMaximizeRestore = onMaximizeRestore,
+            onClose = onClose
+        )
     }
 }
 
@@ -190,6 +185,16 @@ fun main() {
             } catch (_: Exception) { null }
         }
 
+        val preferences = remember { GlobalContext.get().get<Preferences>() }
+        val themePref by preferences.theme.collectAsState()
+
+        val isDark = when (themePref) {
+            "dark" -> true
+            "light" -> false
+            else -> isSystemInDarkTheme()
+        }
+        val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
+
         Window(
             onCloseRequest = {
                 isWindowVisible = false
@@ -198,8 +203,23 @@ fun main() {
             title = "Portal Host",
             visible = isWindowVisible,
             icon = iconPainter,
+            undecorated = true,
         ) {
-            AppContent()
+            val awtWindow = this.window
+            MaterialTheme(colorScheme = colorScheme) {
+                DesktopApp(
+                    iconPainter = iconPainter,
+                    window = awtWindow,
+                    onMinimize = { awtWindow.setState(Frame.ICONIFIED) },
+                    onMaximizeRestore = {
+                        if (awtWindow.extendedState and Frame.MAXIMIZED_BOTH != 0)
+                            awtWindow.extendedState = Frame.NORMAL
+                        else
+                            awtWindow.extendedState = Frame.MAXIMIZED_BOTH
+                    },
+                    onClose = { isWindowVisible = false }
+                )
+            }
         }
     }
 }

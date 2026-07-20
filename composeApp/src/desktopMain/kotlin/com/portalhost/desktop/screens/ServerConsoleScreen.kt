@@ -171,12 +171,6 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Text("Server Console", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
                         Row {
                             if (showSearch && searchResults.isNotEmpty()) {
                                 Text(

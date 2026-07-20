@@ -27,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
@@ -247,7 +246,6 @@ fun CreateServerScreen(
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
-    val scrollState = rememberScrollState()
 
     val provider: com.portalhost.server.providers.ServerProvider? = createSource?.toServerType()?.let {
         providerRegistry.getProvidersForType(it).firstOrNull()
@@ -765,7 +763,7 @@ fun CreateServerScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Card(
@@ -773,17 +771,6 @@ fun CreateServerScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text("Create New Server", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(16.dp))
                 StepIndicator(current = currentStep, total = totalSteps)
                 Spacer(Modifier.height(16.dp))
 

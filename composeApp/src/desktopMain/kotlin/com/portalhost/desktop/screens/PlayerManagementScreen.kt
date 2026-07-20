@@ -76,16 +76,6 @@ fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
     val tabs = listOf("Online", "Whitelist", "Operators", "Banned Players", "Banned IPs")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("Player Management", style = MaterialTheme.typography.titleMedium) },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back", modifier = Modifier.size(24.dp))
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-        )
-
         SecondaryTabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->
                 Tab(

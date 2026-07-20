@@ -197,52 +197,29 @@ fun DashboardScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 16.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(10.dp))
-            Text("PortalHost", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = {}) {
-                Icon(Icons.Default.Notifications, contentDescription = "Notifications")
-            }
-            IconButton(onClick = {}) {
-                Icon(Icons.Default.MoreVert, contentDescription = "More")
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (servers.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(400.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.height(16.dp))
-                        Text("No servers yet", style = MaterialTheme.typography.titleLarge)
-                        Spacer(Modifier.height(8.dp))
-                        Text("Create your first Minecraft server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(24.dp))
-                        Button(onClick = onNavigateToCreate) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Create Server")
-                        }
+        if (servers.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(400.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.height(16.dp))
+                    Text("No servers yet", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Create your first Minecraft server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(24.dp))
+                    Button(onClick = onNavigateToCreate) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create Server")
                     }
                 }
-            } else {
+            }
+        } else {
                 val statusColor = ThemeColors.serverStatusColor(activeState?.status ?: ServerStatus.STOPPED)
 
                 ServerCard(
@@ -371,7 +348,6 @@ fun DashboardScreen(
                 )
 
                 ActivityCard(activities = activities)
-            }
         }
     }
 }
