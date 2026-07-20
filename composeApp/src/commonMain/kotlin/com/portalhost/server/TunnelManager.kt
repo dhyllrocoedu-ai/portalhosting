@@ -191,6 +191,24 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
         } catch (_: Exception) { null }
     }
 
+    private fun parseTunnelsFromRundata(body: String, serverPort: Int): List<TunnelInfo> {
+        return try {
+            val element = json.parseToJsonElement(body)
+            val tunnelsArray = element.jsonObject["data"]?.jsonObject?.get("tunnels")?.jsonArray
+            tunnelsArray?.mapNotNull { tunnelElement ->
+                val tunnel = tunnelElement.jsonObject
+                val addr = tunnel["display_address"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val tunnelType = tunnel["port_type"]?.jsonPrimitive?.contentOrNull ?: "tcp"
+                TunnelInfo(
+                    tunnelId = tunnel["id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    type = tunnelType,
+                    localPort = serverPort,
+                    publicAddress = addr
+                )
+            } ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+    }
+
     private suspend fun startClaimFlowInternal(): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         try {
@@ -541,21 +559,11 @@ mappings = [$mapping]
                     pollSucceeded = true
                     lastSuccessfulPoll = System.currentTimeMillis()
 
-                    if (body.contains("\"status\":\"success\"") || body.contains("\"status\": \"success\"")) {
-                        val addrPattern = Regex(""""display_address"\s*:\s*"([^"]+)"""")
-                        val addrs = addrPattern.findAll(body).map { it.groupValues[1] }.toList()
-                        for (addr in addrs) {
-                            if (tunnelAddresses.none { it.publicAddress == addr }) {
-                                val typeMatch = Regex(""""port_type"\s*:\s*"([^"]+)"""").find(body)
-                                val tunnelType = if (typeMatch != null) typeMatch.groupValues[1] else "tcp"
-                                val tunnel = TunnelInfo(
-                                    tunnelId = tunnelAddresses.size.toString(),
-                                    type = tunnelType,
-                                    localPort = serverPort,
-                                    publicAddress = addr
-                                )
+                    val tunnelsFromApi = parseTunnelsFromRundata(body, serverPort)
+                        for (tunnel in tunnelsFromApi) {
+                            if (tunnelAddresses.none { it.publicAddress == tunnel.publicAddress }) {
                                 tunnelAddresses.add(tunnel)
-                                logger.info { "Tunnel from API: $addr (type=$tunnelType)" }
+                                logger.info { "Tunnel from API: ${tunnel.publicAddress} (type=${tunnel.type})" }
                             }
                         }
                         if (tunnelAddresses.isNotEmpty()) {
@@ -565,7 +573,6 @@ mappings = [$mapping]
                             )
                             break
                         }
-                    }
                 } catch (e: Exception) {
                     logger.warn { "API poll failed: ${e.message}" }
                 }

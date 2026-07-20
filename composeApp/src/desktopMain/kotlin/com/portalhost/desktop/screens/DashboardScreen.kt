@@ -117,6 +117,7 @@ import com.portalhost.server.ActivityEntry
 import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
 import com.portalhost.server.TunnelManager
+import com.portalhost.server.TunnelInfo
 import com.portalhost.server.TunnelStatus
 import com.portalhost.network.NetworkInfo
 import com.portalhost.network.NetworkManager
@@ -135,6 +136,8 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
 import androidx.compose.ui.platform.LocalClipboardManager
+
+private val TunnelGreen = Color(0xFF4ADE80)
 
 @Composable
 fun DashboardScreen(
@@ -230,6 +233,7 @@ fun DashboardScreen(
                     activeState = activeState,
                     statusColor = statusColor,
                     localIp = localIpInfo.value.localIp,
+                    tunnels = tunnelState.tunnels,
                     expanded = expanded,
                     onToggleExpand = { expanded = !expanded },
                     onSelectServer = { id ->
@@ -361,6 +365,7 @@ private fun ServerCard(
     activeState: ServerState?,
     statusColor: Color,
     localIp: String = "Unknown",
+    tunnels: List<TunnelInfo> = emptyList(),
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     onSelectServer: (String) -> Unit,
@@ -443,16 +448,47 @@ private fun ServerCard(
                                 Icon(Icons.Filled.Settings, contentDescription = "RAM", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                 Text(text = "${activeServer.memoryMax}M", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
                             }
-                            if (status == ServerStatus.RUNNING) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.Lan, contentDescription = "Local IP", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                    val localAddress = "$localIp:${activeServer.port}"
-                                    Text(text = localAddress, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
-                                    IconButton(
-                                        onClick = { scope.launch { clipboardManager.setText(AnnotatedString(localAddress)) } }
-                                    ) {
-                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
+                        }
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                if (status == ServerStatus.RUNNING && activeServer != null) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "$localIp:${activeServer.port}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString("$localIp:${activeServer.port}")) } }) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy local IP", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        val domains = tunnels.groupBy { it.publicAddress.substringBefore(":") }
+                        domains.forEach { (domain, tunnelList) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = domain,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = TunnelGreen,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (tunnelList.any { it.type == "udp" }) {
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        text = "UDP",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString(tunnelList.first().publicAddress)) } }) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy domain", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -737,37 +773,47 @@ private fun TunnelCard(
                         TextButton(onClick = onReset) { Text("Reset") }
                     }
                 } else if (connected && tunnelState.tunnels.isNotEmpty()) {
-                    tunnelState.tunnels.forEach { tunnel ->
+                    val domains = tunnelState.tunnels.groupBy { it.publicAddress.substringBefore(":") }
+                    domains.forEach { (domain, tunnels) ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(16.dp), tint = TunnelGreen)
                                     Text(
-                                        text = tunnel.publicAddress,
+                                        text = domain,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontFamily = FontFamily.Monospace,
+                                        color = TunnelGreen,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
+                                    if (tunnels.any { it.type == "udp" }) {
+                                        Text(
+                                            text = "UDP",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Local: $localIp:${tunnel.localPort} (${tunnel.type.uppercase()})",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = tunnels.joinToString(", ") {
+                                        val port = it.publicAddress.substringAfter(":")
+                                        "${if (it.type == "udp") "UDP " else ""}:$port"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString(tunnel.publicAddress)) } }) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy public address", modifier = Modifier.size(20.dp))
-                                }
-                                IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString("$localIp:${tunnel.localPort}")) } }) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy local address", modifier = Modifier.size(20.dp))
+                                tunnels.forEach { tunnel ->
+                                    IconButton(onClick = { scope.launch { clipboardManager.setText(AnnotatedString(tunnel.publicAddress)) } }) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy address", modifier = Modifier.size(18.dp))
+                                    }
                                 }
                             }
                         }
