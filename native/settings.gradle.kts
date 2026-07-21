@@ -17,13 +17,13 @@ pluginManagement {
                 useVersion("1.5.3")
             }
             if (requested.id.id == "org.jetbrains.kotlin.multiplatform") {
-                useVersion("2.0.20")
+                useVersion("2.1.20")
             }
             if (requested.id.id == "org.jetbrains.kotlin.android") {
-                useVersion("2.0.20")
+                useVersion("2.1.20")
             }
             if (requested.id.id == "org.jetbrains.kotlin.plugin.compose") {
-                useVersion("2.0.20")
+                useVersion("2.1.20")
             }
             if (requested.id.id == "org.jetbrains.kotlin.plugin.serialization") {
                 useVersion("2.0.20")
@@ -51,5 +51,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "PortalHost"
 include(":app")
-include(":composeApp")
-project(":composeApp").projectDir = file("../composeApp")
+// include(":composeApp")
+// project(":composeApp").projectDir = file("../composeApp")
