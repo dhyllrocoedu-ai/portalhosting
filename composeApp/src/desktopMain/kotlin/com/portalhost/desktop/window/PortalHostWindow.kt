@@ -171,7 +171,7 @@ fun NavSidebar(
 ) {
     val sidebarWidth = if (expanded) 240.dp else 64.dp
 
-    val homeIcon = rememberResourcePainter("/icons/savanna_small_house_7.png")
+    val homeIcon = rememberResourcePainter("/icons/plains_small_house_3.png")
     val serversIcon = rememberResourcePainter("/icons/ender_dragon_portal.png")
     val settingsActive = rememberResourcePainter("/icons/armadillo.webp")
     val settingsInactive = rememberResourcePainter("/icons/armadillo_rolled.webp")

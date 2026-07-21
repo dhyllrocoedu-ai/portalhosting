@@ -4,9 +4,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +35,7 @@ import com.portalhost.uinotify.ToastManager
 import com.portalhost.desktop.screens.WelcomeScreen
 import com.portalhost.desktop.window.PortalHostWindow
 import com.portalhost.desktop.window.Screen
+import com.portalhost.desktop.window.TitleBar
 import com.portalhost.di.desktopModule
 import com.portalhost.di.initKoin
 import com.portalhost.log.setupLogging
@@ -69,9 +72,23 @@ fun DesktopApp(
     }
 
     if (!firstRunCompleted) {
-        WelcomeScreen(onFinish = {
-            preferences.firstRunCompleted.value = true
-        })
+        Column(Modifier.fillMaxSize()) {
+            TitleBar(
+                iconPainter = iconPainter,
+                window = window,
+                onMinimize = onMinimize,
+                onMaximizeRestore = onMaximizeRestore,
+                onClose = onClose
+            )
+            Surface(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                WelcomeScreen(onFinish = {
+                    preferences.firstRunCompleted.value = true
+                })
+            }
+        }
     } else {
         if (showAboutDialog) {
             AlertDialog(
@@ -133,8 +150,11 @@ fun main() {
         return
     }
 
-    val prefs = GlobalContext.get().get<Preferences>()
-    val serverManager = GlobalContext.get().get<ServerManager>()
+val prefs = GlobalContext.get().get<Preferences>()
+        // Always show welcome screen on every launch
+        prefs.firstRunCompleted.value = false
+
+        val serverManager = GlobalContext.get().get<ServerManager>()
     val savedWidth = prefs.windowWidth.value
     val savedHeight = prefs.windowHeight.value
 

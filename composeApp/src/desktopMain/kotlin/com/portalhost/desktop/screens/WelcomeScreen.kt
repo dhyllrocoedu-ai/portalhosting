@@ -73,6 +73,14 @@ fun WelcomeScreen(
     var jdkError by remember { mutableStateOf<String?>(null) }
     var jdkInstalled by remember { mutableStateOf(false) }
 
+    LaunchedEffect(jdkInstalling) {
+        if (jdkInstalling) {
+            jdkManager.installProgress.collect { progress ->
+                jdkProgress = progress
+            }
+        }
+    }
+
     val scrollState = rememberScrollState()
 
     Column(
