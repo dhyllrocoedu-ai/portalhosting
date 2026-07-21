@@ -71,7 +71,7 @@ fun RconScreen(serverId: String, onBack: () -> Unit = {}) {
     val config = servers[serverId]
     val state = serverStates[serverId]
     val scope = rememberCoroutineScope()
-    val sendIcon = rememberResourcePainter("/icons/Arrow_Right_Curved_Highlighted.png")
+    val sendIcon = rememberResourcePainter("/icons/arrow_right_curved_highlighted.png")
     val messages = remember { mutableStateListOf<RconMessage>() }
     var commandInput by remember { mutableStateOf("") }
     var isConnected by remember { mutableStateOf(false) }

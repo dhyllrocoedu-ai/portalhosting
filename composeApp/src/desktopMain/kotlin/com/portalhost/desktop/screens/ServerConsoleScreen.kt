@@ -103,8 +103,8 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     var wrapLines by remember { mutableStateOf(false) }
     var showTimestamps by remember { mutableStateOf(true) }
 
-    val arrowUpIcon = rememberResourcePainter("/icons/Arrow_Up_Highlighted.png")
-    val arrowDownIcon = rememberResourcePainter("/icons/Arrow_Down_Highlighted.png")
+    val arrowUpIcon = rememberResourcePainter("/icons/arrow_up_highlighted.png")
+    val arrowDownIcon = rememberResourcePainter("/icons/arrow_down_highlighted.png")
     val isUserScrolling = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current

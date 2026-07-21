@@ -378,9 +378,9 @@ private fun ServerCard(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
-    val mcIcon = rememberResourcePainter("/icons/Grass_Block.png")
+    val mcIcon = rememberResourcePainter("/icons/grass_block.png")
     val javaIcon = rememberResourcePainter("/icons/java_icon.png")
-    val bedrockIcon = rememberResourcePainter("/icons/Bedrock.png")
+    val bedrockIcon = rememberResourcePainter("/icons/bedrock.png")
     val status = activeState?.status ?: ServerStatus.STOPPED
     val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
     val statusColorForBadge = ThemeColors.serverStatusColor(status)
@@ -638,8 +638,8 @@ private fun TunnelCard(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
-    val tunnelMcIcon = rememberResourcePainter("/icons/Grass_Block.png")
-    val tunnelBedrockIcon = rememberResourcePainter("/icons/Bedrock.png")
+    val tunnelMcIcon = rememberResourcePainter("/icons/grass_block.png")
+    val tunnelBedrockIcon = rememberResourcePainter("/icons/bedrock.png")
     val status = tunnelState.status
     val connected = status == TunnelStatus.CONNECTED
     val claimRequired = status == TunnelStatus.CLAIM_REQUIRED
@@ -1206,7 +1206,7 @@ private fun ConsoleCard(
                             onCommandInputChange("")
                         }
                     }) {
-                        Icon(painter = rememberResourcePainter("/icons/Arrow_Right_Curved_Highlighted.png"), contentDescription = "Send", tint = Color.Unspecified)
+                        Icon(painter = rememberResourcePainter("/icons/arrow_right_curved_highlighted.png"), contentDescription = "Send", tint = Color.Unspecified)
                     }
                 }
             }
