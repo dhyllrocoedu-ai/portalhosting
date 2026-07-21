@@ -53,6 +53,7 @@ import com.portalhost.model.ServerConfig
 import com.portalhost.server.RconClient
 import com.portalhost.server.ServerManager
 import com.portalhost.theme.ThemeColors
+import com.portalhost.desktop.util.rememberResourcePainter
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -70,6 +71,7 @@ fun RconScreen(serverId: String, onBack: () -> Unit = {}) {
     val config = servers[serverId]
     val state = serverStates[serverId]
     val scope = rememberCoroutineScope()
+    val sendIcon = rememberResourcePainter("/icons/Arrow_Right_Curved_Highlighted.png")
     val messages = remember { mutableStateListOf<RconMessage>() }
     var commandInput by remember { mutableStateOf("") }
     var isConnected by remember { mutableStateOf(false) }
@@ -265,7 +267,7 @@ color = when {
                         },
                         enabled = isConnected && commandInput.isNotBlank(),
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                        Icon(painter = sendIcon, contentDescription = "Send", tint = Color.Unspecified)
                     }
                 }
             }

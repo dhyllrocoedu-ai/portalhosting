@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -21,9 +22,8 @@ import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.server.TunnelManager
 import com.portalhost.app.server.TunnelState
 import com.portalhost.app.service.MinecraftService
-import com.portalhost.app.ui.components.GrassIcon
-import com.portalhost.app.ui.components.CraftingIcon
-import com.portalhost.app.ui.components.ChestIcon
+import androidx.compose.ui.res.painterResource
+import com.portalhost.app.R
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.screens.*
 import com.portalhost.app.ui.screens.create.CreateServerScreen
@@ -87,9 +87,9 @@ fun AppNavigation(
                         NavigationBarItem(
                             icon = {
                                 when (tab) {
-                                    AppTab.HOME -> GrassIcon(modifier = Modifier, size = 20.dp)
-                                    AppTab.SERVERS -> ChestIcon(modifier = Modifier, size = 20.dp)
-                                    AppTab.SETTINGS -> CraftingIcon(modifier = Modifier, size = 20.dp)
+                                    AppTab.HOME -> Icon(painter = painterResource(R.drawable.savanna_small_house_7), contentDescription = "Home", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
+                                    AppTab.SERVERS -> Icon(painter = painterResource(R.drawable.ender_dragon_portal), contentDescription = "Servers", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
+                                    AppTab.SETTINGS -> Icon(painter = painterResource(if (selected) R.drawable.armadillo else R.drawable.armadillo_rolled), contentDescription = "Settings", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
                                 }
                             },
                             label = { Text(tab.label) },

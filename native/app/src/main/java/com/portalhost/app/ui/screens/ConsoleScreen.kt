@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -191,10 +192,10 @@ fun ConsoleScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text("${currentSearchIdx + 1}/${searchResults.size}", style = MaterialTheme.typography.labelSmall)
                                         IconButton(onClick = { currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1) }) {
-                                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next")
+                                            Icon(painterResource(R.drawable.arrow_down_highlighted), contentDescription = "Next", tint = Color.Unspecified)
                                         }
                                         IconButton(onClick = { currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0) }) {
-                                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Prev")
+                                            Icon(painterResource(R.drawable.arrow_up_highlighted), contentDescription = "Prev", tint = Color.Unspecified)
                                         }
                                     }
                                 }
@@ -235,7 +236,7 @@ fun ConsoleScreen(
                     },
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                 ) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Scroll to bottom")
+                    Icon(painterResource(R.drawable.arrow_down_highlighted), contentDescription = "Scroll to bottom", tint = Color.Unspecified)
                 }
             }
         }
@@ -337,7 +338,7 @@ fun ConsoleScreen(
                         },
                         enabled = isOnline && commandHistory.isNotEmpty(),
                         modifier = Modifier.size(36.dp)
-                    ) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(20.dp)) }
+                    ) { Icon(painterResource(R.drawable.arrow_up_highlighted), contentDescription = "Previous", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
                     IconButton(
                         onClick = {
                             if (historyIndex >= 0) {
@@ -353,7 +354,7 @@ fun ConsoleScreen(
                         },
                         enabled = isOnline && historyIndex >= 0,
                         modifier = Modifier.size(36.dp)
-                    ) { Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Next", modifier = Modifier.size(20.dp)) }
+                    ) { Icon(painterResource(R.drawable.arrow_down_highlighted), contentDescription = "Next", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
                     IconButton(
                         onClick = {
                             if (commandInput.isNotBlank() && isOnline) {
@@ -364,7 +365,7 @@ fun ConsoleScreen(
                             }
                         },
                         enabled = isOnline
-                    ) { Icon(Icons.Default.Send, contentDescription = "Send") }
+                    ) { Icon(painterResource(R.drawable.arrow_right_curved_highlighted), contentDescription = "Send", tint = Color.Unspecified) }
                 }
             }
         }

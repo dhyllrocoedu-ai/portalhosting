@@ -46,7 +46,10 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
+import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
 import com.portalhost.desktop.screens.PlayerManagementScreen
@@ -168,6 +171,11 @@ fun NavSidebar(
 ) {
     val sidebarWidth = if (expanded) 240.dp else 64.dp
 
+    val homeIcon = rememberResourcePainter("/icons/Savanna_Small_House_7.png")
+    val serversIcon = rememberResourcePainter("/icons/Ender_Dragon_Portal.png")
+    val settingsActive = rememberResourcePainter("/icons/Armadillo.webp")
+    val settingsInactive = rememberResourcePainter("/icons/Armadillo_Rolled.webp")
+
     Surface(
         modifier = Modifier
             .fillMaxHeight()
@@ -198,21 +206,21 @@ fun NavSidebar(
             ) {
                 NavItem(
                     label = "Home",
-                    icon = Icons.Default.Dashboard,
+                    iconPainter = homeIcon,
                     selected = currentScreen is Screen.Home,
                     expanded = expanded,
                     onClick = { onScreenChange(Screen.Home) }
                 )
                 NavItem(
                     label = "Servers",
-                    icon = Icons.Default.Dns,
+                    iconPainter = serversIcon,
                     selected = currentScreen is Screen.Servers,
                     expanded = expanded,
                     onClick = { onScreenChange(Screen.Servers) }
                 )
                 NavItem(
                     label = "Settings",
-                    icon = Icons.Default.Settings,
+                    iconPainter = if (currentScreen is Screen.Settings) settingsActive else settingsInactive,
                     selected = currentScreen is Screen.Settings,
                     expanded = expanded,
                     onClick = { onScreenChange(Screen.Settings) }
@@ -226,7 +234,7 @@ fun NavSidebar(
 @Composable
 fun NavItem(
     label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconPainter: androidx.compose.ui.graphics.painter.Painter,
     selected: Boolean,
     expanded: Boolean,
     onClick: () -> Unit
@@ -251,7 +259,7 @@ fun NavItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                imageVector = icon,
+                painter = iconPainter,
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
                 tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -267,6 +275,8 @@ fun NavItem(
         }
     }
 }
+
+
 
 @Composable
 fun ScreenContent(

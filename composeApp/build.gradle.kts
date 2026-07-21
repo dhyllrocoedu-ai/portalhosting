@@ -73,6 +73,7 @@ compose.desktop {
                 menuGroup = "PortalHost"
                 menu = true
                 shortcut = true
+                iconFile.set(project.file("composeApp/src/desktopMain/resources/icons/portalhost2.ico"))
             }
         }
     }

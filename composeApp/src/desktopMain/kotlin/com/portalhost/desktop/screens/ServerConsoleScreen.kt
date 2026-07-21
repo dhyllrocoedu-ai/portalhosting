@@ -77,6 +77,8 @@ import com.portalhost.server.classifyLogLevel
 import com.portalhost.server.consoleLineColor
 import com.portalhost.server.LogLevel
 import com.portalhost.server.ALL_LOG_LEVELS
+import com.portalhost.desktop.util.rememberResourcePainter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -101,6 +103,8 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     var wrapLines by remember { mutableStateOf(false) }
     var showTimestamps by remember { mutableStateOf(true) }
 
+    val arrowUpIcon = rememberResourcePainter("/icons/Arrow_Up_Highlighted.png")
+    val arrowDownIcon = rememberResourcePainter("/icons/Arrow_Down_Highlighted.png")
     val isUserScrolling = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -247,12 +251,12 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                                 IconButton(onClick = {
                                     currentSearchIdx = (currentSearchIdx - 1).coerceAtLeast(0)
                                 }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(16.dp))
+                                    Icon(painter = arrowUpIcon, contentDescription = "Previous", modifier = Modifier.size(16.dp), tint = Color.Unspecified)
                                 }
                                 IconButton(onClick = {
                                     currentSearchIdx = (currentSearchIdx + 1).coerceAtMost(searchResults.size - 1)
                                 }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Next", modifier = Modifier.size(16.dp))
+                                    Icon(painter = arrowDownIcon, contentDescription = "Next", modifier = Modifier.size(16.dp), tint = Color.Unspecified)
                                 }
                             }
                         }
@@ -327,7 +331,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         .padding(16.dp),
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                 ) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Scroll to bottom")
+                    Icon(painter = arrowDownIcon, contentDescription = "Scroll to bottom", tint = Color.Unspecified)
                 }
             }
         }
@@ -393,7 +397,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         }
                     },
                     modifier = Modifier.size(36.dp),
-                ) { Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Previous", modifier = Modifier.size(20.dp)) }
+                ) { Icon(painter = arrowUpIcon, contentDescription = "Previous", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
                 IconButton(
                     onClick = {
                         if (historyIndex >= 0) {
@@ -408,7 +412,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         }
                     },
                     modifier = Modifier.size(36.dp),
-                ) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Next", modifier = Modifier.size(20.dp)) }
+                ) { Icon(painter = arrowDownIcon, contentDescription = "Next", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
             }
         }
     }

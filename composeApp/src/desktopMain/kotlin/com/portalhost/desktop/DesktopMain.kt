@@ -80,7 +80,7 @@ fun DesktopApp(
                 text = {
                     Column(Modifier.padding(16.dp)) {
                         Text("Portal Host")
-                        Text("Version 5.0.25")
+                        Text(com.portalhost.BuildConfig.DISPLAY_NAME)
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))

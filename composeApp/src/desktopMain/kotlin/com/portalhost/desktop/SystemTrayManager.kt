@@ -92,7 +92,7 @@ class SystemTrayManager(
 
     private fun createTrayImage(): Image {
         return try {
-            val resource = javaClass.getResourceAsStream("/icons/icon.png")
+            val resource = javaClass.getResourceAsStream("/portalhost_logo.png")
             if (resource != null) {
                 ImageIO.read(resource)
             } else {

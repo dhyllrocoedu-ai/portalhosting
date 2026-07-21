@@ -130,6 +130,7 @@ import com.portalhost.server.loadServerIcon
 import com.portalhost.server.LogLevel
 import com.portalhost.server.ALL_LOG_LEVELS
 import com.portalhost.theme.ThemeColors
+import com.portalhost.desktop.util.rememberResourcePainter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -377,6 +378,9 @@ private fun ServerCard(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val mcIcon = rememberResourcePainter("/icons/Grass_Block.png")
+    val javaIcon = rememberResourcePainter("/icons/java_icon.png")
+    val bedrockIcon = rememberResourcePainter("/icons/Bedrock.png")
     val status = activeState?.status ?: ServerStatus.STOPPED
     val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
     val statusColorForBadge = ThemeColors.serverStatusColor(status)
@@ -437,11 +441,11 @@ private fun ServerCard(
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (activeServer != null) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Layers, contentDescription = "Minecraft version", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                Icon(painter = mcIcon, contentDescription = "Minecraft version", modifier = Modifier.size(14.dp), tint = Color.Unspecified)
                                 Text(text = "MC ${activeServer.version.ifBlank { "?" }}", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Laptop, contentDescription = "Java version", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                Icon(painter = javaIcon, contentDescription = "Java version", modifier = Modifier.size(14.dp), tint = Color.Unspecified)
                                 Text(text = "Java ${activeServer.javaVersion}", style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -470,6 +474,14 @@ private fun ServerCard(
                         val domains = tunnels.groupBy { it.publicAddress.substringBefore(":") }
                         domains.forEach { (domain, tunnelList) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                val isBedrock = tunnelList.all { it.type == "udp" }
+                                Icon(
+                                    painter = if (isBedrock) bedrockIcon else mcIcon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = if (isBedrock) Color.Unspecified else TunnelGreen
+                                )
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     text = domain,
                                     style = MaterialTheme.typography.bodyMedium,
@@ -478,7 +490,7 @@ private fun ServerCard(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                if (tunnelList.any { it.type == "udp" }) {
+                                if (isBedrock) {
                                     Spacer(Modifier.width(4.dp))
                                     Text(
                                         text = "UDP",
@@ -626,6 +638,8 @@ private fun TunnelCard(
 ) {
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val tunnelMcIcon = rememberResourcePainter("/icons/Grass_Block.png")
+    val tunnelBedrockIcon = rememberResourcePainter("/icons/Bedrock.png")
     val status = tunnelState.status
     val connected = status == TunnelStatus.CONNECTED
     val claimRequired = status == TunnelStatus.CLAIM_REQUIRED
@@ -782,7 +796,7 @@ private fun TunnelCard(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Lan, contentDescription = null, modifier = Modifier.size(16.dp), tint = TunnelGreen)
+                                    Icon(painter = if (tunnels.any { it.type == "udp" }) tunnelBedrockIcon else tunnelMcIcon, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (tunnels.any { it.type == "udp" }) Color.Unspecified else TunnelGreen)
                                     Text(
                                         text = domain,
                                         style = MaterialTheme.typography.bodyMedium,
@@ -1192,7 +1206,7 @@ private fun ConsoleCard(
                             onCommandInputChange("")
                         }
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                        Icon(painter = rememberResourcePainter("/icons/Arrow_Right_Curved_Highlighted.png"), contentDescription = "Send", tint = Color.Unspecified)
                     }
                 }
             }

@@ -442,7 +442,7 @@ fun SettingsScreen() {
                 Spacer(Modifier.width(8.dp))
                 Text("Portal Host", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text("Version 5.0.20", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(com.portalhost.BuildConfig.DISPLAY_NAME, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
                 Icon(
                     if (aboutExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
