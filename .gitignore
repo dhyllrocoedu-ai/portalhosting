@@ -39,6 +39,11 @@ composeApp/.gradle/
 build/
 .gradle/
 
+# Build artifacts (installers, apks)
+PortalHost-*.exe
+PortalHost-*.msi
+PortalHost-*-mobile.apk
+
 # IDE
 .idea/
 *.iml

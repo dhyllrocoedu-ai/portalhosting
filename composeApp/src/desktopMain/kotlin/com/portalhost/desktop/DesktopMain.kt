@@ -150,10 +150,7 @@ fun main() {
         return
     }
 
-val prefs = GlobalContext.get().get<Preferences>()
-        // Always show welcome screen on every launch
-        prefs.firstRunCompleted.value = false
-
+        val prefs = GlobalContext.get().get<Preferences>()
         val serverManager = GlobalContext.get().get<ServerManager>()
     val savedWidth = prefs.windowWidth.value
     val savedHeight = prefs.windowHeight.value

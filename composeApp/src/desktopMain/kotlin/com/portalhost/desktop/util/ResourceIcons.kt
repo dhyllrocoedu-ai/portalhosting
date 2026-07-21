@@ -11,7 +11,8 @@ import org.jetbrains.skia.Image
 fun rememberResourcePainter(path: String): Painter {
     val classLoader = Thread.currentThread().contextClassLoader
     return remember(path) {
-        val bytes = classLoader.getResourceAsStream(path)?.readAllBytes()
+        val cleanPath = if (path.startsWith("/")) path.substring(1) else path
+        val bytes = classLoader.getResourceAsStream(cleanPath)?.readAllBytes()
             ?: error("Resource $path not found")
         BitmapPainter(Image.makeFromEncoded(bytes).toComposeImageBitmap())
     }
