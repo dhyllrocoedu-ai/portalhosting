@@ -6,11 +6,14 @@ import java.io.File
 import java.io.FilenameFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import javax.swing.SwingUtilities
 
 actual class NativeFilePicker {
 
     actual suspend fun pickFile(config: PickConfig): Result<List<Uri>> = withContext(Dispatchers.IO) {
         try {
+            System.setProperty("awt.fileDialog.useNativeLF", "true")
+
             val dialog = FileDialog(null as Frame?, config.title, FileDialog.LOAD)
             dialog.isMultipleMode = config.multiSelect
             dialog.isVisible = true
@@ -27,22 +30,19 @@ actual class NativeFilePicker {
 
     actual suspend fun pickDirectory(config: PickConfig): Result<Uri?> = withContext(Dispatchers.IO) {
         try {
+            System.setProperty("awt.fileDialog.useNativeLF", "true")
+
             val dialog = FileDialog(null as Frame?, config.title, FileDialog.LOAD)
-            dialog.isMultipleMode = false
-            System.setProperty("apple.awt.fileDialogForDirectories", "true")
-            try {
-                dialog.isVisible = true
-                val file = dialog.file
-                val directory = dialog.directory
-                if (file != null && directory != null) {
-                    Result.success(Uri(File(directory, file).absolutePath))
-                } else if (directory != null) {
-                    Result.success(Uri(directory))
-                } else {
-                    Result.success(null)
-                }
-            } finally {
-                System.setProperty("apple.awt.fileDialogForDirectories", "false")
+            dialog.filenameFilter = FilenameFilter { _, _ -> true }
+            dialog.isVisible = true
+            val file = dialog.file
+            val directory = dialog.directory
+            if (file != null && directory != null) {
+                Result.success(Uri(File(directory, file).absolutePath))
+            } else if (directory != null) {
+                Result.success(Uri(directory))
+            } else {
+                Result.success(null)
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -51,6 +51,8 @@ actual class NativeFilePicker {
 
     actual suspend fun saveFile(config: SaveConfig): Result<Uri?> = withContext(Dispatchers.IO) {
         try {
+            System.setProperty("awt.fileDialog.useNativeLF", "true")
+
             val dialog = FileDialog(null as Frame?, config.title, FileDialog.SAVE)
             if (!config.defaultName.isNullOrBlank()) {
                 dialog.file = config.defaultName

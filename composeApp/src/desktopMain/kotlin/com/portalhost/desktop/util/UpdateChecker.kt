@@ -40,9 +40,13 @@ object UpdateChecker {
             if (responseCode == 403) {
                 return@withContext UpdateResult.Error("GitHub API rate limited. Try again later.")
             }
+            if (responseCode == 404) {
+                logger.warn { "GitHub API returned 404, trying HTML fallback" }
+                return@withContext tryHtmlFallback()
+            }
             if (responseCode != 200) {
-                logger.warn { "GitHub API returned $responseCode" }
-                return@withContext UpdateResult.Error("GitHub API returned HTTP $responseCode")
+                logger.warn { "GitHub API returned $responseCode, trying HTML fallback" }
+                return@withContext tryHtmlFallback()
             }
 
             val body = connection.inputStream.bufferedReader().readText()
@@ -71,7 +75,52 @@ object UpdateChecker {
             }
         } catch (e: Exception) {
             logger.warn { "Update check failed: ${e.message}" }
-            UpdateResult.Error("Network error: ${e.message ?: "Unknown error"}")
+            return@withContext tryHtmlFallback()
+        }
+    }
+
+    private fun tryHtmlFallback(): UpdateResult {
+        try {
+            val htmlUrl = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"
+            val connection = URL(htmlUrl).openConnection() as HttpURLConnection
+            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+
+            val responseCode = connection.responseCode
+            if (responseCode != 200) {
+                connection.disconnect()
+                return UpdateResult.Error("Unable to check for updates (HTTP $responseCode)")
+            }
+
+            val body = connection.inputStream.bufferedReader().readText()
+            connection.disconnect()
+
+            val tagMatch = Regex("""/releases/tag/v?([0-9]+\.[0-9]+\.[0-9]+)""").find(body)
+            val notesMatch = Regex("""<h2[^>]*>([^<]+)</h2>""").find(body)
+
+            val tagName = tagMatch?.groupValues?.getOrNull(1) ?: ""
+            val releaseNotes = notesMatch?.groupValues?.getOrNull(1)?.take(200) ?: ""
+
+            if (tagName.isBlank()) {
+                return UpdateResult.Error("Unable to parse release info from GitHub")
+            }
+
+            val currentVersion = BuildConfig.VERSION_NAME
+            return if (isNewerVersion(tagName, currentVersion)) {
+                UpdateResult.UpdateAvailable(
+                    UpdateInfo(
+                        latestVersion = tagName,
+                        downloadUrl = htmlUrl,
+                        releaseNotes = releaseNotes,
+                    )
+                )
+            } else {
+                UpdateResult.UpToDate
+            }
+        } catch (e: Exception) {
+            logger.warn { "HTML fallback update check failed: ${e.message}" }
+            return UpdateResult.Error("Network error: ${e.message ?: "Unknown error"}")
         }
     }
 

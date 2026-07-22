@@ -1,6 +1,7 @@
 package com.portalhost.desktop
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +44,8 @@ import com.portalhost.di.initKoin
 import com.portalhost.log.setupLogging
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.ServerManager
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.koin.core.context.GlobalContext
@@ -217,9 +220,7 @@ fun main() {
         val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
 
         Window(
-            onCloseRequest = {
-                showCloseDialog = true
-            },
+            onCloseRequest = { showCloseDialog = true },
             state = windowState,
             title = "Portal Host",
             visible = isWindowVisible,
@@ -228,67 +229,69 @@ fun main() {
         ) {
             val awtWindow = this.window
             MaterialTheme(colorScheme = colorScheme) {
-                DesktopApp(
-                    iconPainter = iconPainter,
-                    window = awtWindow,
-                    onMinimize = { awtWindow.setState(Frame.ICONIFIED) },
-                    onMaximizeRestore = {
-                        if (awtWindow.extendedState and Frame.MAXIMIZED_BOTH != 0)
-                            awtWindow.extendedState = Frame.NORMAL
-                        else
-                            awtWindow.extendedState = Frame.MAXIMIZED_BOTH
-                    },
-                    onClose = { showCloseDialog = true }
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    DesktopApp(
+                        iconPainter = iconPainter,
+                        window = awtWindow,
+                        onMinimize = { awtWindow.setState(Frame.ICONIFIED) },
+                        onMaximizeRestore = {
+                            if (awtWindow.extendedState and Frame.MAXIMIZED_BOTH != 0)
+                                awtWindow.extendedState = Frame.NORMAL
+                            else
+                                awtWindow.extendedState = Frame.MAXIMIZED_BOTH
+                        },
+                        onClose = { showCloseDialog = true }
+                    )
+
+                    if (showCloseDialog) {
+                        AlertDialog(
+                            onDismissRequest = { },
+                            title = { Text("Close Portal Host") },
+                            text = { Text("Do you want to minimize to system tray or quit the application?") },
+                            confirmButton = {
+                                Button(onClick = {
+                                    showCloseDialog = false
+                                    isWindowVisible = false
+                                }) {
+                                    Text("Minimize to Tray")
+                                }
+                            },
+                            dismissButton = {
+                                Row {
+                                    TextButton(onClick = { showCloseDialog = false }) {
+                                        Text("Cancel")
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            showCloseDialog = false
+                                            isWindowVisible = false
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                    ) {
+                                        Text("Quit")
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
 
-        if (showCloseDialog) {
-            AlertDialog(
-                onDismissRequest = { showCloseDialog = false },
-                title = { Text("Close Portal Host") },
-                text = { Text("Do you want to minimize to system tray or quit the application?") },
-                confirmButton = {
-                    Button(onClick = {
-                        showCloseDialog = false
-                        isWindowVisible = false
-                    }) {
-                        Text("Minimize to Tray")
+        LaunchedEffect(isWindowVisible, showCloseDialog) {
+            if (!isWindowVisible && showCloseDialog) {
+                kotlinx.coroutines.delay(300)
+                val runningServers = serverManager.servers.value.entries
+                    .filter { (id, _) ->
+                        val state = serverManager.serverStates.value[id]
+                        state?.status == com.portalhost.model.ServerStatus.RUNNING || state?.status == com.portalhost.model.ServerStatus.STARTING
                     }
-                },
-                dismissButton = {
-                    Row {
-                        TextButton(onClick = { showCloseDialog = false }) {
-                            Text("Cancel")
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                showCloseDialog = false
-                                isWindowVisible = false
-                                // Quit after a short delay to let tray install
-                                Thread {
-                                    Thread.sleep(200)
-                                    runBlocking {
-                                        val runningServers = serverManager.servers.value.entries
-                                            .filter { (id, _) ->
-                                                val state = serverManager.serverStates.value[id]
-                                                state?.status == com.portalhost.model.ServerStatus.RUNNING || state?.status == com.portalhost.model.ServerStatus.STARTING
-                                            }
-                                        for ((id, _) in runningServers) {
-                                            serverManager.stopServer(id)
-                                        }
-                                    }
-                                    exitApplication()
-                                }.start()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                        ) {
-                            Text("Quit")
-                        }
-                    }
+                for ((id, _) in runningServers) {
+                    serverManager.stopServer(id)
                 }
-            )
+                exitApplication()
+            }
         }
     }
 }
