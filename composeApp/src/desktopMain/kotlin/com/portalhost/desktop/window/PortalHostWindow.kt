@@ -262,7 +262,7 @@ fun NavItem(
                 painter = iconPainter,
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
-                tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                tint = Color.Unspecified
             )
 
             if (expanded) {

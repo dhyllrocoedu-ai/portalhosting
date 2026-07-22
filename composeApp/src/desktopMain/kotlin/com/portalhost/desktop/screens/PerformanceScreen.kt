@@ -66,13 +66,14 @@ fun PerformanceScreen(serverId: String, onBack: () -> Unit = {}) {
             while (state?.status == com.portalhost.model.ServerStatus.RUNNING) {
                 val process = serverManager.getProcessForServer(serverId)
                 val newStats = processMonitor.getStats(process, state?.maxPlayers?.let { it * 128 } ?: 2048)
-                stats = newStats
+                val parsedTps = serverManager.processStats.value[serverId]?.tps
+                stats = if (parsedTps != null && parsedTps > 0f) newStats.copy(tps = parsedTps) else newStats
 
                 // Update chart data
-                cpuData.add(newStats.cpuPercent)
+                cpuData.add(stats!!.cpuPercent)
                 if (cpuData.size > 60) cpuData.removeAt(0)
 
-                ramData.add(newStats.ramBytes)
+                ramData.add(stats!!.ramBytes)
                 if (ramData.size > 60) ramData.removeAt(0)
 
                 delay(2000)

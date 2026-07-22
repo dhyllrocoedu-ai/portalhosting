@@ -101,7 +101,7 @@ fun DesktopApp(
                         Spacer(Modifier.height(8.dp))
                         Text("Minecraft Java Edition Server Manager")
                         Spacer(Modifier.height(8.dp))
-                        Text("https://github.com/portalhost/portalhost")
+                        Text("https://github.com/dhyllrocoedu-ai/portalhosting")
                     }
                 },
                 confirmButton = {

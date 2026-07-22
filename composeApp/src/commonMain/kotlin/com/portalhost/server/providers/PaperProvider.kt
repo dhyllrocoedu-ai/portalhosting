@@ -24,7 +24,7 @@ class PaperProvider : ServerProvider {
     private val json = Json { ignoreUnknownKeys = true }
 
     companion object {
-        private const val USER_AGENT = "PortalHost/5.1.0 (https://github.com/portalhost/portalhost)"
+        private const val USER_AGENT = "PortalHost/5.0.40 (https://github.com/dhyllrocoedu-ai/portalhosting)"
     }
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> = coroutineContext.runCatching {

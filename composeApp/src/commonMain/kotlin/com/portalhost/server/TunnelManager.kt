@@ -594,7 +594,7 @@ mappings = [$mapping]
                         logger.warn { "Provisioning taking longer than expected (120s), but API polls still succeeding - continuing to wait..." }
                     }
                 }
-                delay(5000)
+            delay(1000)
             }
         }
     }

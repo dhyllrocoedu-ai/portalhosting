@@ -97,6 +97,43 @@ class FileSystem(private val preferences: Preferences? = null) {
     suspend fun isDirectory(file: File): Boolean = withContext(Dispatchers.IO) {
         file.isDirectory
     }
+
+    data class StorageBreakdown(
+        val worldBytes: Long = 0,
+        val pluginsBytes: Long = 0,
+        val modsBytes: Long = 0,
+        val datapacksBytes: Long = 0,
+        val resourcepacksBytes: Long = 0,
+        val otherBytes: Long = 0,
+    ) {
+        val totalBytes: Long get() = worldBytes + pluginsBytes + modsBytes + datapacksBytes + resourcepacksBytes + otherBytes
+    }
+
+    suspend fun getServerStorageStats(serverId: String): StorageBreakdown = withContext(Dispatchers.IO) {
+        val serverDir = File(getServersDirBlocking(), serverId)
+        if (!serverDir.exists()) return@withContext StorageBreakdown()
+
+        fun dirSize(dir: File): Long =
+            if (dir.isDirectory) dir.walk().filter { it.isFile }.sumOf { it.length() } else 0L
+
+        val worldDir = File(serverDir, "world")
+        val pluginsDir = File(serverDir, "plugins")
+        val modsDir = File(serverDir, "mods")
+        val datapacksDir = File(serverDir, "datapacks")
+        val resourcepacksDir = File(serverDir, "resourcepacks")
+
+        val knownDirs = setOf(worldDir, pluginsDir, modsDir, datapacksDir, resourcepacksDir)
+        val knownSize = knownDirs.sumOf { dirSize(it) }
+
+        StorageBreakdown(
+            worldBytes = dirSize(worldDir),
+            pluginsBytes = dirSize(pluginsDir),
+            modsBytes = dirSize(modsDir),
+            datapacksBytes = dirSize(datapacksDir),
+            resourcepacksBytes = dirSize(resourcepacksDir),
+            otherBytes = (dirSize(serverDir) - knownSize).coerceAtLeast(0),
+        )
+    }
     
     suspend fun readStream(input: java.io.InputStream): String = withContext(Dispatchers.IO) {
         input.bufferedReader().use { it.readText() }

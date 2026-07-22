@@ -11,11 +11,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import mu.KotlinLogging
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.Result
+
+private val logger = KotlinLogging.logger {}
 
 class ServerDownloader(
     private val registry: ServerProviderRegistry = ServerProviderRegistryInstance.instance,
@@ -78,13 +81,69 @@ class ServerDownloader(
         val result = provider.downloadBuild(build, serverFile)
         
         if (result.isSuccess) {
-            _downloadProgress.value = 1.0
+            _downloadProgress.value = 0.8
             _currentStatus.value = "Download complete"
+
+            if (config.source == com.portalhost.model.ServerSource.FORGE ||
+                config.source == com.portalhost.model.ServerSource.NEOFORGE) {
+                _currentStatus.value = "Running installer..."
+                val installResult = runForgeInstaller(serverFile, config)
+                if (installResult.isFailure) {
+                    return@withContext Result.failure(installResult.exceptionOrNull()!!)
+                }
+            }
+
+            _downloadProgress.value = 1.0
+            _currentStatus.value = "Ready"
         } else {
             _currentStatus.value = "Download failed: ${result.exceptionOrNull()?.message}"
         }
         
         result
+    }
+
+    private fun runForgeInstaller(installerJar: File, config: ServerConfig): Result<File> {
+        val serverDir = installerJar.parentFile ?: return Result.failure(Exception("Invalid server directory"))
+        return try {
+            val jdkManager = com.portalhost.java.JdkManager()
+            val javaExe = jdkManager.getJavaExecutable(config.javaVersion)
+                ?: jdkManager.checkSystemJava(config.javaVersion)
+                ?: return Result.failure(Exception("Java ${config.javaVersion} not found for Forge installer"))
+
+            logger.info { "Running Forge/NeoForge installer: ${installerJar.name}" }
+            val process = ProcessBuilder(
+                javaExe.absolutePath,
+                "-jar", installerJar.absolutePath,
+                "--installServer"
+            )
+                .directory(serverDir)
+                .redirectErrorStream(true)
+                .start()
+
+            val output = process.inputStream.bufferedReader().readText()
+            val exited = process.waitFor()
+            if (exited != 0) {
+                logger.error { "Forge installer failed (exit $exited): $output" }
+                return Result.failure(Exception("Forge installer failed: ${output.takeLast(200)}"))
+            }
+            logger.info { "Forge installer completed successfully" }
+
+            val serverJar = findServerJar(serverDir)
+            if (serverJar != null && serverJar.absolutePath != installerJar.absolutePath) {
+                installerJar.delete()
+            }
+            Result.success(installerJar)
+        } catch (e: Exception) {
+            logger.error(e) { "Forge installer error" }
+            Result.failure(e)
+        }
+    }
+
+    private fun findServerJar(dir: File): File? {
+        val candidates = dir.listFiles { f ->
+            f.isFile && f.extension == "jar" && !f.name.contains("installer")
+        }?.sortedByDescending { it.lastModified() }
+        return candidates?.firstOrNull()
     }
 
     // Download with progress tracking

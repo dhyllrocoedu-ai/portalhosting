@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.automirrored.filled.WrapText
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -108,6 +109,22 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     val isUserScrolling = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+
+    val sendCommand: () -> Unit = {
+        if (commandInput.isNotBlank()) {
+            val process = serverManager.getProcessForServer(serverId)
+            if (process != null) {
+                try {
+                    val writer = process.outputStream.bufferedWriter()
+                    writer.write("$commandInput\n")
+                    writer.flush()
+                } catch (_: Exception) {}
+            }
+            commandHistory = (commandHistory + commandInput).take(100)
+            commandInput = ""
+            historyIndex = -1
+        }
+    }
 
     val levelFiltered = if (activeLevel == LogLevel.ALL) allLines
         else allLines.filter { classifyLogLevel(it) == activeLevel }
@@ -315,10 +332,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                     }
                 }
             }
-        }
-
-        if (isUserScrolling.value && displayLines.size > 20) {
-            Box(modifier = Modifier.fillMaxWidth()) {
+            if (isUserScrolling.value && displayLines.size > 20) {
                 SmallFloatingActionButton(
                     onClick = {
                         isUserScrolling.value = false
@@ -327,8 +341,8 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         }
                     },
                     modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp),
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                 ) {
                     Icon(painter = arrowDownIcon, contentDescription = "Scroll to bottom", tint = Color.Unspecified)
@@ -337,7 +351,13 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
         }
 
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
+                .onKeyEvent { keyEvent ->
+                    if (keyEvent.key == Key.Enter && !keyEvent.isCtrlPressed) {
+                        sendCommand()
+                        true
+                    } else false
+                },
             color = Color(0xFF1E1E1E),
         ) {
             Row(
@@ -367,24 +387,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         unfocusedIndicatorColor = Color.Transparent,
                     ),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(
-                        onSend = {
-                            if (commandInput.isNotBlank()) {
-                                // Send command to server
-                                val process = serverManager.getProcessForServer(serverId)
-                                if (process != null) {
-                                    try {
-                                        val writer = process.outputStream.bufferedWriter()
-                                        writer.write("$commandInput\n")
-                                        writer.flush()
-                                    } catch (_: Exception) {}
-                                }
-                                commandHistory = (commandHistory + commandInput).take(100)
-                                commandInput = ""
-                                historyIndex = -1
-                            }
-                        }
-                    ),
+                    keyboardActions = KeyboardActions(onSend = { sendCommand() }),
                 )
                 Spacer(Modifier.width(4.dp))
                 IconButton(
@@ -413,6 +416,22 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                     },
                     modifier = Modifier.size(36.dp),
                 ) { Icon(painter = arrowDownIcon, contentDescription = "Next", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
+                Spacer(Modifier.width(4.dp))
+                IconButton(
+                    onClick = { sendCommand() },
+                    modifier = Modifier.size(36.dp).background(
+                        color = if (commandInput.isNotBlank()) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else Color.Transparent,
+                        shape = CircleShape
+                    ),
+                    enabled = commandInput.isNotBlank(),
+                ) {
+                    Icon(
+                        Icons.Filled.Send,
+                        contentDescription = "Send command",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (commandInput.isNotBlank()) Color.White else Color(0xFF555555)
+                    )
+                }
             }
         }
     }

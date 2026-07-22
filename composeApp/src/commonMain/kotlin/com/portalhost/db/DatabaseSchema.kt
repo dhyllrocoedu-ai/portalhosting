@@ -1,7 +1,13 @@
 package com.portalhost.db
 
 object PortalHostDatabase {
+    const val CURRENT_VERSION = 1
+
     val schema = """
+        CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER PRIMARY KEY NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS servers (
             id TEXT PRIMARY KEY NOT NULL,
             config_json TEXT NOT NULL,
@@ -31,4 +37,10 @@ object PortalHostDatabase {
         CREATE INDEX IF NOT EXISTS idx_console_logs_timestamp ON console_logs(timestamp);
         CREATE INDEX IF NOT EXISTS idx_backups_server_id ON backups(server_id);
     """
+
+    val migrations = mapOf<Int, List<String>>(
+        1 to listOf(
+            "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL)"
+        )
+    )
 }

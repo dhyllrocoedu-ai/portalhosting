@@ -32,9 +32,26 @@ class DatabaseDriverFactory(private val customDataDir: String? = null) {
 
             val connection = DriverManager.getConnection("jdbc:sqlite:${dbFile.absolutePath}")
             val statement = connection.createStatement()
-            PortalHostDatabase.schema.split(";").map { it.trim() }.filter { it.isNotBlank() }.forEach { sql ->
-                statement.executeUpdate(sql)
+
+            statement.executeUpdate("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY NOT NULL)")
+            val rs = statement.executeQuery("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
+            val currentVersion = if (rs.next()) rs.getInt(1) else 0
+            rs.close()
+
+            if (currentVersion == 0) {
+                PortalHostDatabase.schema.split(";").map { it.trim() }.filter { it.isNotBlank() }.forEach { sql ->
+                    statement.executeUpdate(sql)
+                }
+                statement.executeUpdate("INSERT OR REPLACE INTO schema_version (version) VALUES (${PortalHostDatabase.CURRENT_VERSION})")
+            } else if (currentVersion < PortalHostDatabase.CURRENT_VERSION) {
+                for (v in (currentVersion + 1)..PortalHostDatabase.CURRENT_VERSION) {
+                    PortalHostDatabase.migrations[v]?.forEach { sql ->
+                        statement.executeUpdate(sql)
+                    }
+                    statement.executeUpdate("INSERT OR REPLACE INTO schema_version (version) VALUES ($v)")
+                }
             }
+
             statement.close()
             logger.info { "Database initialized at ${dbFile.absolutePath}" }
             DatabaseRepository(connection, json)

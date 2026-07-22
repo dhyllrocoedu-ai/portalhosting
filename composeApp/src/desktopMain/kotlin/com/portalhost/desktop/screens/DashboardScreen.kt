@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -64,6 +65,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Laptop
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -130,7 +132,10 @@ import com.portalhost.server.loadServerIcon
 import com.portalhost.server.LogLevel
 import com.portalhost.server.ALL_LOG_LEVELS
 import com.portalhost.theme.ThemeColors
+import com.portalhost.desktop.util.UpdateChecker
+import com.portalhost.desktop.util.UpdateInfo
 import com.portalhost.desktop.util.rememberResourcePainter
+import com.portalhost.preferences.Preferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -152,6 +157,7 @@ fun DashboardScreen(
     val jdkManager = koinInject<JdkManager>()
     val activityLog = koinInject<ActivityLog>()
     val tunnelManager = koinInject<TunnelManager>()
+    val preferences = koinInject<Preferences>()
     val servers by serverManager.servers.collectAsState()
     val serverStates by serverManager.serverStates.collectAsState()
     val consoleOutputs by serverManager.consoleOutputs.collectAsState()
@@ -170,6 +176,14 @@ fun DashboardScreen(
     var processStats by remember { mutableStateOf(ProcessStats()) }
     val networkManager = remember { NetworkManager() }
     val localIpInfo = remember { mutableStateOf(networkManager.getLocalIpAddress()) }
+    var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var showUpdateBanner by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        if (preferences.autoCheckUpdates.value) {
+            updateInfo = UpdateChecker.checkForUpdate()
+        }
+    }
 
     LaunchedEffect(selectedServerId) {
         processMonitor.resetNetworkStats()
@@ -178,7 +192,11 @@ fun DashboardScreen(
     LaunchedEffect(selectedServerId) {
         while (isActive) {
             val pid = selectedServerId?.let { serverManager.getProcessForServer(it) }
-            processStats = processMonitor.getStats(pid)
+            val stats = processMonitor.getStats(pid)
+            val parsedTps = selectedServerId?.let { sid ->
+                serverManager.processStats.value[sid]?.tps
+            }
+            processStats = if (parsedTps != null && parsedTps > 0f) stats.copy(tps = parsedTps) else stats
             delay(2000)
         }
     }
@@ -205,6 +223,32 @@ fun DashboardScreen(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        if (updateInfo != null && showUpdateBanner) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Update available: v${updateInfo!!.latestVersion}", style = MaterialTheme.typography.titleSmall)
+                        Text(updateInfo!!.releaseNotes, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    TextButton(onClick = {
+                        try { java.awt.Desktop.getDesktop().browse(java.net.URI(updateInfo!!.downloadUrl)) } catch (_: Exception) {}
+                    }) { Text("Download") }
+                    IconButton(onClick = { showUpdateBanner = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+
         if (servers.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxWidth().height(400.dp),
@@ -325,6 +369,11 @@ fun DashboardScreen(
                     onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
                 )
 
+                StorageCard(
+                    serverId = selectedServerId,
+                    fileSystem = fileSystem,
+                )
+
                 ConsoleCard(
                     consoleLines = activeConsole,
                     onOpenConsole = { selectedServerId?.let { onNavigateToConsole(it) } },
@@ -347,7 +396,7 @@ fun DashboardScreen(
                 )
 
                 PlayerListCard(
-                    players = emptyList<String>(),
+                    onlineCount = activeState?.playersOnline ?: 0,
                     maxPlayers = activeState?.maxPlayers ?: 20,
                     onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
                 )
@@ -1293,7 +1342,8 @@ private fun ActivityRow(entry: ActivityEntry) {
 
 @Composable
 private fun PlayerListCard(
-    players: List<String>,
+    players: List<String> = emptyList(),
+    onlineCount: Int = players.size,
     maxPlayers: Int = 20,
     onOpenPlayers: () -> Unit
 ) {
@@ -1308,13 +1358,13 @@ private fun PlayerListCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Online Players (${players.size}/$maxPlayers)", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Online Players ($onlineCount/$maxPlayers)", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(onClick = onOpenPlayers) {
                     Text("Player Management →")
                 }
             }
 
-            if (players.isEmpty()) {
+            if (onlineCount == 0 && players.isEmpty()) {
                 Row(
                     modifier = Modifier.padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1345,5 +1395,92 @@ private fun formatRam(bytes: Long): String = when {
     bytes < 1024 * 1024 -> "${bytes / 1024}KB"
     bytes < 1024 * 1024 * 1024 -> "${bytes / (1024 * 1024)}MB"
     else -> "${"%.1f".format(bytes.toDouble() / (1024 * 1024 * 1024))}GB"
+}
+
+@Composable
+private fun StorageCard(
+    serverId: String?,
+    fileSystem: com.portalhost.filesystem.FileSystem,
+) {
+    var storage by remember(serverId) { mutableStateOf<com.portalhost.filesystem.FileSystem.StorageBreakdown?>(null) }
+    LaunchedEffect(serverId) {
+        if (serverId != null) {
+            storage = fileSystem.getServerStorageStats(serverId)
+        } else {
+            storage = null
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("Storage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(12.dp))
+            if (storage == null || serverId == null) {
+                Text("Select a server to view storage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                val s = storage!!
+                val total = s.totalBytes.coerceAtLeast(1)
+                val segments = listOf(
+                    "World" to s.worldBytes,
+                    "Plugins" to s.pluginsBytes,
+                    "Mods" to s.modsBytes,
+                    "Datapacks" to s.datapacksBytes,
+                    "Resourcepacks" to s.resourcepacksBytes,
+                    "Other" to s.otherBytes,
+                ).filter { it.second > 0 }
+
+                if (segments.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        segments.forEach { (label, bytes) ->
+                            val fraction = bytes.toFloat() / total
+                            val color = when (label) {
+                                "World" -> ThemeColors.StorageColors.World
+                                "Plugins" -> ThemeColors.StorageColors.Plugins
+                                "Mods" -> ThemeColors.StorageColors.Mods
+                                "Datapacks" -> ThemeColors.StorageColors.Datapacks
+                                "Resourcepacks" -> ThemeColors.StorageColors.Resourcepacks
+                                else -> ThemeColors.StorageColors.Other
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(fraction.coerceAtLeast(0.01f))
+                                    .fillMaxHeight()
+                                    .background(color, RoundedCornerShape(4.dp))
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    segments.forEach { (label, bytes) ->
+                        val color = when (label) {
+                            "World" -> ThemeColors.StorageColors.World
+                            "Plugins" -> ThemeColors.StorageColors.Plugins
+                            "Mods" -> ThemeColors.StorageColors.Mods
+                            "Datapacks" -> ThemeColors.StorageColors.Datapacks
+                            "Resourcepacks" -> ThemeColors.StorageColors.Resourcepacks
+                            else -> ThemeColors.StorageColors.Other
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            Text(formatRam(bytes), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                } else {
+                    Text("Empty", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
 }
 

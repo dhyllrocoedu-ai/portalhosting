@@ -5,7 +5,9 @@ import com.portalhost.db.DatabaseRepository
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.log.LogRepository
 import com.portalhost.preferences.Preferences
+import com.portalhost.process.ProcessManager
 import com.portalhost.server.ActivityLog
+import com.portalhost.server.ProcessMonitor
 import com.portalhost.server.ServerDownloader
 import com.portalhost.server.ServerManager
 import com.portalhost.server.providers.FabricProvider
@@ -32,6 +34,8 @@ fun commonModule() = module {
 
     single { ToastManager() }
 
+    single { ProcessMonitor() }
+
     single { LogRepository() }
 
     single { PaperProvider() }
@@ -55,6 +59,7 @@ fun commonModule() = module {
         ServerManager(
             downloader = get(),
             processManager = get(),
+            processMonitor = get(),
             fileSystem = get(),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             database = get(),

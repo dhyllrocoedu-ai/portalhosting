@@ -94,6 +94,16 @@ object ThemeColors {
         val NetworkTx = Color(0xFFFF9800)
     }
 
+    // Storage breakdown colors
+    object StorageColors {
+        val World = Color(0xFF42A5F5)
+        val Plugins = Color(0xFFAB47BC)
+        val Mods = Color(0xFFFF9800)
+        val Datapacks = Color(0xFF66BB6A)
+        val Resourcepacks = Color(0xFFFFEE58)
+        val Other = Color(0xFF78909C)
+    }
+
     // Console line colors
     object ConsoleLineColors {
         val Error = Color(0xFFFF5555)

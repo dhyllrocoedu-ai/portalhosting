@@ -225,7 +225,11 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
                         ),
                         onClick = {
                             if (entry.isDirectory) {
-                                currentDir = entry.file
+                                val canonicalRoot = rootDir.canonicalFile
+                                val canonicalTarget = entry.file.canonicalFile
+                                if (canonicalTarget.path.startsWith(canonicalRoot.path)) {
+                                    currentDir = entry.file
+                                }
                             }
                         },
                     ) {

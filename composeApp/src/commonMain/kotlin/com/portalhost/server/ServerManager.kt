@@ -28,6 +28,7 @@ private val logger = KotlinLogging.logger {}
 class ServerManager(
     private val downloader: ServerDownloader,
     private val processManager: ProcessManager,
+    private val processMonitor: ProcessMonitor,
     private val fileSystem: FileSystem,
     private val scope: CoroutineScope,
     private val database: DatabaseRepository,
@@ -43,6 +44,9 @@ class ServerManager(
 
     private val _consoleOutputs = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val consoleOutputs: StateFlow<Map<String, List<String>>> = _consoleOutputs
+
+    private val _processStats = MutableStateFlow<Map<String, ProcessStats>>(emptyMap())
+    val processStats: StateFlow<Map<String, ProcessStats>> = _processStats
 
     private val activeProcesses = ConcurrentHashMap<String, ManagedProcess>()
     private val serverLocks = ConcurrentHashMap<String, Mutex>()
@@ -178,6 +182,13 @@ class ServerManager(
                         output + (serverId to current)
                     }
                     database.insertConsoleLog(serverId, line)
+                    processMonitor.parseTps(line)?.let { tps ->
+                        _processStats.update { stats ->
+                            val current = stats[serverId] ?: ProcessStats()
+                            stats + (serverId to current.copy(tps = tps))
+                        }
+                    }
+                    parsePlayerEvents(serverId, line)
                 }
             }
 
@@ -344,6 +355,29 @@ class ServerManager(
 
     private fun buildEnvironment(config: ServerConfig): Map<String, String> {
         return emptyMap()
+    }
+
+    private fun parsePlayerEvents(serverId: String, line: String) {
+        val joinRegex = Regex("""(\w+)\s+joined the game""")
+        val leaveRegex = Regex("""(\w+)\s+left the game""")
+
+        joinRegex.find(line)?.let { match ->
+            val name = match.groupValues[1]
+            val current = _serverStates.value[serverId] ?: return
+            if (current.playersOnline >= 0) {
+                _serverStates.update { states ->
+                    val state = states[serverId] ?: return@update states
+                    states + (serverId to state.copy(playersOnline = state.playersOnline + 1))
+                }
+            }
+        }
+
+        leaveRegex.find(line)?.let { match ->
+            _serverStates.update { states ->
+                val state = states[serverId] ?: return@update states
+                states + (serverId to state.copy(playersOnline = (state.playersOnline - 1).coerceAtLeast(0)))
+            }
+        }
     }
 
     private fun monitorProcess(serverId: String, handle: ManagedProcess) {
