@@ -33,6 +33,7 @@ class ServerManager(
     private val scope: CoroutineScope,
     private val database: DatabaseRepository,
     private val jdkManager: JdkManager,
+    private val activityLog: ActivityLog,
 ) {
     private val serversDir: File get() = fileSystem.getServersDirBlocking()
 
@@ -148,6 +149,7 @@ class ServerManager(
 
             val config = _servers.value[serverId] ?: return@withContext Result.failure(Exception("Server not found: $serverId"))
             logger.info { "Starting server: ${config.name} ($serverId)" }
+            activityLog.log(serverId, config.name, "Starting server...")
 
             _serverStates.update { current ->
                 current + (serverId to (current[serverId]?.copy(
@@ -189,6 +191,22 @@ class ServerManager(
                         }
                     }
                     parsePlayerEvents(serverId, line)
+
+                    // Detect server fully started
+                    val currentState = _serverStates.value[serverId]
+                    if (currentState?.status == ServerStatus.STARTING &&
+                        (Regex("Done \\([\\d.]+s\\)").containsMatchIn(line) || line.contains("For help"))
+                    ) {
+                        val runningState = currentState.copy(
+                            status = ServerStatus.RUNNING,
+                            pid = processHandle.pid
+                        )
+                        database.updateServerState(serverId, runningState)
+                        _serverStates.update { states ->
+                            states + (serverId to runningState)
+                        }
+                        activityLog.log(serverId, config.name, "Server is online and ready")
+                    }
                 }
             }
 
@@ -196,16 +214,8 @@ class ServerManager(
                 monitorProcess(serverId, processHandle)
             }
 
-            val newState = ServerState(
-                id = serverId,
-                status = ServerStatus.RUNNING,
-                pid = processHandle.pid
-            )
-            database.updateServerState(serverId, newState)
-            _serverStates.update { current ->
-                current + (serverId to newState)
-            }
-            logger.info { "Server started: ${config.name} (PID ${processHandle.pid})" }
+            // Keep status as STARTING - will transition to RUNNING when "Done" or "For help" is detected
+            logger.info { "Server process started: ${config.name} (PID ${processHandle.pid}), waiting for startup..." }
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -273,6 +283,7 @@ class ServerManager(
         database.updateServerState(serverId, newState)
         _serverStates.update { current -> current + (serverId to newState) }
         logger.info { "Server stopped: ${config?.name ?: serverId}" }
+        activityLog.log(serverId, config?.name ?: serverId, "Server stopped")
 
         if (!exited) {
             try {
@@ -360,23 +371,30 @@ class ServerManager(
     private fun parsePlayerEvents(serverId: String, line: String) {
         val joinRegex = Regex("""(\w+)\s+joined the game""")
         val leaveRegex = Regex("""(\w+)\s+left the game""")
+        val config = _servers.value[serverId]
 
         joinRegex.find(line)?.let { match ->
             val name = match.groupValues[1]
-            val current = _serverStates.value[serverId] ?: return
-            if (current.playersOnline >= 0) {
-                _serverStates.update { states ->
-                    val state = states[serverId] ?: return@update states
-                    states + (serverId to state.copy(playersOnline = state.playersOnline + 1))
-                }
+            _serverStates.update { states ->
+                val state = states[serverId] ?: return@update states
+                states + (serverId to state.copy(
+                    playersOnline = state.playersOnline + 1,
+                    players = state.players + name
+                ))
             }
+            activityLog.log(serverId, config?.name ?: serverId, "$name joined")
         }
 
         leaveRegex.find(line)?.let { match ->
+            val name = match.groupValues[1]
             _serverStates.update { states ->
                 val state = states[serverId] ?: return@update states
-                states + (serverId to state.copy(playersOnline = (state.playersOnline - 1).coerceAtLeast(0)))
+                states + (serverId to state.copy(
+                    playersOnline = (state.playersOnline - 1).coerceAtLeast(0),
+                    players = state.players.filter { it != name }
+                ))
             }
+            activityLog.log(serverId, config?.name ?: serverId, "$name left")
         }
     }
 
@@ -399,6 +417,11 @@ class ServerManager(
             database.updateServerState(serverId, newState)
             _serverStates.update { current ->
                 current + (serverId to newState)
+            }
+
+            if (exitCode != 0) {
+                val config = _servers.value[serverId]
+                activityLog.log(serverId, config?.name ?: serverId, "Server crashed (exit code $exitCode)")
             }
 
             activeProcesses.remove(serverId)

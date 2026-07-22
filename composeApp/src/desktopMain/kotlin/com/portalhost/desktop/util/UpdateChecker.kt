@@ -18,21 +18,31 @@ data class UpdateInfo(
     val releaseNotes: String,
 )
 
+sealed class UpdateResult {
+    data class UpdateAvailable(val info: UpdateInfo) : UpdateResult()
+    object UpToDate : UpdateResult()
+    data class Error(val message: String) : UpdateResult()
+}
+
 object UpdateChecker {
     private const val GITHUB_API_URL = "https://api.github.com/repos/dhyllrocoedu-ai/portalhosting/releases/latest"
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         try {
             val connection = URL(GITHUB_API_URL).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
 
-            if (connection.responseCode != 200) {
-                logger.warn { "GitHub API returned ${connection.responseCode}" }
-                return@withContext null
+            val responseCode = connection.responseCode
+            if (responseCode == 403) {
+                return@withContext UpdateResult.Error("GitHub API rate limited. Try again later.")
+            }
+            if (responseCode != 200) {
+                logger.warn { "GitHub API returned $responseCode" }
+                return@withContext UpdateResult.Error("GitHub API returned HTTP $responseCode")
             }
 
             val body = connection.inputStream.bufferedReader().readText()
@@ -43,21 +53,25 @@ object UpdateChecker {
             val htmlUrl = root["html_url"]?.jsonPrimitive?.content ?: ""
             val releaseNotes = root["body"]?.jsonPrimitive?.content?.take(200) ?: ""
 
-            if (tagName.isBlank()) return@withContext null
+            if (tagName.isBlank()) {
+                return@withContext UpdateResult.Error("Invalid release data from GitHub")
+            }
 
             val currentVersion = BuildConfig.VERSION_NAME
             if (isNewerVersion(tagName, currentVersion)) {
-                UpdateInfo(
-                    latestVersion = tagName,
-                    downloadUrl = htmlUrl,
-                    releaseNotes = releaseNotes,
+                UpdateResult.UpdateAvailable(
+                    UpdateInfo(
+                        latestVersion = tagName,
+                        downloadUrl = htmlUrl,
+                        releaseNotes = releaseNotes,
+                    )
                 )
             } else {
-                null
+                UpdateResult.UpToDate
             }
         } catch (e: Exception) {
-            logger.debug { "Update check failed: ${e.message}" }
-            null
+            logger.warn { "Update check failed: ${e.message}" }
+            UpdateResult.Error("Network error: ${e.message ?: "Unknown error"}")
         }
     }
 

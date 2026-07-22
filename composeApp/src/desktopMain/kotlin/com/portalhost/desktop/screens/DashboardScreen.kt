@@ -181,7 +181,12 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) {
         if (preferences.autoCheckUpdates.value) {
-            updateInfo = UpdateChecker.checkForUpdate()
+            when (val result = UpdateChecker.checkForUpdate()) {
+                is com.portalhost.desktop.util.UpdateResult.UpdateAvailable -> {
+                    updateInfo = result.info
+                }
+                else -> {}
+            }
         }
     }
 
@@ -396,6 +401,7 @@ fun DashboardScreen(
                 )
 
                 PlayerListCard(
+                    players = activeState?.players ?: emptyList(),
                     onlineCount = activeState?.playersOnline ?: 0,
                     maxPlayers = activeState?.maxPlayers ?: 20,
                     onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
@@ -1369,9 +1375,9 @@ private fun PlayerListCard(
                     modifier = Modifier.padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(6.dp))
-                    Text("0 online", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No online players", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
                 Spacer(Modifier.height(8.dp))
@@ -1380,7 +1386,7 @@ private fun PlayerListCard(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                        MinecraftHeadIcon(player = player, size = 18.dp)
                         Spacer(Modifier.width(8.dp))
                         Text(player, style = MaterialTheme.typography.bodyMedium)
                     }

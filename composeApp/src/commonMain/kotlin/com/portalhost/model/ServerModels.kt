@@ -44,6 +44,7 @@ data class ServerState(
     val cpuUsage: Double = 0.0,
     val playersOnline: Int = 0,
     val maxPlayers: Int = 20,
+    val players: List<String> = emptyList(),
     val uptime: Long = 0,
     val lastError: String? = null,
 )

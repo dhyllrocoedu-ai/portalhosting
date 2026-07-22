@@ -164,14 +164,6 @@ fun ServersScreen(
                         IconButton(onClick = { showSearch = !showSearch }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
-                        FilledTonalButton(
-                            onClick = onNavigateToCreate,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Create Server")
-                        }
                     }
                 }
 

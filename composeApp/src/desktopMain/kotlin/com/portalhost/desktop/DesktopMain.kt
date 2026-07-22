@@ -2,11 +2,13 @@ package com.portalhost.desktop
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Button
@@ -158,6 +160,7 @@ fun main() {
 
     application {
         var isWindowVisible by remember { mutableStateOf(true) }
+        var showCloseDialog by remember { mutableStateOf(false) }
         val windowState = rememberWindowState(
             width = savedWidth.dp,
             height = savedHeight.dp,
@@ -215,7 +218,7 @@ fun main() {
 
         Window(
             onCloseRequest = {
-                isWindowVisible = false
+                showCloseDialog = true
             },
             state = windowState,
             title = "Portal Host",
@@ -235,9 +238,57 @@ fun main() {
                         else
                             awtWindow.extendedState = Frame.MAXIMIZED_BOTH
                     },
-                    onClose = { isWindowVisible = false }
+                    onClose = { showCloseDialog = true }
                 )
             }
+        }
+
+        if (showCloseDialog) {
+            AlertDialog(
+                onDismissRequest = { showCloseDialog = false },
+                title = { Text("Close Portal Host") },
+                text = { Text("Do you want to minimize to system tray or quit the application?") },
+                confirmButton = {
+                    Button(onClick = {
+                        showCloseDialog = false
+                        isWindowVisible = false
+                    }) {
+                        Text("Minimize to Tray")
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { showCloseDialog = false }) {
+                            Text("Cancel")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                showCloseDialog = false
+                                isWindowVisible = false
+                                // Quit after a short delay to let tray install
+                                Thread {
+                                    Thread.sleep(200)
+                                    runBlocking {
+                                        val runningServers = serverManager.servers.value.entries
+                                            .filter { (id, _) ->
+                                                val state = serverManager.serverStates.value[id]
+                                                state?.status == com.portalhost.model.ServerStatus.RUNNING || state?.status == com.portalhost.model.ServerStatus.STARTING
+                                            }
+                                        for ((id, _) in runningServers) {
+                                            serverManager.stopServer(id)
+                                        }
+                                    }
+                                    exitApplication()
+                                }.start()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Quit")
+                        }
+                    }
+                }
+            )
         }
     }
 }

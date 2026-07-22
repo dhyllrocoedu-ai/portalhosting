@@ -64,6 +64,7 @@ fun commonModule() = module {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             database = get(),
             jdkManager = get(),
+            activityLog = get(),
         )
     }
 }

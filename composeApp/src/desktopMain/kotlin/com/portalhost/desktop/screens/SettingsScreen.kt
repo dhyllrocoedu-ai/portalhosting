@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalhost.BuildConfig
 import com.portalhost.desktop.util.UpdateChecker
+import com.portalhost.desktop.util.UpdateResult
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.TunnelManager
@@ -162,22 +163,7 @@ fun SettingsScreen() {
             )
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        SettingsSection("Console") {
-            SettingToggle("Show color codes", showConsoleColors) { preferences.showConsoleColors.value = it }
-            Spacer(Modifier.height(12.dp))
-            Text("Max console lines: $maxConsoleLines", style = MaterialTheme.typography.bodySmall)
-            Slider(
-                value = maxConsoleLines.toFloat(),
-                onValueChange = { preferences.maxConsoleLines.value = it.toInt() },
-                valueRange = 100f..20000f,
-                steps = 199,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
         SettingsSection("Updates") {
             var isChecking by remember { mutableStateOf(false) }
@@ -214,18 +200,17 @@ fun SettingsScreen() {
             if (isChecking) {
                 LaunchedEffect(Unit) {
                     try {
-                        val info = UpdateChecker.checkForUpdate()
-                        if (info != null) {
-                            val current = BuildConfig.VERSION_NAME
-                            val latest = info.latestVersion
-                            if (latest != current) {
+                        when (val result = UpdateChecker.checkForUpdate()) {
+                            is UpdateResult.UpdateAvailable -> {
                                 hasUpdate = true
-                                updateResult = "Update available: v$latest"
-                            } else {
+                                updateResult = "Update available: v${result.info.latestVersion}"
+                            }
+                            is UpdateResult.UpToDate -> {
                                 updateResult = "You're up to date"
                             }
-                        } else {
-                            updateResult = "Unable to check for updates"
+                            is UpdateResult.Error -> {
+                                updateResult = result.message
+                            }
                         }
                     } catch (e: Exception) {
                         updateResult = "Error: ${e.message}"
@@ -271,14 +256,29 @@ fun SettingsScreen() {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
+
+        SettingsSection("Console") {
+            SettingToggle("Show color codes", showConsoleColors) { preferences.showConsoleColors.value = it }
+            Spacer(Modifier.height(12.dp))
+            Text("Max console lines: $maxConsoleLines", style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = maxConsoleLines.toFloat(),
+                onValueChange = { preferences.maxConsoleLines.value = it.toInt() },
+                valueRange = 100f..20000f,
+                steps = 199,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
 
         SettingsSection("Defaults") {
             SettingToggle("Auto-restart on crash", serverAutoRestart) { preferences.serverAutoRestart.value = it }
             SettingToggle("RCON enabled by default", rconEnabledByDefault) { preferences.rconEnabledByDefault.value = it }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
         SettingsSection("Backup") {
             SettingToggle("Auto-backup enabled", autoBackupEnabled) { preferences.autoBackupEnabled.value = it }
@@ -298,7 +298,66 @@ fun SettingsScreen() {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
+
+        SettingsSection("Java / JDK") {
+            val jdkManager = koinInject<JdkManager>()
+            val installations by jdkManager.knownInstallations.collectAsState()
+            val isInstalling by jdkManager.isInstalling.collectAsState()
+            val installProgress by jdkManager.installProgress.collectAsState()
+
+            LaunchedEffect(Unit) { jdkManager.refresh() }
+
+            if (installations.isEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Memory, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                    Text("No JDK installations found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                installations.forEach { inst ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Java ${inst.version} - ${inst.vendor}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(inst.path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        }
+                        Text(if (inst.isJre) "JRE" else "JDK", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (installations.isEmpty()) {
+                    Button(
+                        onClick = { scope.launch { jdkManager.installJdk(21) } },
+                        enabled = !isInstalling,
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Install Java 21")
+                    }
+                } else {
+                    Button(
+                        onClick = { scope.launch { jdkManager.installJdk(21) } },
+                        enabled = !isInstalling,
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Reinstall Java 21")
+                    }
+                }
+            }
+            if (isInstalling) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(progress = { installProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
+                Text("Installing JDK... ${(installProgress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
 
         SettingsSection("Tunnel (playit.gg)") {
             val tunnelManager = koinInject<TunnelManager>()
@@ -418,66 +477,7 @@ fun SettingsScreen() {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        SettingsSection("Java / JDK") {
-            val jdkManager = koinInject<JdkManager>()
-            val installations by jdkManager.knownInstallations.collectAsState()
-            val isInstalling by jdkManager.isInstalling.collectAsState()
-            val installProgress by jdkManager.installProgress.collectAsState()
-
-            LaunchedEffect(Unit) { jdkManager.refresh() }
-
-            if (installations.isEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Memory, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(8.dp))
-                    Text("No JDK installations found", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                installations.forEach { inst ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Java ${inst.version} - ${inst.vendor}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            Text(inst.path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                        }
-                        Text(if (inst.isJre) "JRE" else "JDK", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (installations.isEmpty()) {
-                    Button(
-                        onClick = { scope.launch { jdkManager.installJdk(21) } },
-                        enabled = !isInstalling,
-                    ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Install Java 21")
-                    }
-                } else {
-                    Button(
-                        onClick = { scope.launch { jdkManager.installJdk(21) } },
-                        enabled = !isInstalling,
-                    ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Reinstall Java 21")
-                    }
-                }
-            }
-            if (isInstalling) {
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(progress = { installProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
-                Text("Installing JDK... ${(installProgress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
         SettingsSection("Advanced") {
             SettingToggle("Confirm before deleting servers", confirmServerDelete) { preferences.confirmServerDelete.value = it }
@@ -506,7 +506,7 @@ fun SettingsScreen() {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(20.dp))
 
         var aboutExpanded by remember { mutableStateOf(false) }
         SettingsSection("About") {

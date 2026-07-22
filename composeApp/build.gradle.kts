@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.0.40"
+version = "5.0.42"
 
 kotlin {
     jvm("desktop")
