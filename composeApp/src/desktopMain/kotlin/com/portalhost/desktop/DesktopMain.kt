@@ -66,12 +66,13 @@ fun DesktopApp(
     val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
     val serverManager = koinInject<ServerManager>()
     val firstRunCompleted by preferences.firstRunCompleted.collectAsState()
+    val showWelcome = !firstRunCompleted
 
-    LaunchedEffect(firstRunCompleted) {
-        logger.info { "firstRunCompleted = $firstRunCompleted" }
+    LaunchedEffect(showWelcome) {
+        logger.info { "firstRunCompleted=$firstRunCompleted, showWelcome=$showWelcome" }
     }
 
-    if (!firstRunCompleted) {
+    if (showWelcome) {
         Column(Modifier.fillMaxSize()) {
             TitleBar(
                 iconPainter = iconPainter,

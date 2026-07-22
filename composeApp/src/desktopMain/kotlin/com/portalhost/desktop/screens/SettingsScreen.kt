@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -60,6 +62,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.portalhost.BuildConfig
+import com.portalhost.desktop.util.UpdateChecker
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.TunnelManager
@@ -80,8 +84,6 @@ fun SettingsScreen() {
     val autoCheckUpdates by preferences.autoCheckUpdates.collectAsState()
     val showConsoleColors by preferences.showConsoleColors.collectAsState()
     val maxConsoleLines by preferences.maxConsoleLines.collectAsState()
-    val defaultMemoryMin by preferences.defaultMemoryMin.collectAsState()
-    val defaultMemoryMax by preferences.defaultMemoryMax.collectAsState()
     val autoBackupEnabled by preferences.autoBackupEnabled.collectAsState()
     val backupIntervalHours by preferences.backupIntervalHours.collectAsState()
     val rconEnabledByDefault by preferences.rconEnabledByDefault.collectAsState()
@@ -177,27 +179,101 @@ fun SettingsScreen() {
 
         Spacer(Modifier.height(16.dp))
 
+        SettingsSection("Updates") {
+            var isChecking by remember { mutableStateOf(false) }
+            var updateResult by remember { mutableStateOf<String?>(null) }
+            var hasUpdate by remember { mutableStateOf(false) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Current version", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        BuildConfig.VERSION_NAME,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Button(
+                    onClick = {
+                        isChecking = true
+                        updateResult = null
+                        hasUpdate = false
+                    },
+                    enabled = !isChecking,
+                ) {
+                    Icon(Icons.Filled.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Check Now")
+                }
+            }
+
+            if (isChecking) {
+                LaunchedEffect(Unit) {
+                    try {
+                        val info = UpdateChecker.checkForUpdate()
+                        if (info != null) {
+                            val current = BuildConfig.VERSION_NAME
+                            val latest = info.latestVersion
+                            if (latest != current) {
+                                hasUpdate = true
+                                updateResult = "Update available: v$latest"
+                            } else {
+                                updateResult = "You're up to date"
+                            }
+                        } else {
+                            updateResult = "Unable to check for updates"
+                        }
+                    } catch (e: Exception) {
+                        updateResult = "Error: ${e.message}"
+                    } finally {
+                        isChecking = false
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().weight(1f))
+                }
+            }
+
+            if (updateResult != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (hasUpdate) Icons.Filled.SystemUpdate else Icons.Filled.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (hasUpdate) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        updateResult!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (hasUpdate) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (hasUpdate) {
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            try {
+                                java.awt.Desktop.getDesktop().browse(java.net.URI("https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"))
+                            } catch (_: Exception) {}
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Download Update")
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
         SettingsSection("Defaults") {
-            Text("Default memory: ${defaultMemoryMin}MB - ${defaultMemoryMax}MB", style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(4.dp))
-            Text("Min", style = MaterialTheme.typography.labelSmall)
-            Slider(
-                value = defaultMemoryMin.toFloat(),
-                onValueChange = { preferences.defaultMemoryMin.value = it.toInt() },
-                valueRange = 256f..16384f,
-                steps = 63,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(4.dp))
-            Text("Max", style = MaterialTheme.typography.labelSmall)
-            Slider(
-                value = defaultMemoryMax.toFloat(),
-                onValueChange = { preferences.defaultMemoryMax.value = it.toInt() },
-                valueRange = 256f..16384f,
-                steps = 63,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
             SettingToggle("Auto-restart on crash", serverAutoRestart) { preferences.serverAutoRestart.value = it }
             SettingToggle("RCON enabled by default", rconEnabledByDefault) { preferences.rconEnabledByDefault.value = it }
         }

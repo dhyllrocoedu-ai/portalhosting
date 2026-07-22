@@ -275,8 +275,10 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             when {
                 responseCode in 200..299 -> {
                     val contentLength = conn.contentLengthLong
+                    val heuristicSize = 200L * 1024 * 1024
+                    val effectiveSize = if (contentLength > 0) contentLength else heuristicSize
                     var downloaded = 0L
-                    
+
                     FileOutputStream(destination).use { output ->
                         conn.inputStream.use { input ->
                             val buffer = ByteArray(8192)
@@ -284,15 +286,16 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
                             while (input.read(buffer).also { bytesRead = it } != -1) {
                                 output.write(buffer, 0, bytesRead)
                                 downloaded += bytesRead
-                                if (contentLength > 0) {
-                                    installProgress.value = 0.05 + 0.45 * (downloaded.toDouble() / contentLength)
-                                }
+                                val ratio = (downloaded.toDouble() / effectiveSize).coerceAtMost(0.95)
+                                installProgress.value = 0.05 + 0.45 * ratio
                             }
                         }
                     }
                     
                     if (contentLength > 0 && downloaded != contentLength) {
                         throw Exception("Download incomplete: expected $contentLength bytes, got $downloaded")
+                    } else if (contentLength <= 0 && downloaded == 0L) {
+                        throw Exception("Download produced no bytes")
                     }
                     return
                 }

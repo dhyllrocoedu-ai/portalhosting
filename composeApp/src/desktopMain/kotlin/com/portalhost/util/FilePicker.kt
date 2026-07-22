@@ -1,8 +1,9 @@
 package com.portalhost.util
 
+import java.awt.FileDialog
+import java.awt.Frame
 import java.io.File
-import javax.swing.JFileChooser
-import javax.swing.filechooser.FileNameExtensionFilter
+import java.io.FilenameFilter
 
 fun pickFile(
     title: String = "Select File",
@@ -10,18 +11,18 @@ fun pickFile(
     directory: File? = null,
     multiSelection: Boolean = false,
 ): List<File> {
-    val chooser = JFileChooser()
-    chooser.dialogTitle = title
-    chooser.isMultiSelectionEnabled = multiSelection
+    val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
+    dialog.isMultipleMode = multiSelection
     if (extensionFilter != null) {
-        chooser.fileFilter = FileNameExtensionFilter(extensionFilter.first, *extensionFilter.second.toTypedArray())
+        val exts = extensionFilter.second.map { ".$it" }.toTypedArray()
+        dialog.filenameFilter = FilenameFilter { _, name ->
+            exts.any { name.endsWith(it, ignoreCase = true) }
+        }
     }
-    directory?.let { chooser.currentDirectory = it }
-    return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-        if (multiSelection) chooser.selectedFiles.toList() else listOf(chooser.selectedFile)
-    } else {
-        emptyList()
-    }
+    directory?.let { dialog.directory = it.absolutePath }
+    dialog.isVisible = true
+    val files = dialog.files
+    return if (files != null && files.isNotEmpty()) files.toList() else emptyList()
 }
 
 fun pickSaveFile(
@@ -30,31 +31,33 @@ fun pickSaveFile(
     defaultName: String? = null,
     directory: File? = null,
 ): File? {
-    val chooser = JFileChooser()
-    chooser.dialogTitle = title
+    val dialog = FileDialog(null as Frame?, title, FileDialog.SAVE)
     if (extensionFilter != null) {
-        chooser.fileFilter = FileNameExtensionFilter(extensionFilter.first, *extensionFilter.second.toTypedArray())
+        val exts = extensionFilter.second.map { ".$it" }.toTypedArray()
+        dialog.filenameFilter = FilenameFilter { _, name ->
+            exts.any { name.endsWith(it, ignoreCase = true) }
+        }
     }
-    directory?.let { chooser.currentDirectory = it }
-    defaultName?.let { chooser.selectedFile = File(it) }
-    return if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-        chooser.selectedFile
-    } else {
-        null
-    }
+    directory?.let { dialog.directory = it.absolutePath }
+    defaultName?.let { dialog.file = it }
+    dialog.isVisible = true
+    val file = dialog.file
+    val dir = dialog.directory
+    return if (file != null && dir != null) File(dir, file) else null
 }
 
 fun pickDirectory(
     title: String = "Select Directory",
     directory: File? = null,
 ): File? {
-    val chooser = JFileChooser()
-    chooser.dialogTitle = title
-    chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-    directory?.let { chooser.currentDirectory = it }
-    return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-        chooser.selectedFile
-    } else {
-        null
-    }
+    val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
+    dialog.filenameFilter = FilenameFilter { _, _ -> true }
+    directory?.let { dialog.directory = it.absolutePath }
+    dialog.isVisible = true
+    val file = dialog.file
+    val dir = dialog.directory
+    return if (file != null && dir != null) {
+        val selected = File(dir, file)
+        if (selected.isDirectory) selected else File(dir)
+    } else if (dir != null) File(dir) else null
 }

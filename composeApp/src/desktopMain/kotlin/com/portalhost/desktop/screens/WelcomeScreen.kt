@@ -6,33 +6,30 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,20 +40,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Suppress("EXPERIMENTAL_API_USAGE")
 @Composable
 fun WelcomeScreen(
     onFinish: () -> Unit
@@ -81,29 +72,40 @@ fun WelcomeScreen(
         }
     }
 
-    val scrollState = rememberScrollState()
+    LaunchedEffect(currentStep) {
+        if (currentStep == 1 && !jdkInstalling && !jdkInstalled) {
+            scope.launch {
+                jdkInstalling = true
+                jdkProgress = 0.0
+                jdkError = null
+                jdkManager.installJdk(21).onFailure { e ->
+                    jdkError = e.message ?: "Failed to install JDK"
+                    jdkInstalling = false
+                }.onSuccess {
+                    jdkInstalled = true
+                    jdkProgress = 1.0
+                    jdkInstalling = false
+                }
+            }
+        }
+    }
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow),
+            modifier = Modifier.widthIn(max = 560.dp).fillMaxHeight().padding(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                // Title
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text("Welcome to Portal Host", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(16.dp))
-
-                // Step indicator
+            Column(
+                modifier = Modifier.fillMaxSize().padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                // Step indicator at top
                 StepIndicator(current = currentStep, total = totalSteps)
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(32.dp))
 
                 // Step content
                 when (currentStep) {
@@ -141,34 +143,36 @@ fun WelcomeScreen(
 
                 // Error message
                 jdkError?.let { msg ->
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.errorContainer)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
                     ) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Filled.Error,
                                 contentDescription = null,
-                                tint = androidx.compose.material3.MaterialTheme.colorScheme.error,
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(msg, color = androidx.compose.material3.MaterialTheme.colorScheme.onErrorContainer, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                            Text(msg, color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
 
-                Spacer(Modifier.weight(1f))
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(32.dp))
 
                 // Navigation buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     if (currentStep > 0) {
                         OutlinedButton(
-                            onClick = { currentStep--; jdkError = null },
+                            onClick = {
+                                currentStep--
+                                jdkError = null
+                            },
                             modifier = Modifier.weight(1f)
                         ) { Text("Back") }
                     }
@@ -176,13 +180,10 @@ fun WelcomeScreen(
                     if (currentStep < totalSteps - 1) {
                         Button(
                             onClick = {
-                                when (currentStep) {
-                                    0 -> currentStep++
-                                    1 -> {
-                                        if (!jdkInstalling && !jdkInstalled) {
-                                            // Trigger install
-                                        }
-                                    }
+                                if (currentStep == 0) {
+                                    currentStep++
+                                } else if (currentStep == 1 && jdkInstalled) {
+                                    currentStep++
                                 }
                                 jdkError = null
                             },
@@ -193,11 +194,15 @@ fun WelcomeScreen(
                             },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(if (currentStep == 1 && jdkInstalling) "Installing..." else "Next")
+                            Text(
+                                if (currentStep == 1 && jdkInstalling) "Installing..."
+                                else if (currentStep == 1 && jdkInstalled) "Next"
+                                else "Next"
+                            )
                             Icon(
-                                imageVector = Icons.Filled.ArrowForward,
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
-                                modifier = Modifier.padding(start = 8.dp)
+                                modifier = Modifier.padding(start = 8.dp).size(18.dp)
                             )
                         }
                     } else {
@@ -206,34 +211,13 @@ fun WelcomeScreen(
                             modifier = Modifier.weight(1f).height(48.dp)
                         ) {
                             Text("Get Started")
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.padding(start = 8.dp).size(18.dp)
+                            )
                         }
                     }
-                }
-            }
-        }
-    }
-
-    // Auto-advance when JDK install completes
-    LaunchedEffect(jdkInstalled) {
-        if (jdkInstalled) {
-            currentStep = 2
-        }
-    }
-
-    // Trigger JDK install when entering step 1
-    LaunchedEffect(currentStep) {
-        if (currentStep == 1 && !jdkInstalling && !jdkInstalled) {
-            scope.launch {
-                jdkInstalling = true
-                jdkProgress = 0.0
-                jdkError = null
-                jdkManager.installJdk(21).onFailure { e ->
-                    jdkError = e.message ?: "Failed to install JDK"
-                    jdkInstalling = false
-                }.onSuccess {
-                    jdkInstalled = true
-                    jdkProgress = 1.0
-                    jdkInstalling = false
                 }
             }
         }
@@ -242,25 +226,28 @@ fun WelcomeScreen(
 
 @Composable
 private fun StepIndicator(current: Int, total: Int) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        for (i in 0 until total) {
-            Surface(
-                modifier = Modifier.weight(1f).height(4.dp),
-                shape = RoundedCornerShape(2.dp),
-                color = if (i <= current) androidx.compose.material3.MaterialTheme.colorScheme.primary
-                else androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
-            ) {}
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            for (i in 0 until total) {
+                Box(
+                    modifier = Modifier.weight(1f).height(4.dp).background(
+                        if (i <= current) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(2.dp)
+                    )
+                )
+            }
         }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Step ${current + 1} of $total",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
-    Spacer(Modifier.height(8.dp))
-    Text(
-        "Step ${current + 1} of $total",
-        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-    )
 }
 
 @Composable
@@ -274,38 +261,34 @@ private fun WelcomeContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .size(120.dp)
-                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
-                .align(Alignment.CenterHorizontally)
+            modifier = Modifier.size(120.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp)),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Filled.Dns,
                 contentDescription = null,
-                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .size(64.dp)
-                    .align(Alignment.Center)
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(64.dp)
             )
         }
         Text(
             text = title,
-            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
         )
         Text(
             text = description,
-            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
         Text(
             text = subtitle,
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -322,46 +305,42 @@ private fun JdkInstallStep(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .size(120.dp)
-                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
-                .align(Alignment.CenterHorizontally)
+            modifier = Modifier.size(120.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp)),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Filled.Download,
                 contentDescription = null,
-                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .size(64.dp)
-                    .align(Alignment.Center)
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(64.dp)
             )
         }
         Text(
             text = "Install Java 21",
-            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
         )
         Text(
             text = "Minecraft servers require Java 21 to run. Portal Host will download and install it automatically.",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
 
         if (isInstalling) {
             Spacer(Modifier.height(16.dp))
             LinearProgressIndicator(
-                progress = progress.toFloat(),
+                progress = { progress.toFloat() },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "Downloading and installing Java 21... ${(progress * 100).toInt()}%",
-                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-                color = androidx.compose.material3.MaterialTheme.colorScheme.primary,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
             )
         } else if (!isInstalling && progress == 0.0) {
             Spacer(Modifier.height(16.dp))
@@ -373,12 +352,12 @@ private fun JdkInstallStep(
                 Icon(
                     imageVector = Icons.Filled.Download,
                     contentDescription = null,
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier.padding(start = 8.dp).size(18.dp)
                 )
             }
         }
 
-        if (progress >= 1.0) {
+        if (progress >= 1.0 && !isInstalling) {
             Spacer(Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
@@ -387,15 +366,15 @@ private fun JdkInstallStep(
                 Icon(
                     imageVector = Icons.Filled.Check,
                     contentDescription = null,
-                    tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = "Java 21 installed successfully!",
-                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -413,38 +392,34 @@ private fun FinishContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .size(120.dp)
-                .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp))
-                .align(Alignment.CenterHorizontally)
+            modifier = Modifier.size(120.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp)),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Filled.CheckCircle,
                 contentDescription = null,
-                tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier
-                    .size(64.dp)
-                    .align(Alignment.Center)
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(64.dp)
             )
         }
         Text(
             text = title,
-            style = androidx.compose.material3.MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
         )
         Text(
             text = description,
-            style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
         Text(
             text = subtitle,
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-            color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+            textAlign = TextAlign.Center
         )
     }
 }

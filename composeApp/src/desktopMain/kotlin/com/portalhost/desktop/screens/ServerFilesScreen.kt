@@ -84,7 +84,6 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
     var renameText by remember { mutableStateOf("") }
     var editTarget by remember { mutableStateOf<File?>(null) }
     var editContent by remember { mutableStateOf("") }
-    var showUpload by remember { mutableStateOf(false) }
     var showTrash by remember { mutableStateOf(false) }
     var selectedFiles by remember { mutableStateOf<Set<File>>(emptySet()) }
     val scope = rememberCoroutineScope()
@@ -154,7 +153,24 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
                         IconButton(onClick = { sortByName = !sortByName }) {
                             Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort", modifier = Modifier.size(20.dp))
                         }
-                        IconButton(onClick = { showUpload = true }) {
+                        IconButton(onClick = {
+                            scope.launch {
+                                val files = pickFile(
+                                    title = "Select files to upload",
+                                    multiSelection = true,
+                                )
+                                if (files.isNotEmpty()) {
+                                    withContext(Dispatchers.IO) {
+                                        files.forEach { file ->
+                                            val target = File(currentDir, file.name)
+                                            file.copyTo(target, overwrite = true)
+                                        }
+                                    }
+                                    toastManager.success("Uploaded ${files.size} file(s)")
+                                    refresh(currentDir)
+                                }
+                            }
+                        }) {
                             Icon(Icons.Filled.UploadFile, contentDescription = "Upload", modifier = Modifier.size(20.dp))
                         }
                         if (trash.isNotEmpty()) {
@@ -349,37 +365,6 @@ if (editTarget != null) {
             }) { Text("Save") }
         },
         dismissButton = { TextButton(onClick = { editTarget = null; editContent = "" }) { Text("Cancel") } }
-    )
-}
-
-// Upload dialog
-if (showUpload) {
-    AlertDialog(
-        onDismissRequest = { showUpload = false },
-        confirmButton = {
-            TextButton(onClick = {
-                scope.launch {
-                    val files = pickFile(
-                        title = "Select files to upload",
-                        multiSelection = true,
-                    )
-                    if (files.isNotEmpty()) {
-                        withContext(Dispatchers.IO) {
-                            files.forEach { file ->
-                                val target = File(currentDir, file.name)
-                                file.copyTo(target, overwrite = true)
-                            }
-                        }
-                        toastManager.success("Uploaded ${files.size} file(s)")
-                        refresh(currentDir)
-                    }
-                    showUpload = false
-                }
-            }) { Text("Browse...") }
-        },
-        dismissButton = { TextButton(onClick = { showUpload = false }) { Text("Cancel") } },
-        title = { Text("Upload Files") },
-        text = { Text("Click Browse to select files to upload to \"${currentDir.name}\".") },
     )
 }
 

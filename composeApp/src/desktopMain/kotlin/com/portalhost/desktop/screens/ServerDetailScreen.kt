@@ -759,13 +759,15 @@ private fun PluginsTab(serverId: String) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Plugins (${plugins.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = {
-                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"))
+                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
                 if (files.isNotEmpty()) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
                             dir.mkdirs()
-                            File(files[0].absolutePath).copyTo(File(dir, files[0].name), overwrite = true)
+                            files.forEach { f ->
+                                File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
+                            }
                         }
                         refreshPlugins()
                     }
@@ -824,13 +826,15 @@ private fun ModsTab(serverId: String) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Mods (${mods.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = {
-                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"))
+                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
                 if (files.isNotEmpty()) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
                             dir.mkdirs()
-                            File(files[0].absolutePath).copyTo(File(dir, files[0].name), overwrite = true)
+                            files.forEach { f ->
+                                File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
+                            }
                         }
                         refreshMods()
                     }
@@ -889,13 +893,15 @@ private fun DatapacksTab(serverId: String) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = {
-                val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"))
+                val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"), multiSelection = true)
                 if (files.isNotEmpty()) {
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
                             dir.mkdirs()
-                            File(files[0].absolutePath).copyTo(File(dir, files[0].name), overwrite = true)
+                            files.forEach { f ->
+                                File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
+                            }
                         }
                         refreshDatapacks()
                     }
