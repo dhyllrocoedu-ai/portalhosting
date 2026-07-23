@@ -1,9 +1,16 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: Self-locate: get the directory where this batch file lives
+set "INSTALL_DIR=%~dp0"
+:: Remove trailing backslash
+if "%INSTALL_DIR:~-1%"=="\" set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
+
 echo ============================================
 echo PortalHost Uninstaller
 echo ============================================
+echo.
+echo Install folder: %INSTALL_DIR%
 echo.
 
 :: Check for admin rights
@@ -83,23 +90,24 @@ if exist "%APPDATA_PATH%" (
     echo No app data folder found.
 )
 
-:: Try to remove installation folder (may require admin)
+:: Remove installation folder (this batch file's own directory)
 echo [4/4] Cleaning up installation folder...
-if exist "%ProgramFiles%\PortalHost" (
-    takeown /f "%ProgramFiles%\PortalHost" /r /d y >nul 2>&1
-    icacls "%ProgramFiles%\PortalHost" /grant administrators:F /t >nul 2>&1
-    rmdir /s /q "%ProgramFiles%\PortalHost" 2>nul
-    if exist "%ProgramFiles%\PortalHost" (
-        echo Could not remove Program Files folder (may need admin).
-    ) else (
-        echo Installation folder removed.
+if exist "%INSTALL_DIR%" (
+    echo Removing: %INSTALL_DIR%
+    :: Try to remove everything except this batch file itself
+    for %%f in ("%INSTALL_DIR%\*") do (
+        if /i not "%%~nxf"=="Uninstall.bat" (
+            if "%%~af"=="" (
+                rmdir /s /q "%%f" 2>nul
+            ) else (
+                del /q "%%f" 2>nul
+            )
+        )
     )
-)
-
-if exist "%ProgramFiles(x86)%\PortalHost" (
-    takeown /f "%ProgramFiles(x86)%\PortalHost" /r /d y >nul 2>&1
-    icacls "%ProgramFiles(x86)%\PortalHost" /grant administrators:F /t >nul 2>&1
-    rmdir /s /q "%ProgramFiles(x86)%\PortalHost" 2>nul
+    for /d %%d in ("%INSTALL_DIR%\*") do (
+        rmdir /s /q "%%d" 2>nul
+    )
+    echo Installation folder cleaned.
 )
 
 echo.
