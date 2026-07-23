@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Column
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -46,9 +47,8 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Density
 import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
@@ -63,6 +63,7 @@ import com.portalhost.server.ServerManager
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.uinotify.ToastManager
 import kotlinx.coroutines.launch
+import javax.swing.SwingUtilities
 
 sealed class Screen {
     object Home : Screen()
@@ -106,7 +107,11 @@ fun TitleBar(
                         detectDragGestures { change, dragAmount ->
                             change.consume()
                             window?.let { w ->
-                                w.setLocation(w.x + dragAmount.x.toInt(), w.y + dragAmount.y.toInt())
+                                val dx = dragAmount.x.roundToInt()
+                                val dy = dragAmount.y.roundToInt()
+                                SwingUtilities.invokeLater {
+                                    w.setLocation(w.x + dx, w.y + dy)
+                                }
                             }
                         }
                     },

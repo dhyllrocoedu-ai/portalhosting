@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <?define ProductName = "PortalHost" ?>
-  <?define ProductVersion = "5.0.50" ?>
+  <?define ProductVersion = "5.0.51" ?>
   <?define Manufacturer = "PortalHost" ?>
   <?define UpgradeCode = "c7a3b8e1-4d2f-4a9e-8b6c-1d3e5f7a9b0c" ?>
   <?define ProductCode = "*" ?>
@@ -63,7 +63,7 @@
     </ComponentGroup>
   </Fragment>
 
-  <!-- Custom components: uninstall shortcut inside the install folder -->
+  <!-- Custom components: uninstall shortcut + Uninstall.bat inside the install folder -->
   <Fragment>
     <ComponentGroup Id="PortalHostCustomComponents" Directory="INSTALLFOLDER">
       <Component Id="UninstallInFolderComponent" Guid="*">
@@ -75,6 +75,11 @@
                   Arguments="/x [ProductCode]"
                   WorkingDirectory="INSTALLFOLDER" />
         <RegistryValue Root="HKCU" Key="Software\PortalHost\Uninstall" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <!-- Uninstall.bat as an actual file in the install folder -->
+      <Component Id="UninstallBatComponent" Guid="*">
+        <File Id="UninstallBatFile" Source="$(var.SourceDir)\Uninstall.bat" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>

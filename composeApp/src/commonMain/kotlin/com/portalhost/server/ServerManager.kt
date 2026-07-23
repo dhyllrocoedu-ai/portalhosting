@@ -116,7 +116,7 @@ class ServerManager(
         val downloadResult = downloader.downloadServer(newConfig)
         return downloadResult.fold(
             onSuccess = { jarFile ->
-                val serverDir = getServerDir(newConfig.id)
+                val serverDir = getServerDir(newConfig)
                 val targetJar = File(serverDir, "${newConfig.id}.jar")
                 if (jarFile.exists() && jarFile.absolutePath != targetJar.absolutePath) {
                     jarFile.renameTo(targetJar)
