@@ -85,8 +85,28 @@ class ServerManager(
         _consoleOutputs.value = consoleMap
     }
 
+    private fun sanitizeFolderName(name: String): String {
+        val sanitized = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        return sanitized.ifBlank { "Server" }
+    }
+
+    private fun getServerDir(config: ServerConfig): File {
+        val nameFolder = File(serversDir, sanitizeFolderName(config.name))
+        val uuidFolder = File(serversDir, config.id)
+        return when {
+            nameFolder.exists() -> nameFolder.also { it.mkdirs() }
+            uuidFolder.exists() -> uuidFolder.also { it.mkdirs() }
+            else -> nameFolder.also { it.mkdirs() }
+        }
+    }
+
     private fun getServerDir(serverId: String): File {
-        return File(serversDir, serverId).also { it.mkdirs() }
+        val config = _servers.value[serverId]
+        return if (config != null) {
+            getServerDir(config)
+        } else {
+            File(serversDir, serverId).also { it.mkdirs() }
+        }
     }
 
     suspend fun createServer(config: ServerConfig): Result<String> {

@@ -668,8 +668,10 @@ fun CreateServerScreen(
 
         Spacer(Modifier.height(12.dp))
         OutlinedButton(onClick = {
-            val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
-            if (files.isNotEmpty()) iconPath = files[0].absolutePath
+            scope.launch {
+                val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
+                if (files.isNotEmpty()) iconPath = files[0].absolutePath
+            }
         }) {
             Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))

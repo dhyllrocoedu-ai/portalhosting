@@ -146,10 +146,12 @@ fun SettingsScreen() {
                     )
                 }
                 Button(onClick = {
-                    val chosen = pickDirectory(title = "Select Data Directory")
-                    if (chosen != null) {
-                        preferences.dataDirectory.value = chosen.absolutePath
-                        System.setProperty("portalhost.data.dir", chosen.absolutePath)
+                    scope.launch {
+                        val chosen = pickDirectory(title = "Select Data Directory")
+                        if (chosen != null) {
+                            preferences.dataDirectory.value = chosen.absolutePath
+                            System.setProperty("portalhost.data.dir", chosen.absolutePath)
+                        }
                     }
                 }) {
                     Text("Change")

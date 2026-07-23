@@ -448,9 +448,9 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
 
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(onClick = {
-                    val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
-                    if (files.isNotEmpty()) {
-                        scope.launch {
+                    scope.launch {
+                        val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
+                        if (files.isNotEmpty()) {
                             val iconDest = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), serverId))
                             withContext(Dispatchers.IO) {
                                 saveServerIcon(java.io.File(files[0].absolutePath), iconDest)
@@ -759,9 +759,9 @@ private fun PluginsTab(serverId: String) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Plugins (${plugins.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = {
-                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
-                if (files.isNotEmpty()) {
-                    scope.launch {
+                scope.launch {
+                    val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
+                    if (files.isNotEmpty()) {
                         withContext(Dispatchers.IO) {
                             val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
                             dir.mkdirs()
@@ -826,9 +826,9 @@ private fun ModsTab(serverId: String) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Mods (${mods.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = {
-                val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
-                if (files.isNotEmpty()) {
-                    scope.launch {
+                scope.launch {
+                    val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
+                    if (files.isNotEmpty()) {
                         withContext(Dispatchers.IO) {
                             val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
                             dir.mkdirs()
@@ -893,9 +893,9 @@ private fun DatapacksTab(serverId: String) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Button(onClick = {
-                val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"), multiSelection = true)
-                if (files.isNotEmpty()) {
-                    scope.launch {
+                scope.launch {
+                    val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"), multiSelection = true)
+                    if (files.isNotEmpty()) {
                         withContext(Dispatchers.IO) {
                             val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
                             dir.mkdirs()
