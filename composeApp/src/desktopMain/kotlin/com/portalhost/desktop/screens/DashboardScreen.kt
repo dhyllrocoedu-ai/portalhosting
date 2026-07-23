@@ -181,7 +181,7 @@ fun DashboardScreen(
 
     LaunchedEffect(Unit) {
         if (preferences.autoCheckUpdates.value) {
-            when (val result = UpdateChecker.checkForUpdate()) {
+            when (val result = UpdateChecker.checkForUpdate(preferences.githubToken.value)) {
                 is com.portalhost.desktop.util.UpdateResult.UpdateAvailable -> {
                     updateInfo = result.info
                 }

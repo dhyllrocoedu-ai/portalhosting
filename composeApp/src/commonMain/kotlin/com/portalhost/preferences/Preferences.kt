@@ -29,6 +29,7 @@ class Preferences {
     var windowX: MutableStateFlow<Int> = intPref("windowX", -1)
     var windowY: MutableStateFlow<Int> = intPref("windowY", -1)
     var firstRunCompleted: MutableStateFlow<Boolean> = boolPref("firstRunCompleted", false)
+    var githubToken: MutableStateFlow<String> = stringPref("githubToken", "")
 
     fun resetToDefaults() {
         theme.value = "system"

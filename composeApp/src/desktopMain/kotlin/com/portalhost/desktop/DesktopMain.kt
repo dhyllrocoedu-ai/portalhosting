@@ -147,6 +147,7 @@ fun main() {
         if (dataDir.isNotBlank()) {
             System.setProperty("portalhost.data.dir", dataDir)
         }
+        
         val logRepo = GlobalContext.get().get<com.portalhost.log.LogRepository>()
         setupLogging(logRepo)
         org.slf4j.LoggerFactory.getLogger("PortalHost").info("Application starting")
@@ -264,7 +265,6 @@ fun main() {
                                     Spacer(Modifier.width(8.dp))
                                     Button(
                                         onClick = {
-                                            showCloseDialog = false
                                             isWindowVisible = false
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

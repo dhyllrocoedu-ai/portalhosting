@@ -202,7 +202,7 @@ fun SettingsScreen() {
             if (isChecking) {
                 LaunchedEffect(Unit) {
                     try {
-                        when (val result = UpdateChecker.checkForUpdate()) {
+                        when (val result = UpdateChecker.checkForUpdate(preferences.githubToken.value)) {
                             is UpdateResult.UpdateAvailable -> {
                                 hasUpdate = true
                                 updateResult = "Update available: v${result.info.latestVersion}"

@@ -28,11 +28,23 @@ object UpdateChecker {
     private const val GITHUB_API_URL = "https://api.github.com/repos/dhyllrocoedu-ai/portalhosting/releases/latest"
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
+    // Optional: set this from outside to enable authenticated API access
+    // e.g., UpdateChecker.githubToken = "ghp_xxx" at app startup
+    var githubToken: String? = null
+        private set
+
+    suspend fun checkForUpdate(token: String? = null): UpdateResult = withContext(Dispatchers.IO) {
+        token?.takeIf { it.isNotBlank() }?.let { githubToken = it }
         try {
             val connection = URL(GITHUB_API_URL).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+            
+            // Add Authorization header if token is configured
+            githubToken?.let { token ->
+                connection.setRequestProperty("Authorization", "Bearer $token")
+            }
+            
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
 
@@ -83,6 +95,12 @@ object UpdateChecker {
         try {
             val htmlUrl = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"
             val connection = URL(htmlUrl).openConnection() as HttpURLConnection
+            
+            // Add Authorization header for HTML fallback too
+            githubToken?.let { token ->
+                connection.setRequestProperty("Authorization", "Bearer $token")
+            }
+            
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
@@ -96,7 +114,8 @@ object UpdateChecker {
             val body = connection.inputStream.bufferedReader().readText()
             connection.disconnect()
 
-            val tagMatch = Regex("""/releases/tag/v?([0-9]+\.[0-9]+\.[0-9]+)""").find(body)
+            // Match tags like v5.0.51 or v5.0.51-desktop
+            val tagMatch = Regex("""/releases/tag/v?([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9]+)?)""").find(body)
             val notesMatch = Regex("""<h2[^>]*>([^<]+)</h2>""").find(body)
 
             val tagName = tagMatch?.groupValues?.getOrNull(1) ?: ""
