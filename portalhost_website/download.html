@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Download Portal Host - Minecraft Java Edition Server Manager for Windows">
+    <title>Download - Portal Host</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <canvas class="particles-canvas" id="particles"></canvas>
+
+    <nav class="navbar" id="navbar">
+        <a href="index.html" class="nav-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12V7H5V12M3 5v14a2 2 0 002 2h14a2 2 0 002-2V5M7 12l5 5 5-5"/>
+            </svg>
+            Portal Host
+        </a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="about.html">About</a></li>
+            <li><a href="download.html" class="active">Download</a></li>
+            <li><a href="changelog.html">Changelog</a></li>
+        </ul>
+        <button class="mobile-menu-btn" id="mobileMenuBtn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </nav>
+
+    <main>
+        <section class="hero" style="min-height: 60vh; padding-top: 10rem;">
+            <div class="hero-content">
+                <h1 class="hero-title">Download Portal Host</h1>
+                <p class="hero-tagline">Latest version: <span id="version-display">Loading...</span></p>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-header">
+                <h2 class="section-title">Windows Installers</h2>
+                <p class="section-subtitle">Choose your preferred installer format</p>
+            </div>
+
+            <div class="download-cards" id="download-cards">
+                <div class="download-card">
+                    <div class="download-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="download-title">MSI Installer</h3>
+                    <p class="download-version" id="msi-version">Loading...</p>
+                    <p class="download-size" id="msi-size">Loading...</p>
+                    <a href="#" class="btn btn-primary download-btn" id="msi-download" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download MSI
+                    </a>
+                </div>
+
+                <div class="download-card">
+                    <div class="download-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="download-title">EXE Installer</h3>
+                    <p class="download-version" id="exe-version">Loading...</p>
+                    <p class="download-size" id="exe-size">Loading...</p>
+                    <a href="#" class="btn btn-primary download-btn" id="exe-download" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download EXE
+                    </a>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 3rem; padding: 2rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px; max-width: 600px; margin-left: auto; margin-right: auto;">
+                <h3 style="margin-bottom: 1rem; color: var(--accent-primary);">Installation Notes</h3>
+                <ul style="text-align: left; color: var(--text-secondary); line-height: 2;">
+                    <li>Both installers contain the same application — choose your preferred format</li>
+                    <li>MSI is recommended for managed deployments and silent installs</li>
+                    <li>EXE is a simple, self-contained installer</li>
+                    <li>Portal Host will automatically download the required JDK on first run</li>
+                    <li>Requires Windows 10/11 (64-bit)</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="section" style="background: var(--bg-secondary);">
+            <div class="section-header">
+                <h2 class="section-title">Previous Versions</h2>
+                <p class="section-subtitle">All releases are available on GitHub</p>
+            </div>
+            <div style="text-align: center;">
+                <a href="https://github.com/dhyllrocoedu-ai/portalhosting/releases" target="_blank" rel="noopener" class="btn btn-secondary btn-large">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.305-.536-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    View All Releases on GitHub
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="https://github.com/dhyllrocoedu-ai/portalhosting" target="_blank" rel="noopener">GitHub</a>
+            <a href="index.html">Home</a>
+            <a href="https://github.com/dhyllrocoedu-ai/portalhosting/issues" target="_blank" rel="noopener">Report a Bug</a>
+            <a href="about.html">About</a>
+            <a href="changelog.html">Changelog</a>
+        </div>
+        <p class="footer-copyright">Portal Host &copy; 2025 — Minecraft Java Edition Server Manager</p>
+    </footer>
+
+    <script src="js/main.js"></script>
+    <script>
+        // Download page specific logic
+        async function loadLatestRelease() {
+            const versionDisplay = document.getElementById('version-display');
+            const msiVersion = document.getElementById('msi-version');
+            const msiSize = document.getElementById('msi-size');
+            const exeVersion = document.getElementById('exe-version');
+            const exeSize = document.getElementById('exe-size');
+            const msiDownload = document.getElementById('msi-download');
+            const exeDownload = document.getElementById('exe-download');
+
+            try {
+                const release = await PortalHost.fetchGitHub('/releases/latest');
+                
+                const version = release.tag_name.replace(/^v/, '');
+                const date = PortalHost.formatDate(release.published_at);
+                
+                versionDisplay.textContent = `v${version} (${date})`;
+                
+                // Find MSI and EXE assets
+                const msiAsset = release.assets.find(a => a.name.endsWith('.msi'));
+                const exeAsset = release.assets.find(a => a.name.endsWith('.exe'));
+                
+                if (msiAsset) {
+                    msiVersion.textContent = `v${version}`;
+                    msiSize.textContent = PortalHost.formatBytes(msiAsset.size);
+                    msiDownload.href = msiAsset.browser_download_url;
+                    msiDownload.removeAttribute('disabled');
+                } else {
+                    msiVersion.textContent = 'Not available';
+                    msiSize.textContent = '';
+                    msiDownload.textContent = 'MSI not found';
+                    msiDownload.classList.remove('btn-primary');
+                    msiDownload.classList.add('btn-secondary');
+                }
+                
+                if (exeAsset) {
+                    exeVersion.textContent = `v${version}`;
+                    exeSize.textContent = PortalHost.formatBytes(exeAsset.size);
+                    exeDownload.href = exeAsset.browser_download_url;
+                    exeDownload.removeAttribute('disabled');
+                } else {
+                    exeVersion.textContent = 'Not available';
+                    exeSize.textContent = '';
+                    exeDownload.textContent = 'EXE not found';
+                    exeDownload.classList.remove('btn-primary');
+                    exeDownload.classList.add('btn-secondary');
+                }
+            } catch (error) {
+                console.error('Failed to load release:', error);
+                versionDisplay.textContent = 'Failed to load';
+                msiVersion.textContent = 'Failed to load';
+                exeVersion.textContent = 'Failed to load';
+                
+                // Fallback: show manual download links
+                msiDownload.href = `https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest`;
+                msiDownload.textContent = 'Check GitHub Releases';
+                msiDownload.removeAttribute('disabled');
+                
+                exeDownload.href = `https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest`;
+                exeDownload.textContent = 'Check GitHub Releases';
+                exeDownload.removeAttribute('disabled');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadLatestRelease);
+    </script>
+</body>
+</html>

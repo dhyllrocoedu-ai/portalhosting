@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="About Portal Host - Minecraft Java Edition Server Manager">
+    <title>About - Portal Host</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <canvas class="particles-canvas" id="particles"></canvas>
+
+    <nav class="navbar" id="navbar">
+        <a href="index.html" class="nav-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12V7H5V12M3 5v14a2 2 0 002 2h14a2 2 0 002-2V5M7 12l5 5 5-5"/>
+            </svg>
+            Portal Host
+        </a>
+        <ul class="nav-links">
+            <li><a href="index.html">Home</a></li>
+            <li><a href="about.html" class="active">About</a></li>
+            <li><a href="download.html">Download</a></li>
+            <li><a href="changelog.html">Changelog</a></li>
+        </ul>
+        <button class="mobile-menu-btn" id="mobileMenuBtn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+    </nav>
+
+    <main>
+        <section class="hero" style="min-height: 60vh; padding-top: 10rem;">
+            <div class="hero-content">
+                <h1 class="hero-title">About Portal Host</h1>
+                <p class="hero-tagline">Your Ultimate Minecraft Server Manager</p>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="about-content">
+                <section class="about-section">
+                    <h2>What is Portal Host?</h2>
+                    <p>Portal Host is a free, open-source desktop application designed to make managing Minecraft Java Edition servers simple and intuitive. Whether you're hosting a private world for friends, running a community server, or testing plugins and mods, Portal Host handles the complexity so you can focus on playing.</p>
+                    <p>Built with modern technologies including Kotlin Multiplatform and Compose Multiplatform, Portal Host provides a native-feeling experience on Windows with a clean, dark-themed interface that matches the aesthetic of the game itself.</p>
+                </section>
+
+                <section class="about-section">
+                    <h2>Key Features</h2>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">Server Creation & Management</strong> — Create new servers with custom names, select Minecraft versions, and configure basic settings through a guided setup process.
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">Real-Time Console Access</strong> — View live server output, enter commands, and monitor server health without leaving the application.
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">Player Administration</strong> — Ban, kick, whitelist, op/de-op players, and manage permissions through an intuitive interface.
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">Automatic JDK Management</strong> — Portal Host automatically detects, downloads, and configures the correct Java version for each Minecraft release.
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">Multi-Version Support</strong> — Run multiple servers on different Minecraft versions simultaneously.
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">System Tray Integration</strong> — Minimize to tray, keep servers running in the background, and access quick actions from the menu bar.
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="about-section">
+                    <h2>Getting Started</h2>
+                    <div class="about-steps">
+                        <div class="step">
+                            <div class="step-number">1</div>
+                            <h3 class="step-title">Download & Install</h3>
+                            <p class="step-desc">Download the latest MSI or EXE installer from the <a href="download.html">Download page</a> and run it</p>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">2</div>
+                            <h3 class="step-title">Launch Portal Host</h3>
+                            <p class="step-desc">Open the app from your Start Menu or desktop shortcut</p>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">3</div>
+                            <h3 class="step-title">Create Your First Server</h3>
+                            <p class="step-desc">Click "Create Server", choose a name, select a Minecraft version, and hit Create</p>
+                        </div>
+                        <div class="step">
+                            <div class="step-number">4</div>
+                            <h3 class="step-title">Start & Play</h3>
+                            <p class="step-desc">Click Start on your new server, wait for it to launch, then connect using the displayed address</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="about-section">
+                    <h2>System Requirements</h2>
+                    <ul style="list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <strong>OS:</strong> Windows 10/11 (64-bit)
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <strong>RAM:</strong> 4 GB minimum (8 GB+ recommended)
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <strong>Storage:</strong> 2 GB+ free space
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <strong>Java:</strong> Automatically managed by Portal Host
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="about-section">
+                    <h2>Technology Stack</h2>
+                    <p>Portal Host is built with modern, cross-platform technologies:</p>
+                    <ul style="list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; text-align: center;">
+                            <strong>Kotlin Multiplatform</strong> — Shared business logic
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; text-align: center;">
+                            <strong>Compose Multiplatform</strong> — Declarative UI
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; text-align: center;">
+                            <strong>Koin</strong> — Dependency injection
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; text-align: center;">
+                            <strong>Ktor</strong> — HTTP client
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; text-align: center;">
+                            <strong>SQLite</strong> — Local storage
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; text-align: center;">
+                            <strong>WiX Toolset</strong> — Windows installer
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="about-section">
+                    <h2>Open Source</h2>
+                    <p>Portal Host is completely open source under the MIT License. The source code, issue tracker, and releases are all available on GitHub.</p>
+                    <p style="margin-top: 1rem;">
+                        <a href="https://github.com/dhyllrocoedu-ai/portalhosting" target="_blank" rel="noopener" class="btn btn-secondary">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.305-.536-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+                            </svg>
+                            View on GitHub
+                        </a>
+                    </p>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="https://github.com/dhyllrocoedu-ai/portalhosting" target="_blank" rel="noopener">GitHub</a>
+            <a href="index.html">Home</a>
+            <a href="https://github.com/dhyllrocoedu-ai/portalhosting/issues" target="_blank" rel="noopener">Report a Bug</a>
+            <a href="download.html">Download</a>
+            <a href="changelog.html">Changelog</a>
+        </div>
+        <p class="footer-copyright">Portal Host &copy; 2025 — Minecraft Java Edition Server Manager</p>
+    </footer>
+
+    <script src="js/main.js"></script>
+</body>
+</html>
