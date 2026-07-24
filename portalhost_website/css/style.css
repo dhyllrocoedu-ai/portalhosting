@@ -398,6 +398,13 @@ a:hover {
     color: var(--bg-primary);
 }
 
+.download-icon img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
 .download-title {
     font-size: 1.25rem;
     font-weight: 700;
