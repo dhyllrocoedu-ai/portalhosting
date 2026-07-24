@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <?define ProductName = "PortalHost" ?>
-  <?define ProductVersion = "5.0.53" ?>
+  <?define ProductVersion = "5.0.54" ?>
   <?define Manufacturer = "PortalHost" ?>
   <?define UpgradeCode = "c7a3b8e1-4d2f-4a9e-8b6c-1d3e5f7a9b0c" ?>
   <?define ProductCode = "*" ?>
