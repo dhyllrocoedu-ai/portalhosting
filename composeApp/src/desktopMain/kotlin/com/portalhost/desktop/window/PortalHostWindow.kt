@@ -57,6 +57,7 @@ import com.portalhost.desktop.screens.ServerConsoleScreen
 import com.portalhost.desktop.screens.ServerDetailScreen
 import com.portalhost.desktop.screens.ServersScreen
 import com.portalhost.desktop.screens.SettingsScreen
+import com.portalhost.desktop.screens.ServerFilesScreen
 import com.portalhost.desktop.screens.ToastHost
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.ServerManager
@@ -103,7 +104,7 @@ fun TitleBar(
                     .weight(1f)
                     .fillMaxHeight()
                     .padding(start = 12.dp)
-                    .pointerInput(window) {
+                    .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
                             change.consume()
                             window?.let { w ->
@@ -329,7 +330,8 @@ fun PortalHostWindow(
     window: java.awt.Frame? = null,
     onMinimize: () -> Unit = {},
     onMaximizeRestore: () -> Unit = {},
-    onClose: () -> Unit = {}
+    onClose: () -> Unit = {},
+    onQuit: () -> Unit = {}
 ) {
     var sidebarExpanded by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
@@ -345,7 +347,7 @@ fun PortalHostWindow(
                             true
                         }
                         Key.Q -> {
-                            System.exit(0)
+                            onQuit()
                             true
                         }
                         Key.R -> {

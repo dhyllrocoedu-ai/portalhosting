@@ -61,7 +61,8 @@ fun DesktopApp(
     window: java.awt.Frame? = null,
     onMinimize: () -> Unit = {},
     onMaximizeRestore: () -> Unit = {},
-    onClose: () -> Unit = {}
+    onClose: () -> Unit = {},
+    onQuit: () -> Unit = {}
 ) {
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     var showAboutDialog by remember { mutableStateOf(false) }
@@ -134,7 +135,8 @@ fun DesktopApp(
             window = window,
             onMinimize = onMinimize,
             onMaximizeRestore = onMaximizeRestore,
-            onClose = onClose
+            onClose = onClose,
+            onQuit = onQuit
         )
     }
 }
@@ -165,6 +167,7 @@ fun main() {
     application {
         var isWindowVisible by remember { mutableStateOf(true) }
         var showCloseDialog by remember { mutableStateOf(false) }
+        var quitting by remember { mutableStateOf(false) }
         val windowState = rememberWindowState(
             width = savedWidth.dp,
             height = savedHeight.dp,
@@ -191,7 +194,7 @@ fun main() {
         }
 
         LaunchedEffect(isWindowVisible) {
-            if (!isWindowVisible) {
+            if (!isWindowVisible && !quitting) {
                 trayManager.install()
             } else {
                 trayManager.remove()
@@ -241,7 +244,8 @@ fun main() {
                             else
                                 awtWindow.extendedState = Frame.MAXIMIZED_BOTH
                         },
-                        onClose = { showCloseDialog = true }
+                        onClose = { showCloseDialog = true },
+                        onQuit = { quitting = true; isWindowVisible = false }
                     )
 
                     if (showCloseDialog) {
@@ -265,6 +269,7 @@ fun main() {
                                     Spacer(Modifier.width(8.dp))
                                     Button(
                                         onClick = {
+                                            quitting = true
                                             isWindowVisible = false
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -281,6 +286,7 @@ fun main() {
 
         LaunchedEffect(isWindowVisible, showCloseDialog) {
             if (!isWindowVisible && showCloseDialog) {
+                trayManager.remove()
                 kotlinx.coroutines.delay(300)
                 val runningServers = serverManager.servers.value.entries
                     .filter { (id, _) ->

@@ -120,16 +120,18 @@ import com.portalhost.server.loadServerIcon
 import com.portalhost.server.saveServerIcon
 import com.portalhost.server.providers.ServerProviderRegistry
 import com.portalhost.uinotify.ToastManager
+import com.portalhost.util.pickDirectory
 import com.portalhost.util.pickFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import java.io.File
+import java.util.Properties
 import kotlin.math.roundToInt
 
 enum class CreateSource {
-    PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE,
+    PICK_FILE, IMPORT_FOLDER, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE,
     DOWNLOAD_NEOFORGE, DOWNLOAD_FOLIA, DOWNLOAD_PURPUR
 }
 
@@ -141,7 +143,7 @@ fun CreateSource.toServerType(): ServerType? = when (this) {
     CreateSource.DOWNLOAD_NEOFORGE -> ServerType.NEOFORGE
     CreateSource.DOWNLOAD_FOLIA -> ServerType.FOLIA
     CreateSource.DOWNLOAD_PURPUR -> ServerType.PURPUR
-    CreateSource.PICK_FILE -> null
+    CreateSource.PICK_FILE, CreateSource.IMPORT_FOLDER -> null
 }
 
 fun CreateSource.supportsBuilds(): Boolean = toServerType()?.let {
@@ -241,6 +243,8 @@ fun CreateServerScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var selectedJavaVersion by remember { mutableStateOf(21) }
     var retryTrigger by remember { mutableIntStateOf(0) }
+    var importFolderPath by remember { mutableStateOf<String?>(null) }
+    var importedServerProps by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     val serversDir = fileSystem.getServersDirBlocking()
     val availableBytes = serversDir.parentFile?.let { it.usableSpace } ?: 0L
@@ -264,7 +268,7 @@ fun CreateServerScreen(
     )
 
     LaunchedEffect(createSource, retryTrigger) {
-        if (createSource != null && createSource != CreateSource.PICK_FILE) {
+        if (createSource != null && createSource != CreateSource.PICK_FILE && createSource != CreateSource.IMPORT_FOLDER) {
             mcVersion = ""
             selectedBuildId = ""
             jarName = ""
@@ -295,6 +299,33 @@ fun CreateServerScreen(
                 availableBuilds = emptyList()
             }
             buildsLoading = false
+        }
+    }
+
+    LaunchedEffect(importFolderPath) {
+        if (importFolderPath.isNullOrBlank()) return@LaunchedEffect
+        val folder = File(importFolderPath!!)
+        if (!folder.exists() || !folder.isDirectory) return@LaunchedEffect
+        val propsFile = File(folder, "server.properties")
+        if (propsFile.exists()) {
+            try {
+                val props = java.util.Properties()
+                props.load(propsFile.inputStream())
+                importedServerProps = props.entries.associate { (it.key as String) to (it.value as String) }
+                props["server-name"]?.let { serverName = it.toString() }
+                props["server-port"]?.let { port = it.toString() }
+                props["gamemode"]?.let { gamemode = it.toString() }
+                props["difficulty"]?.let { difficulty = it.toString() }
+                props["motd"]?.let { motd = TextFieldValue(it.toString()) }
+            } catch (_: Exception) { }
+        }
+        val jarFiles = folder.listFiles { _, name -> name.endsWith(".jar") } ?: emptyArray()
+        if (jarFiles.isNotEmpty()) {
+            jarPath = jarFiles.first().absolutePath
+            jarName = jarFiles.first().name
+        }
+        if (serverName.isBlank()) {
+            serverName = folder.name
         }
     }
 
@@ -354,7 +385,7 @@ fun CreateServerScreen(
             }
         }
 
-        if (createSource != null && createSource != CreateSource.PICK_FILE) {
+        if (createSource != null && createSource != CreateSource.PICK_FILE && createSource != CreateSource.IMPORT_FOLDER) {
             Spacer(Modifier.height(12.dp))
             if (versionsLoading) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -451,8 +482,45 @@ fun CreateServerScreen(
             }
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        Card(
+            onClick = {
+                createSource = CreateSource.IMPORT_FOLDER
+                scope.launch {
+                    val folder = pickDirectory("Select Server Folder")
+                    if (folder != null) {
+                        importFolderPath = folder.absolutePath
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (createSource == CreateSource.IMPORT_FOLDER)
+                    MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FolderOpen, contentDescription = null,
+                    tint = if (createSource == CreateSource.IMPORT_FOLDER) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Import Server Folder", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (importFolderPath?.isNotBlank() == true && createSource == CreateSource.IMPORT_FOLDER)
+                            importFolderPath!!
+                        else
+                            "Import an existing server directory",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(Icons.Default.FolderOpen, contentDescription = null)
+            }
+        }
+
         val cs = createSource
-        if (cs != null && cs != CreateSource.PICK_FILE && mcVersion.isNotBlank()) {
+        if (cs != null && cs != CreateSource.PICK_FILE && cs != CreateSource.IMPORT_FOLDER && mcVersion.isNotBlank()) {
             Spacer(Modifier.height(12.dp))
             Text("Selected: ${cs.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }} — $mcVersion",
                 color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
@@ -865,7 +933,7 @@ fun CreateServerScreen(
                                             errorMessage = "Please select a server source"
                                             return@Button
                                         }
-                                        if (createSource != CreateSource.PICK_FILE && mcVersion.isBlank()) {
+                                        if (createSource != CreateSource.PICK_FILE && createSource != CreateSource.IMPORT_FOLDER && mcVersion.isBlank()) {
                                             errorMessage = "Please select a Minecraft version"
                                             return@Button
                                         }
@@ -944,13 +1012,7 @@ fun CreateServerScreen(
                                     )
 
                                     if (jarPath != null) {
-                                        val targetDir = fileSystem.getServersDirBlocking()
-                                        targetDir.mkdirs()
-                                        val targetFile = File(targetDir, "${config.id}.jar")
-                                        withContext(Dispatchers.IO) {
-                                            File(jarPath!!).copyTo(targetFile, overwrite = true)
-                                        }
-                                        serverManager.registerImportedServer(config, targetFile)
+                                        serverManager.registerImportedServer(config, File(jarPath!!))
                                         toastManager.success("Server \"${config.name}\" imported!")
                                         onServerCreated(config.id)
                                     } else {
