@@ -40,7 +40,7 @@
         </section>
 
         <section class="section">
-            <div class="changelog-list" id="changelog-list">
+            <div class="changelog-tree" id="changelog-tree">
                 <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 1rem; opacity: 0.5;">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -63,9 +63,9 @@
 
     <script src="js/main.js"></script>
     <script>
-        // Changelog page specific logic
+        // Changelog page specific logic - Connected Nodes Timeline
         async function loadChangelog() {
-            const container = document.getElementById('changelog-list');
+            const container = document.getElementById('changelog-tree');
             
             try {
                 const response = await fetch('changelog.json');
@@ -79,15 +79,17 @@
                     return;
                 }
 
-                container.innerHTML = releases.map(release => {
+                container.innerHTML = releases.map((release, index) => {
                     const version = release.version;
                     const date = PortalHost.formatDate(release.date);
                     const prerelease = release.prerelease || false;
                     const notes = release.notes || 'No release notes provided.';
+                    const isFeatured = index === 0; // Latest release gets featured styling
                     
                     return `
-                        <div class="changelog-item">
-                            <div class="changelog-header">
+                        <div class="changelog-node ${isFeatured ? 'featured' : ''}">
+                            <div class="changelog-dot"></div>
+                            <div class="changelog-node-header">
                                 <span class="changelog-version" style="${prerelease ? 'background: linear-gradient(135deg, #f59e0b, #fbbf24);' : ''}">
                                     v${version}
                                     ${prerelease ? '<span style="margin-left: 0.5rem; font-size: 0.7rem; opacity: 0.8;">Pre-release</span>' : ''}

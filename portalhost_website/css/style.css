@@ -341,6 +341,232 @@ a:hover {
     font-size: 0.95rem;
 }
 
+/* How It Works Section */
+.how-it-works {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 2rem;
+    align-items: start;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.how-step {
+    text-align: center;
+    padding: 2rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    position: relative;
+    transition: all var(--transition-normal);
+}
+
+.how-step:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-primary);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-glow);
+}
+
+.how-step::after {
+    content: '→';
+    position: absolute;
+    right: -1.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 2rem;
+    font-weight: 300;
+    color: var(--accent-primary);
+    opacity: 0.6;
+}
+
+.how-step:last-child::after {
+    display: none;
+}
+
+.how-step-number {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: var(--bg-primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 1.5rem;
+    margin: 0 auto 1.5rem;
+    box-shadow: var(--shadow-glow);
+}
+
+.how-step-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.how-step-desc {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+/* Platform Comparison */
+.platform-comparison {
+    overflow-x: auto;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.comparison-table thead th {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-weight: 700;
+    padding: 1.25rem 1.5rem;
+    text-align: left;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.comparison-table thead th:first-child {
+    border-top-left-radius: 16px;
+}
+
+.comparison-table thead th:last-child {
+    border-top-right-radius: 16px;
+}
+
+.comparison-table tbody td {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.comparison-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.comparison-table tbody tr:hover td {
+    background: var(--bg-card-hover);
+}
+
+.comparison-table tbody td:first-child {
+    font-weight: 600;
+    color: var(--text-primary);
+    width: 40%;
+}
+
+.check-icon {
+    color: var(--accent-primary);
+    font-weight: 700;
+}
+
+.dash-icon {
+    color: var(--text-muted);
+}
+
+.comparison-table thead th:nth-child(2),
+.comparison-table thead th:nth-child(3) {
+    text-align: center;
+}
+
+.comparison-table tbody td:nth-child(2),
+.comparison-table tbody td:nth-child(3) {
+    text-align: center;
+}
+
+/* Screenshots Placeholder */
+.screenshots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.screenshot-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: all var(--transition-normal);
+}
+
+.screenshot-card:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-glow);
+}
+
+.screenshot-placeholder {
+    aspect-ratio: 16 / 10;
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+
+.screenshot-placeholder svg {
+    width: 48px;
+    height: 48px;
+    opacity: 0.4;
+}
+
+.screenshot-caption {
+    padding: 1.25rem;
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Floating CTA Card */
+.cta-card {
+    max-width: 600px;
+    margin: 3rem auto 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 3rem;
+    text-align: center;
+    box-shadow: var(--shadow-glow);
+    transition: all var(--transition-normal);
+}
+
+.cta-card:hover {
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-glow-strong);
+    transform: translateY(-2px);
+}
+
+.cta-card-title {
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 800;
+    margin-bottom: 0.75rem;
+    background: linear-gradient(135deg, var(--text-primary), var(--accent-primary));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.cta-card-subtitle {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    font-size: 1.125rem;
+}
+
 /* Platform Cards (About Page) */
 .platform-cards {
     display: grid;
@@ -547,27 +773,61 @@ a:hover {
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
 }
 
-/* Changelog */
-.changelog-list {
+/* Changelog — Connected Nodes Timeline */
+.changelog-tree {
     max-width: 800px;
     margin: 0 auto;
+    position: relative;
+    padding-left: 2rem;
 }
 
-.changelog-item {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    transition: all var(--transition-fast);
+.changelog-tree::before {
+    content: '';
+    position: absolute;
+    left: 14px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 1px;
 }
 
-.changelog-item:hover {
-    border-color: var(--accent-primary);
-    background: var(--bg-card-hover);
+.changelog-node {
+    position: relative;
+    padding-left: 3rem;
+    padding-bottom: 2.5rem;
+    min-height: 80px;
 }
 
-.changelog-header {
+.changelog-node:last-child {
+    padding-bottom: 0;
+}
+
+.changelog-dot {
+    position: absolute;
+    left: 5px;
+    top: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    border: 3px solid var(--bg-primary);
+    box-shadow: 0 0 0 2px var(--border-color);
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+.changelog-node.featured .changelog-dot {
+    box-shadow: 0 0 0 2px var(--border-color), 0 0 20px var(--accent-glow-strong);
+    animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 2px var(--border-color), 0 0 20px var(--accent-glow-strong); }
+    50% { box-shadow: 0 0 0 2px var(--border-color), 0 0 30px var(--accent-glow-strong); }
+}
+
+.changelog-node-header {
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -591,16 +851,17 @@ a:hover {
 
 .changelog-body {
     color: var(--text-secondary);
-    line-height: 1.7;
+    line-height: 1.8;
+    padding-left: 0.5rem;
 }
 
 .changelog-body ul {
-    margin-top: 0.5rem;
+    margin-top: 0.75rem;
     padding-left: 1.5rem;
 }
 
 .changelog-body li {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.375rem;
 }
 
 /* About Page */
@@ -771,10 +1032,45 @@ a:hover {
         justify-content: center;
     }
 
-    .changelog-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
+    .how-step::after {
+        display: none;
+    }
+
+    .how-step {
+        padding: 1.5rem;
+    }
+
+    .comparison-table thead th {
+        padding: 1rem;
+        font-size: 0.875rem;
+    }
+
+    .comparison-table tbody td {
+        padding: 0.875rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .cta-card {
+        padding: 2rem 1.5rem;
+        margin: 2rem 1rem 0;
+    }
+
+    .changelog-tree {
+        padding-left: 1.5rem;
+    }
+
+    .changelog-tree::before {
+        left: 11px;
+    }
+
+    .changelog-dot {
+        width: 16px;
+        height: 16px;
+        left: 3px;
+    }
+
+    .changelog-node {
+        padding-left: 2.5rem;
     }
 
     .platform-cards {
