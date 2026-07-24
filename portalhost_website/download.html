@@ -15,9 +15,7 @@
 
     <nav class="navbar" id="navbar">
         <a href="index.html" class="nav-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12V7H5V12M3 5v14a2 2 0 002 2h14a2 2 0 002-2V5M7 12l5 5 5-5"/>
-            </svg>
+            <img src="images/portalhost_logo2.png" alt="Portal Host" class="nav-logo-img">
             Portal Host
         </a>
         <ul class="nav-links">
@@ -119,9 +117,7 @@
 
     <footer class="footer">
         <div class="footer-links">
-            <a href="https://github.com/dhyllrocoedu-ai/portalhosting" target="_blank" rel="noopener">GitHub</a>
             <a href="index.html">Home</a>
-            <a href="https://github.com/dhyllrocoedu-ai/portalhosting/issues" target="_blank" rel="noopener">Report a Bug</a>
             <a href="about.html">About</a>
             <a href="changelog.html">Changelog</a>
         </div>
@@ -141,39 +137,36 @@
             const exeDownload = document.getElementById('exe-download');
 
             try {
-                const release = await PortalHost.fetchGitHub('/releases/latest');
+                const response = await fetch('latest.json');
+                const release = await response.json();
                 
-                const version = release.tag_name.replace(/^v/, '');
-                const date = PortalHost.formatDate(release.published_at);
+                const version = release.version;
+                const date = PortalHost.formatDate(release.date);
                 
                 versionDisplay.textContent = `v${version} (${date})`;
                 
-                // Find MSI and EXE assets
-                const msiAsset = release.assets.find(a => a.name.endsWith('.msi'));
-                const exeAsset = release.assets.find(a => a.name.endsWith('.exe'));
-                
-                if (msiAsset) {
+                if (release.msi && release.msi.url) {
                     msiVersion.textContent = `v${version}`;
-                    msiSize.textContent = PortalHost.formatBytes(msiAsset.size);
-                    msiDownload.href = msiAsset.browser_download_url;
+                    msiSize.textContent = release.msi.size ? PortalHost.formatBytes(release.msi.size) : 'Unknown size';
+                    msiDownload.href = release.msi.url;
                     msiDownload.removeAttribute('disabled');
                 } else {
                     msiVersion.textContent = 'Not available';
                     msiSize.textContent = '';
-                    msiDownload.textContent = 'MSI not found';
+                    msiDownload.textContent = 'MSI not available';
                     msiDownload.classList.remove('btn-primary');
                     msiDownload.classList.add('btn-secondary');
                 }
                 
-                if (exeAsset) {
+                if (release.exe && release.exe.url) {
                     exeVersion.textContent = `v${version}`;
-                    exeSize.textContent = PortalHost.formatBytes(exeAsset.size);
-                    exeDownload.href = exeAsset.browser_download_url;
+                    exeSize.textContent = release.exe.size ? PortalHost.formatBytes(release.exe.size) : 'Unknown size';
+                    exeDownload.href = release.exe.url;
                     exeDownload.removeAttribute('disabled');
                 } else {
                     exeVersion.textContent = 'Not available';
                     exeSize.textContent = '';
-                    exeDownload.textContent = 'EXE not found';
+                    exeDownload.textContent = 'EXE not available';
                     exeDownload.classList.remove('btn-primary');
                     exeDownload.classList.add('btn-secondary');
                 }

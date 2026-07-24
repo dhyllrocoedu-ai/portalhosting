@@ -94,6 +94,12 @@ a:hover {
     letter-spacing: -0.5px;
 }
 
+.nav-logo-img {
+    width: 36px;
+    height: 36px;
+    filter: drop-shadow(0 0 10px var(--accent-glow));
+}
+
 .nav-logo svg {
     width: 36px;
     height: 36px;
@@ -233,6 +239,19 @@ a:hover {
     flex-wrap: wrap;
 }
 
+.hero-logo {
+    width: 120px;
+    height: 120px;
+    margin-bottom: 1.5rem;
+    filter: drop-shadow(0 0 30px var(--accent-glow-strong));
+    animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { filter: drop-shadow(0 0 30px var(--accent-glow-strong)); }
+    50% { filter: drop-shadow(0 0 50px var(--accent-glow-strong)); }
+}
+
 /* Sections */
 .section {
     padding: 5rem 2rem;
@@ -318,6 +337,12 @@ a:hover {
     width: 24px;
     height: 24px;
     color: var(--bg-primary);
+}
+
+.feature-icon img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
 }
 
 .feature-title {
