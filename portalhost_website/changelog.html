@@ -48,7 +48,7 @@
                 </div>
                 <span class="changelog-count" id="changelog-count">Loading...</span>
             </div>
-            <div class="changelog-tree" id="changelog-tree">
+            <div class="changelog-timeline" id="changelog-timeline">
                 <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 1rem; opacity: 0.5;">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -57,6 +57,7 @@
                     <p>Loading changelog...</p>
                 </div>
             </div>
+            <div class="changelog-pagination-wrapper" id="changelog-pagination"></div>
         </section>
     </main>
 
@@ -72,7 +73,8 @@
     <script src="js/main.js"></script>
     <script>
         async function loadChangelog() {
-            const container = document.getElementById('changelog-tree');
+            const container = document.getElementById('changelog-timeline');
+            const paginationWrapper = document.getElementById('changelog-pagination');
             const countEl = document.getElementById('changelog-count');
             let currentFilter = 'all';
             let currentPage = 1;
@@ -82,8 +84,6 @@
                 const response = await fetch('changelog.json');
                 if (!response.ok) throw new Error(`Failed to load: ${response.status}`);
                 const allReleases = await response.json();
-
-                let filtered = allReleases;
                 let expandedId = null;
 
                 function getPlatformIcon(platform) {
@@ -93,8 +93,8 @@
                     return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
                 }
 
-                function renderGrid() {
-                    filtered = currentFilter === 'all'
+                function renderTimeline() {
+                    const filtered = currentFilter === 'all'
                         ? allReleases
                         : allReleases.filter(r => r.platform === currentFilter);
 
@@ -115,35 +115,53 @@
                                 </svg>
                                 <p>No versions found for this filter.</p>
                             </div>
-                            ${renderPagination(totalPages)}
                         `;
+                        paginationWrapper.innerHTML = '';
                         return;
                     }
 
-                    const rowIndex = (currentPage - 1) % 2;
-                    const isReverse = rowIndex === 1;
+                    let html = `<div class="changelog-track">`;
 
-                    let html = `<div class="changelog-grid">`;
+                    pageItems.forEach((release, index) => {
+                        const isFirst = index === 0;
+                        const isLast = index === pageItems.length - 1;
+                        const isFeatured = start + index === 0;
 
-                    if (isReverse) {
-                        const reversed = [...pageItems].reverse();
-                        html += renderNodeRow(reversed, true);
-                    } else {
-                        html += renderNodeRow(pageItems, false);
-                    }
+                        html += `
+                            <div class="changelog-item${isFeatured ? ' featured' : ''}">
+                                <div class="changelog-item-node"></div>
+                                <div class="changelog-item-card changelog-card${expandedId === release.version ? ' expanded' : ''}" data-id="${release.version}">
+                                    <div class="changelog-card-header">
+                                        <div class="changelog-card-meta">
+                                            <span class="changelog-version">v${release.version}</span>
+                                            <span class="changelog-date">${PortalHost.formatDate(release.date)}</span>
+                                            <span class="changelog-platform-badge ${release.platform}">
+                                                ${getPlatformIcon(release.platform)}
+                                                ${release.platform === 'mobile' ? 'Mobile' : 'Desktop'}
+                                            </span>
+                                        </div>
+                                        <svg class="changelog-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </div>
+                                    <div class="changelog-card-body">
+                                        <div class="changelog-card-body-content">${release.notes}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
 
                     html += `</div>`;
-                    html += renderPagination(totalPages);
-
                     container.innerHTML = html;
 
-                    document.querySelectorAll('.changelog-card-header').forEach(header => {
+                    container.querySelectorAll('.changelog-card-header').forEach(header => {
                         header.addEventListener('click', () => {
-                            const card = header.parentElement;
+                            const card = header.closest('.changelog-card');
                             const id = card.dataset.id;
                             const wasExpanded = card.classList.contains('expanded');
 
-                            document.querySelectorAll('.changelog-card.expanded').forEach(c => {
+                            container.querySelectorAll('.changelog-card.expanded').forEach(c => {
                                 if (c !== card) c.classList.remove('expanded');
                             });
 
@@ -157,10 +175,12 @@
                         });
                     });
 
+                    paginationWrapper.innerHTML = renderPagination(totalPages);
+
                     document.querySelectorAll('.changelog-page-btn:not(.changelog-page-prev):not(.changelog-page-next)').forEach(btn => {
                         btn.addEventListener('click', () => {
                             currentPage = parseInt(btn.dataset.page);
-                            renderGrid();
+                            renderTimeline();
                             window.scrollTo({ top: container.offsetTop - 120, behavior: 'smooth' });
                         });
                     });
@@ -172,7 +192,7 @@
                         prevBtn.addEventListener('click', () => {
                             if (currentPage > 1) {
                                 currentPage--;
-                                renderGrid();
+                                renderTimeline();
                                 window.scrollTo({ top: container.offsetTop - 120, behavior: 'smooth' });
                             }
                         });
@@ -182,46 +202,11 @@
                         nextBtn.addEventListener('click', () => {
                             if (currentPage < totalPages) {
                                 currentPage++;
-                                renderGrid();
+                                renderTimeline();
                                 window.scrollTo({ top: container.offsetTop - 120, behavior: 'smooth' });
                             }
                         });
                     }
-                }
-
-                function renderNodeRow(items, reverse) {
-                    const nodeRowClass = reverse ? 'reverse' : '';
-                    const nodeConnClass = reverse ? 'changelog-node-row reverse' : 'changelog-node-row';
-
-                    return `
-                        <div class="changelog-connector">
-                            <div class="${nodeConnClass}">
-                                ${items.map(() => `<div class="changelog-node-conn"></div>`).join('')}
-                            </div>
-                        </div>
-                        ${items.map(release => `
-                            <div class="changelog-card${expandedId === release.version ? ' expanded' : ''}" data-id="${release.version}">
-                                <div class="changelog-card-header">
-                                    <div class="changelog-card-meta">
-                                        <span class="changelog-version">v${release.version}</span>
-                                        <span class="changelog-date">${PortalHost.formatDate(release.date)}</span>
-                                    </div>
-                                    <div class="changelog-card-meta" style="margin-top: 0.25rem;">
-                                        <span class="changelog-platform-badge ${release.platform}">
-                                            ${getPlatformIcon(release.platform)}
-                                            ${release.platform === 'mobile' ? 'Mobile' : 'Desktop'}
-                                        </span>
-                                        <svg class="changelog-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                            <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="changelog-card-body">
-                                    <div class="changelog-card-body-content">${release.notes}</div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    `;
                 }
 
                 function renderPagination(totalPages) {
@@ -229,23 +214,17 @@
 
                     let pagesHtml = '';
                     for (let i = 1; i <= totalPages; i++) {
-                        pagesHtml += `
-                            <button class="changelog-page-btn${i === currentPage ? ' active' : ''}" data-page="${i}">${i}</button>
-                        `;
+                        pagesHtml += `<button class="changelog-page-btn${i === currentPage ? ' active' : ''}" data-page="${i}">${i}</button>`;
                     }
 
                     return `
                         <div class="changelog-pagination">
                             <button class="changelog-page-btn changelog-page-prev" disabled>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <polyline points="15 18 9 12 15 6"></polyline>
-                                </svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
                             </button>
                             ${pagesHtml}
                             <button class="changelog-page-btn changelog-page-next" disabled>
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                    <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
                             </button>
                         </div>
                     `;
@@ -257,11 +236,11 @@
                         btn.classList.add('active');
                         currentFilter = btn.dataset.filter;
                         currentPage = 1;
-                        renderGrid();
+                        renderTimeline();
                     });
                 });
 
-                renderGrid();
+                renderTimeline();
 
             } catch (error) {
                 console.error('Failed to load changelog:', error);
