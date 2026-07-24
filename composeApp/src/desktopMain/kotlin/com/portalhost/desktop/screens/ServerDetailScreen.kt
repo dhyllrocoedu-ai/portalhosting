@@ -692,6 +692,21 @@ private fun WorldsTab(serverId: String) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Enter the path to a ZIP file containing a world folder:")
                     Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            scope.launch {
+                                val files = pickFile("Select World ZIP", "ZIP files" to listOf("zip"))
+                                if (files.isNotEmpty()) {
+                                    importFilePath = files[0].absolutePath
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Browse")
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = importFilePath,
                         onValueChange = { importFilePath = it },

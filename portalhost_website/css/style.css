@@ -755,24 +755,6 @@ a:hover {
     justify-content: center;
 }
 
-/* Android Download Section */
-.android-download {
-    max-width: 400px;
-    margin: 3rem auto 0;
-}
-
-.android-download .download-card {
-    border-color: var(--accent-primary);
-}
-
-.android-download .download-card:hover {
-    box-shadow: var(--shadow-glow-strong);
-}
-
-.android-download .download-icon {
-    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-}
-
 /* Changelog — Connected Nodes Timeline */
 .changelog-tree {
     max-width: 800px;
