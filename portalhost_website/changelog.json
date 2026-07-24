@@ -1,5 +1,11 @@
 [
   {
+    "version": "5.0.54",
+    "date": "2026-07-24",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.54</strong></p><ul><li>Fixed resource loading error: renamed <code>Ender_Dragon_Portal.png</code> to lowercase <code>ender_dragon_portal.png</code> for case-sensitive filesystem compatibility (Linux/macOS/JAR packaging)</li><li>All file pickers now have proper extension filters across all dialogs</li><li>Update checker uses website <code>latest.json</code> as primary source with GitHub fallbacks</li></ul>"
+  },
+  {
     "version": "5.0.53",
     "date": "2026-07-24",
     "prerelease": false,
