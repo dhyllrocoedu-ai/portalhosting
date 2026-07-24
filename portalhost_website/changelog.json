@@ -1,6 +1,12 @@
 [
   {
-    "version": "5.0.55",
+    "version": "5.0.56",
+    "date": "2026-07-25",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.56</strong></p><ul><li><strong>Fixed: Auto-scroll button no longer covers console output.</strong> The scroll-to-bottom FAB in the server console was positioned at the top-right corner of the console area, covering log output. Changed alignment to <code>Alignment.BottomEnd</code> so it sits at the bottom-right where it doesn't obstruct the view.</li><li><strong>Fixed: Dashboard console command input detects Enter key.</strong> The mini command input in the dashboard console card now properly detects the Enter key press to send commands, matching the full console screen behavior.</li><li><strong>Fixed: Import server folder now uses proper directory picker.</strong> Replaced AWT <code>FileDialog</code> with <code>JFileChooser.DIRECTORIES_ONLY</code> mode for the server folder import dialog, giving a proper folder selection interface on Windows.</li><li><strong>Fixed: Imported server folders now copy all files.</strong> <code>registerImportedServer()</code> now copies the entire source server directory (plugins/, mods/, world/, server.properties, etc.) to the new server location instead of just the JAR file. Previously, only the JAR was copied, leaving plugins and other files behind in the original folder.</li><li><strong>Changed: Server status badge now shows \u201cOnline\u201d instead of \u201cRunning\u201d.</strong> The status label on server cards and detail screen now displays \u201cOnline\u201d for running servers, making it clearer that the server is joinable.</li></ul>"
+  },
+  {
     "date": "2026-07-24",
     "platform": "desktop",
     "prerelease": false,
