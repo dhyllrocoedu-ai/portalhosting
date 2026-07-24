@@ -40,6 +40,14 @@
         </section>
 
         <section class="section">
+            <div class="changelog-controls">
+                <div class="changelog-filter">
+                    <button class="changelog-filter-btn active" data-filter="all">All</button>
+                    <button class="changelog-filter-btn" data-filter="desktop">Desktop</button>
+                    <button class="changelog-filter-btn" data-filter="mobile">Mobile</button>
+                </div>
+                <span class="changelog-count" id="changelog-count">Loading...</span>
+            </div>
             <div class="changelog-tree" id="changelog-tree">
                 <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 1rem; opacity: 0.5;">
@@ -63,54 +71,204 @@
 
     <script src="js/main.js"></script>
     <script>
-        // Changelog page specific logic - Connected Nodes Timeline
         async function loadChangelog() {
             const container = document.getElementById('changelog-tree');
-            
+            const countEl = document.getElementById('changelog-count');
+            let currentFilter = 'all';
+            let currentPage = 1;
+            const itemsPerPage = 4;
+
             try {
                 const response = await fetch('changelog.json');
-                if (!response.ok) {
-                    throw new Error(`Failed to load changelog: ${response.status}`);
-                }
-                const releases = await response.json();
-                
-                if (releases.length === 0) {
-                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No releases found.</p>';
-                    return;
+                if (!response.ok) throw new Error(`Failed to load: ${response.status}`);
+                const allReleases = await response.json();
+
+                let filtered = allReleases;
+                let expandedId = null;
+
+                function getPlatformIcon(platform) {
+                    if (platform === 'mobile') {
+                        return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>`;
+                    }
+                    return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>`;
                 }
 
-                container.innerHTML = releases.map((release, index) => {
-                    const version = release.version;
-                    const date = PortalHost.formatDate(release.date);
-                    const prerelease = release.prerelease || false;
-                    const notes = release.notes || 'No release notes provided.';
-                    const isFeatured = index === 0; // Latest release gets featured styling
-                    
-                    return `
-                        <div class="changelog-node ${isFeatured ? 'featured' : ''}">
-                            <div class="changelog-dot"></div>
-                            <div class="changelog-node-header">
-                                <span class="changelog-version" style="${prerelease ? 'background: linear-gradient(135deg, #f59e0b, #fbbf24);' : ''}">
-                                    v${version}
-                                    ${prerelease ? '<span style="margin-left: 0.5rem; font-size: 0.7rem; opacity: 0.8;">Pre-release</span>' : ''}
-                                </span>
-                                <span class="changelog-date">${date}</span>
+                function renderGrid() {
+                    filtered = currentFilter === 'all'
+                        ? allReleases
+                        : allReleases.filter(r => r.platform === currentFilter);
+
+                    const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+                    if (currentPage > totalPages) currentPage = totalPages;
+
+                    const start = (currentPage - 1) * itemsPerPage;
+                    const pageItems = filtered.slice(start, start + itemsPerPage);
+                    const total = filtered.length;
+
+                    countEl.textContent = `Showing ${Math.min(start + 1, total)}–${Math.min(start + pageItems.length, total)} of ${total} versions`;
+
+                    if (pageItems.length === 0) {
+                        container.innerHTML = `
+                            <div class="changelog-empty">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p>No versions found for this filter.</p>
                             </div>
-                            <div class="changelog-body">
-                                ${notes}
+                            ${renderPagination(totalPages)}
+                        `;
+                        return;
+                    }
+
+                    const rowIndex = (currentPage - 1) % 2;
+                    const isReverse = rowIndex === 1;
+
+                    let html = `<div class="changelog-grid">`;
+
+                    if (isReverse) {
+                        const reversed = [...pageItems].reverse();
+                        html += renderNodeRow(reversed, true);
+                    } else {
+                        html += renderNodeRow(pageItems, false);
+                    }
+
+                    html += `</div>`;
+                    html += renderPagination(totalPages);
+
+                    container.innerHTML = html;
+
+                    document.querySelectorAll('.changelog-card-header').forEach(header => {
+                        header.addEventListener('click', () => {
+                            const card = header.parentElement;
+                            const id = card.dataset.id;
+                            const wasExpanded = card.classList.contains('expanded');
+
+                            document.querySelectorAll('.changelog-card.expanded').forEach(c => {
+                                if (c !== card) c.classList.remove('expanded');
+                            });
+
+                            if (wasExpanded) {
+                                card.classList.remove('expanded');
+                                expandedId = null;
+                            } else {
+                                card.classList.add('expanded');
+                                expandedId = id;
+                            }
+                        });
+                    });
+
+                    document.querySelectorAll('.changelog-page-btn:not(.changelog-page-prev):not(.changelog-page-next)').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            currentPage = parseInt(btn.dataset.page);
+                            renderGrid();
+                            window.scrollTo({ top: container.offsetTop - 120, behavior: 'smooth' });
+                        });
+                    });
+
+                    const prevBtn = document.querySelector('.changelog-page-prev');
+                    const nextBtn = document.querySelector('.changelog-page-next');
+                    if (prevBtn) {
+                        prevBtn.disabled = currentPage <= 1;
+                        prevBtn.addEventListener('click', () => {
+                            if (currentPage > 1) {
+                                currentPage--;
+                                renderGrid();
+                                window.scrollTo({ top: container.offsetTop - 120, behavior: 'smooth' });
+                            }
+                        });
+                    }
+                    if (nextBtn) {
+                        nextBtn.disabled = currentPage >= totalPages;
+                        nextBtn.addEventListener('click', () => {
+                            if (currentPage < totalPages) {
+                                currentPage++;
+                                renderGrid();
+                                window.scrollTo({ top: container.offsetTop - 120, behavior: 'smooth' });
+                            }
+                        });
+                    }
+                }
+
+                function renderNodeRow(items, reverse) {
+                    const nodeRowClass = reverse ? 'reverse' : '';
+                    const nodeConnClass = reverse ? 'changelog-node-row reverse' : 'changelog-node-row';
+
+                    return `
+                        <div class="changelog-connector">
+                            <div class="${nodeConnClass}">
+                                ${items.map(() => `<div class="changelog-node-conn"></div>`).join('')}
                             </div>
                         </div>
+                        ${items.map(release => `
+                            <div class="changelog-card${expandedId === release.version ? ' expanded' : ''}" data-id="${release.version}">
+                                <div class="changelog-card-header">
+                                    <div class="changelog-card-meta">
+                                        <span class="changelog-version">v${release.version}</span>
+                                        <span class="changelog-date">${PortalHost.formatDate(release.date)}</span>
+                                    </div>
+                                    <div class="changelog-card-meta" style="margin-top: 0.25rem;">
+                                        <span class="changelog-platform-badge ${release.platform}">
+                                            ${getPlatformIcon(release.platform)}
+                                            ${release.platform === 'mobile' ? 'Mobile' : 'Desktop'}
+                                        </span>
+                                        <svg class="changelog-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                            <polyline points="6 9 12 15 18 9"></polyline>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="changelog-card-body">
+                                    <div class="changelog-card-body-content">${release.notes}</div>
+                                </div>
+                            </div>
+                        `).join('')}
                     `;
-                }).join('');
+                }
+
+                function renderPagination(totalPages) {
+                    if (totalPages <= 1) return '';
+
+                    let pagesHtml = '';
+                    for (let i = 1; i <= totalPages; i++) {
+                        pagesHtml += `
+                            <button class="changelog-page-btn${i === currentPage ? ' active' : ''}" data-page="${i}">${i}</button>
+                        `;
+                    }
+
+                    return `
+                        <div class="changelog-pagination">
+                            <button class="changelog-page-btn changelog-page-prev" disabled>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <polyline points="15 18 9 12 15 6"></polyline>
+                                </svg>
+                            </button>
+                            ${pagesHtml}
+                            <button class="changelog-page-btn changelog-page-next" disabled>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                }
+
+                document.querySelectorAll('.changelog-filter-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.changelog-filter-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        currentFilter = btn.dataset.filter;
+                        currentPage = 1;
+                        renderGrid();
+                    });
+                });
+
+                renderGrid();
 
             } catch (error) {
                 console.error('Failed to load changelog:', error);
                 container.innerHTML = `
-                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 1rem; opacity: 0.5;">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="15" y1="9" x2="9" y2="15"></line>
-                            <line x1="9" y1="9" x2="15" y2="15"></line>
+                    <div class="changelog-empty">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                         <p>Failed to load changelog. Please try again later.</p>
                     </div>
