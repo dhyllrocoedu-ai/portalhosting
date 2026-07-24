@@ -25,22 +25,81 @@ sealed class UpdateResult {
 }
 
 object UpdateChecker {
+    private const val WEBSITE_LATEST_URL = "https://portalhost.pages.dev/latest.json"
     private const val GITHUB_API_URL = "https://api.github.com/repos/dhyllrocoedu-ai/portalhosting/releases/latest"
+    private const val GITHUB_HTML_URL = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"
     private val json = Json { ignoreUnknownKeys = true }
 
-    // Optional: set this from outside to enable authenticated API access
-    // e.g., UpdateChecker.githubToken = "ghp_xxx" at app startup
     var githubToken: String? = null
         private set
 
     suspend fun checkForUpdate(token: String? = null): UpdateResult = withContext(Dispatchers.IO) {
         token?.takeIf { it.isNotBlank() }?.let { githubToken = it }
+        
+        // Primary: check website (public, no auth needed)
+        val websiteResult = tryWebsiteCheck()
+        if (websiteResult != null) return@withContext websiteResult
+        
+        // Fallback: GitHub API
+        tryGithubApiCheck()
+    }
+
+    private fun tryWebsiteCheck(): UpdateResult? {
+        try {
+            val connection = URL(WEBSITE_LATEST_URL).openConnection() as HttpURLConnection
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+
+            if (connection.responseCode != 200) {
+                logger.warn { "Website latest.json returned ${connection.responseCode}" }
+                connection.disconnect()
+                return null
+            }
+
+            val body = connection.inputStream.bufferedReader().readText()
+            connection.disconnect()
+
+            val root = json.parseToJsonElement(body).jsonObject
+            val version = root["version"]?.jsonPrimitive?.content ?: ""
+            val msiUrl = root["msi"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
+            val exeUrl = root["exe"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
+            val date = root["date"]?.jsonPrimitive?.content ?: ""
+            
+            // Use MSI as primary download URL, fallback to EXE
+            val downloadUrl = if (msiUrl.isNotBlank()) msiUrl else exeUrl
+            val releaseNotes = "Released $date. See website for full changelog."
+
+            if (version.isBlank() || downloadUrl.isBlank()) {
+                logger.warn { "Invalid data in latest.json" }
+                return null
+            }
+
+            val currentVersion = BuildConfig.VERSION_NAME
+            if (isNewerVersion(version, currentVersion)) {
+                return UpdateResult.UpdateAvailable(
+                    UpdateInfo(
+                        latestVersion = version,
+                        downloadUrl = downloadUrl,
+                        releaseNotes = releaseNotes,
+                    )
+                )
+            } else {
+                return UpdateResult.UpToDate
+            }
+        } catch (e: Exception) {
+            logger.warn { "Website update check failed: ${e.message}" }
+            return null
+        }
+    }
+
+    private fun tryGithubApiCheck(): UpdateResult {
         try {
             val connection = URL(GITHUB_API_URL).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
             
-            // Add Authorization header if token is configured
             githubToken?.let { token ->
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }
@@ -50,15 +109,11 @@ object UpdateChecker {
 
             val responseCode = connection.responseCode
             if (responseCode == 403) {
-                return@withContext UpdateResult.Error("GitHub API rate limited. Try again later.")
+                return UpdateResult.Error("GitHub API rate limited. Try again later.")
             }
-            if (responseCode == 404) {
-                logger.warn { "GitHub API returned 404, trying HTML fallback" }
-                return@withContext tryHtmlFallback()
-            }
-            if (responseCode != 200) {
+            if (responseCode == 404 || responseCode != 200) {
                 logger.warn { "GitHub API returned $responseCode, trying HTML fallback" }
-                return@withContext tryHtmlFallback()
+                return tryHtmlFallback()
             }
 
             val body = connection.inputStream.bufferedReader().readText()
@@ -70,11 +125,11 @@ object UpdateChecker {
             val releaseNotes = root["body"]?.jsonPrimitive?.content?.take(200) ?: ""
 
             if (tagName.isBlank()) {
-                return@withContext UpdateResult.Error("Invalid release data from GitHub")
+                return UpdateResult.Error("Invalid release data from GitHub")
             }
 
             val currentVersion = BuildConfig.VERSION_NAME
-            if (isNewerVersion(tagName, currentVersion)) {
+            return if (isNewerVersion(tagName, currentVersion)) {
                 UpdateResult.UpdateAvailable(
                     UpdateInfo(
                         latestVersion = tagName,
@@ -87,16 +142,14 @@ object UpdateChecker {
             }
         } catch (e: Exception) {
             logger.warn { "Update check failed: ${e.message}" }
-            return@withContext tryHtmlFallback()
+            return tryHtmlFallback()
         }
     }
 
     private fun tryHtmlFallback(): UpdateResult {
         try {
-            val htmlUrl = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"
-            val connection = URL(htmlUrl).openConnection() as HttpURLConnection
+            val connection = URL(GITHUB_HTML_URL).openConnection() as HttpURLConnection
             
-            // Add Authorization header for HTML fallback too
             githubToken?.let { token ->
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }
@@ -114,7 +167,6 @@ object UpdateChecker {
             val body = connection.inputStream.bufferedReader().readText()
             connection.disconnect()
 
-            // Match tags like v5.0.51 or v5.0.51-desktop
             val tagMatch = Regex("""/releases/tag/v?([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9]+)?)""").find(body)
             val notesMatch = Regex("""<h2[^>]*>([^<]+)</h2>""").find(body)
 
@@ -130,7 +182,7 @@ object UpdateChecker {
                 UpdateResult.UpdateAvailable(
                     UpdateInfo(
                         latestVersion = tagName,
-                        downloadUrl = htmlUrl,
+                        downloadUrl = GITHUB_HTML_URL,
                         releaseNotes = releaseNotes,
                     )
                 )
