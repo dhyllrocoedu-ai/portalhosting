@@ -157,6 +157,7 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
                             scope.launch {
                                 val files = pickFile(
                                     title = "Select files to upload",
+                                    extensionFilter = "Server files" to listOf("jar", "zip", "json", "yml", "yaml", "properties", "txt", "conf", "config", "toml", "dat", "db", "log"),
                                     multiSelection = true,
                                 )
                                 if (files.isNotEmpty()) {
