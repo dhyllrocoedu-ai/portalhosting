@@ -341,7 +341,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                         }
                     },
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomEnd)
                         .padding(8.dp),
                     containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
                 ) {

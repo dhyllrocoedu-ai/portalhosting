@@ -437,7 +437,7 @@ private fun ServerCard(
     val javaIcon = rememberResourcePainter("/icons/java_icon.png")
     val bedrockIcon = rememberResourcePainter("/icons/bedrock.png")
     val status = activeState?.status ?: ServerStatus.STOPPED
-    val statusLabel = status.name.lowercase().replaceFirstChar { it.uppercase() }
+    val statusLabel = if (status == ServerStatus.RUNNING) "Online" else status.name.lowercase().replaceFirstChar { it.uppercase() }
     val statusColorForBadge = ThemeColors.serverStatusColor(status)
 
     Card(
@@ -914,7 +914,7 @@ private fun TunnelCard(
                         TextButton(onClick = onClaim) { Text("Retry") }
                         TextButton(onClick = onReset) { Text("Reset") }
                     }
-                } else if (status == TunnelStatus.CONNECTING || status == TunnelStatus.DOWNLOADING) {
+} else if (status == TunnelStatus.CONNECTING || status == TunnelStatus.DOWNLOADING) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         LinearProgressIndicator(
                             modifier = Modifier.weight(1f),
@@ -1044,6 +1044,14 @@ private fun ConsoleCard(
 
     var isUserScrolling by remember { mutableStateOf(false) }
     var isNearBottom by remember { mutableStateOf(true) }
+
+    val sendCommand: () -> Unit = {
+        if (commandInput.isNotBlank()) {
+            onCommand(commandInput)
+            commandInput = ""
+            onCommandInputChange("")
+        }
+    }
 
     // Apply log level filter
     val levelFiltered = if (activeLevel == LogLevel.ALL) consoleLines
@@ -1251,7 +1259,9 @@ private fun ConsoleCard(
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Enter command...", fontSize = 13.sp) },
                         singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { sendCommand() })
                     )
                     Spacer(Modifier.width(8.dp))
                     IconButton(onClick = {

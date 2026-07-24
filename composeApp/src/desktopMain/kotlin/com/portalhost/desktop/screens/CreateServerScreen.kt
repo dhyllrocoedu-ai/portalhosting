@@ -1012,7 +1012,8 @@ fun CreateServerScreen(
                                     )
 
                                     if (jarPath != null) {
-                                        serverManager.registerImportedServer(config, File(jarPath!!))
+                                        val sourceDir = if (createSource == CreateSource.IMPORT_FOLDER) File(jarPath!!).parentFile!! else File(jarPath!!)
+                                        serverManager.registerImportedServer(config, sourceDir)
                                         toastManager.success("Server \"${config.name}\" imported!")
                                         onServerCreated(config.id)
                                     } else {

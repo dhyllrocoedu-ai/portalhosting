@@ -6,6 +6,8 @@ import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
 import java.io.FilenameFilter
+import javax.swing.JFileChooser
+import javax.swing.SwingUtilities
 
 suspend fun pickFile(
     title: String = "Select File",
@@ -58,19 +60,23 @@ suspend fun pickDirectory(
     title: String = "Select Directory",
     directory: File? = null,
 ): File? = withContext(Dispatchers.IO) {
-    System.setProperty("awt.fileDialog.useNativeLF", "true")
+    val result = java.util.concurrent.CountDownLatch(1)
+    var selectedDir: File? = null
 
-    val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
-    dialog.filenameFilter = FilenameFilter { _, _ -> true }
-    directory?.let { dialog.directory = it.absolutePath }
+    SwingUtilities.invokeLater {
+        val chooser = JFileChooser()
+        chooser.dialogTitle = title
+        chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+        chooser.isMultiSelectionEnabled = false
+        directory?.let { chooser.currentDirectory = it }
 
-    dialog.isVisible = true
-    val f = dialog.file
-    val dir = dialog.directory
-    if (f != null && dir != null) {
-        val selected = File(dir, f)
-        if (selected.isDirectory) selected else File(dir)
-    } else if (dir != null) {
-        File(dir)
-    } else null
+        val returnVal = chooser.showOpenDialog(null)
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            selectedDir = chooser.selectedFile
+        }
+        result.countDown()
+    }
+
+    result.await()
+    selectedDir
 }

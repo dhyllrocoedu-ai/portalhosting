@@ -303,7 +303,7 @@ fun ServerDetailScreen(
 private fun StatusBadgeDetail(status: ServerStatus) {
     val color = ThemeColors.serverStatusColor(status)
     val label = when (status) {
-        ServerStatus.RUNNING -> "Running"
+        ServerStatus.RUNNING -> "Online"
         ServerStatus.STARTING -> "Starting"
         ServerStatus.STOPPING -> "Stopping"
         ServerStatus.CRASHED -> "Crashed"

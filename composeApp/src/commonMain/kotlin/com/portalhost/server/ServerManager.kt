@@ -147,22 +147,41 @@ class ServerManager(
         )
     }
 
-    fun registerImportedServer(config: ServerConfig, jarFile: java.io.File) {
+    fun registerImportedServer(config: ServerConfig, sourceDir: java.io.File) {
         val newConfig = config.copy(id = config.id.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString())
-        logger.info { "Registering imported server: ${newConfig.name} (${newConfig.id}) from ${jarFile.name}" }
-        // Add to in-memory map FIRST so getServerDir resolves to name-based folder
+        logger.info { "Registering imported server: ${newConfig.name} (${newConfig.id}) from ${sourceDir.absolutePath}" }
         _servers.update { it + (newConfig.id to newConfig) }
         val serverDir = getServerDir(newConfig)
-        val targetJar = File(serverDir, "${newConfig.id}.jar")
-        if (jarFile.exists() && jarFile.absolutePath != targetJar.absolutePath) {
-            jarFile.copyTo(targetJar, overwrite = true)
+
+        if (sourceDir.absolutePath != serverDir.absolutePath) {
+            sourceDir.listFiles()?.forEach { file ->
+                val dest = java.io.File(serverDir, file.name)
+                if (file.isDirectory) {
+                    file.copyRecursively(dest, overwrite = true)
+                } else {
+                    file.copyTo(dest, overwrite = true)
+                }
+            }
         }
+
+        val targetJar = java.io.File(serverDir, "${newConfig.id}.jar")
+        if (!targetJar.exists()) {
+            serverDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.name.endsWith(".jar")) {
+                    file.copyTo(targetJar, overwrite = true)
+                    file.delete()
+                    logger.info { "Renamed imported JAR to ${targetJar.name}" }
+                    return@forEach
+                }
+            }
+        }
+
         database.insertServer(newConfig)
         val initialState = ServerState(id = newConfig.id, status = ServerStatus.STOPPED)
         database.updateServerState(newConfig.id, initialState)
         _serverStates.update { it + (newConfig.id to initialState) }
-        // Clean up leftover flat JAR file if it exists
-        val flatJar = File(serversDir, "${newConfig.id}.jar")
+
+        val flatJar = java.io.File(serversDir, "${newConfig.id}.jar")
         if (flatJar.exists() && flatJar.absolutePath != targetJar.absolutePath) {
             flatJar.delete()
         }
