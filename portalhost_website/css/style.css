@@ -5,22 +5,22 @@
 }
 
 :root {
-    --bg-primary: #0a0a0f;
-    --bg-secondary: #12121a;
-    --bg-card: #1a1a2e;
-    --bg-card-hover: #22223a;
+    --bg-primary: #0f1310;
+    --bg-secondary: #161b17;
+    --bg-card: #1a2118;
+    --bg-card-hover: #243020;
     --text-primary: #e8e8f0;
     --text-secondary: #a0a0b8;
     --text-muted: #6a6a8a;
-    --accent-primary: #00d4aa;
-    --accent-secondary: #00ff88;
-    --accent-glow: rgba(0, 212, 170, 0.4);
-    --accent-glow-strong: rgba(0, 255, 136, 0.6);
-    --border-color: #2a2a4a;
+    --accent-primary: #68B944;
+    --accent-secondary: #8CD357;
+    --accent-glow: rgba(104, 185, 68, 0.4);
+    --accent-glow-strong: rgba(140, 211, 87, 0.6);
+    --border-color: #2a3a25;
     --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.3);
     --shadow-glow: 0 0 30px var(--accent-glow);
     --shadow-glow-strong: 0 0 50px var(--accent-glow-strong);
-    --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-main: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --transition-fast: 0.2s ease;
     --transition-normal: 0.3s ease;
 }
@@ -47,17 +47,6 @@ a:hover {
     color: var(--accent-secondary);
 }
 
-/* Animated Particles Background */
-.particles-canvas {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-    pointer-events: none;
-}
-
 /* Navbar */
 .navbar {
     position: fixed;
@@ -65,7 +54,7 @@ a:hover {
     left: 0;
     right: 0;
     z-index: 1000;
-    background: rgba(10, 10, 15, 0.85);
+    background: rgba(15, 19, 16, 0.85);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border-color);
     padding: 1rem 2rem;
@@ -81,7 +70,7 @@ a:hover {
 }
 
 .navbar.scrolled {
-    background: rgba(10, 10, 15, 0.95);
+    background: rgba(15, 19, 16, 0.95);
 }
 
 .nav-logo {
@@ -215,11 +204,12 @@ a:hover {
 }
 
 .hero-title {
-    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    font-size: clamp(3rem, 8vw, 5.5rem);
     font-weight: 800;
-    line-height: 1.1;
+    line-height: 1.0;
     margin-bottom: 1.5rem;
-    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 50%, var(--accent-secondary) 100%);
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 60%, var(--accent-secondary) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -244,12 +234,6 @@ a:hover {
     height: 120px;
     margin-bottom: 1.5rem;
     filter: drop-shadow(0 0 30px var(--accent-glow-strong));
-    animation: pulse 3s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { filter: drop-shadow(0 0 30px var(--accent-glow-strong)); }
-    50% { filter: drop-shadow(0 0 50px var(--accent-glow-strong)); }
 }
 
 /* Sections */
@@ -265,9 +249,10 @@ a:hover {
 }
 
 .section-title {
-    font-size: clamp(2rem, 4vw, 2.75rem);
-    font-weight: 700;
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: 800;
     margin-bottom: 1rem;
+    letter-spacing: -0.01em;
     background: linear-gradient(135deg, var(--text-primary), var(--accent-primary));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -347,13 +332,129 @@ a:hover {
 
 .feature-title {
     font-size: 1.125rem;
-    font-weight: 600;
+    font-weight: 700;
     margin-bottom: 0.5rem;
 }
 
 .feature-desc {
     color: var(--text-secondary);
     font-size: 0.95rem;
+}
+
+/* Platform Cards (About Page) */
+.platform-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.platform-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 2.5rem;
+    transition: all var(--transition-normal);
+    position: relative;
+    overflow: hidden;
+}
+
+.platform-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--transition-normal);
+}
+
+.platform-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-primary);
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-glow);
+}
+
+.platform-card:hover::before {
+    transform: scaleX(1);
+}
+
+.platform-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.platform-icon {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.platform-icon svg {
+    width: 28px;
+    height: 28px;
+    color: var(--bg-primary);
+}
+
+.platform-info h3 {
+    font-size: 1.375rem;
+    font-weight: 800;
+    margin-bottom: 0.25rem;
+}
+
+.platform-os {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.platform-version {
+    color: var(--accent-primary);
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.platform-features {
+    list-style: none;
+    margin-bottom: 2rem;
+}
+
+.platform-features li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.platform-features li:last-child {
+    border-bottom: none;
+}
+
+.platform-features svg {
+    width: 20px;
+    height: 20px;
+    color: var(--accent-primary);
+    flex-shrink: 0;
+}
+
+.platform-btn {
+    width: 100%;
+    justify-content: center;
 }
 
 /* Download Section */
@@ -426,6 +527,24 @@ a:hover {
 .download-btn {
     width: 100%;
     justify-content: center;
+}
+
+/* Android Download Section */
+.android-download {
+    max-width: 400px;
+    margin: 3rem auto 0;
+}
+
+.android-download .download-card {
+    border-color: var(--accent-primary);
+}
+
+.android-download .download-card:hover {
+    box-shadow: var(--shadow-glow-strong);
+}
+
+.android-download .download-icon {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
 }
 
 /* Changelog */
@@ -656,5 +775,9 @@ a:hover {
         flex-direction: column;
         align-items: flex-start;
         gap: 0.5rem;
+    }
+
+    .platform-cards {
+        grid-template-columns: 1fr;
     }
 }

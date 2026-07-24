@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="About Portal Host - Minecraft Java Edition Server Manager">
+    <meta name="description" content="About Portal Host - Minecraft Java Edition Server Manager for Windows and Android">
     <title>About - Portal Host</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <canvas class="particles-canvas" id="particles"></canvas>
-
     <nav class="navbar" id="navbar">
         <a href="index.html" class="nav-logo">
             <img src="images/portalhost_logo2.png" alt="Portal Host" class="nav-logo-img">
@@ -45,8 +43,15 @@
             <div class="about-content">
                 <section class="about-section">
                     <h2>What is Portal Host?</h2>
-                    <p>Portal Host is a free desktop application designed to make managing Minecraft Java Edition servers simple and intuitive. Whether you're hosting a private world for friends, running a community server, or testing plugins and mods, Portal Host handles the complexity so you can focus on playing.</p>
-                    <p>Built with modern technologies including Kotlin Multiplatform and Compose Multiplatform, Portal Host provides a native-feeling experience on Windows with a clean, dark-themed interface that matches the aesthetic of the game itself.</p>
+                    <p>Portal Host is a free desktop and mobile application designed to make managing Minecraft Java Edition servers simple and intuitive. Whether you're hosting a private world for friends, running a community server, or testing plugins and mods, Portal Host handles the complexity so you can focus on playing.</p>
+                    <p>Built with modern technologies including Kotlin Multiplatform and Compose Multiplatform, Portal Host provides a native-feeling experience on Windows and Android with a clean, dark-themed interface that matches the aesthetic of the game itself.</p>
+                </section>
+
+                <section class="about-section">
+                    <h2>Available On</h2>
+                    <div class="platform-cards" id="platform-cards">
+                        <!-- Platform cards will be loaded from latest.json -->
+                    </div>
                 </section>
 
                 <section class="about-section">
@@ -97,7 +102,15 @@
                                 <polyline points="20 6 9 17 4 12"></polyline>
                             </svg>
                             <div>
-                                <strong style="color: var(--text-primary);">System Tray Integration</strong> — Minimize to tray, keep servers running in the background, and access quick actions from the menu bar.
+                                <strong style="color: var(--text-primary);">System Tray Integration (Windows)</strong> — Minimize to tray, keep servers running in the background, and access quick actions from the menu bar.
+                            </div>
+                        </li>
+                        <li style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; display: flex; align-items: flex-start; gap: 1rem;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            <div>
+                                <strong style="color: var(--text-primary);">Background Hosting (Android)</strong> — Run servers in a foreground service with live notifications, even when the app is minimized.
                             </div>
                         </li>
                     </ul>
@@ -109,12 +122,12 @@
                         <div class="step">
                             <div class="step-number">1</div>
                             <h3 class="step-title">Download & Install</h3>
-                            <p class="step-desc">Download the latest MSI or EXE installer from the <a href="download.html">Download page</a> and run it</p>
+                            <p class="step-desc">Download the latest MSI, EXE, or APK from the <a href="download.html">Download page</a> and run it</p>
                         </div>
                         <div class="step">
                             <div class="step-number">2</div>
                             <h3 class="step-title">Launch Portal Host</h3>
-                            <p class="step-desc">Open the app from your Start Menu or desktop shortcut</p>
+                            <p class="step-desc">Open the app from your Start Menu, desktop shortcut, or app drawer</p>
                         </div>
                         <div class="step">
                             <div class="step-number">3</div>
@@ -133,7 +146,10 @@
                     <h2>System Requirements</h2>
                     <ul style="list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
                         <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
-                            <strong>OS:</strong> Windows 10/11 (64-bit)
+                            <strong>Windows:</strong> Windows 10/11 (64-bit)
+                        </li>
+                        <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
+                            <strong>Android:</strong> Android 7.0+ (API 24)
                         </li>
                         <li style="padding: 1rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px;">
                             <strong>RAM:</strong> 4 GB minimum (8 GB+ recommended)
@@ -157,9 +173,118 @@
             <a href="download.html">Download</a>
             <a href="changelog.html">Changelog</a>
         </div>
-        <p class="footer-copyright">Portal Host &copy; 2025 — Minecraft Java Edition Server Manager</p>
+        <p class="footer-copyright">Portal Host &copy; 2026 — Minecraft Java Edition Server Manager</p>
     </footer>
 
     <script src="js/main.js"></script>
+    <script>
+        // About page specific logic - load platform cards
+        async function loadPlatformCards() {
+            const container = document.getElementById('platform-cards');
+            
+            try {
+                const response = await fetch('latest.json');
+                const release = await response.json();
+                
+                const desktopVersion = release.version || '5.0.52';
+                const desktopDate = release.date || '2026-07-24';
+                const androidVersion = release.android?.version || '5.0.30';
+                const androidDate = release.android?.date || '2026-07-24';
+                
+                container.innerHTML = `
+                    <!-- Desktop Card -->
+                    <div class="platform-card">
+                        <div class="platform-header">
+                            <div class="platform-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                                </svg>
+                            </div>
+                            <div class="platform-info">
+                                <h3>Portal Host for Windows</h3>
+                                <span class="platform-os">Desktop Application</span>
+                            </div>
+                        </div>
+                        <p class="platform-version">Version ${desktopVersion} · ${PortalHost.formatDate(desktopDate)}</p>
+                        <ul class="platform-features">
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Real-time console with command input</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Multi-server management</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>System tray integration</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Automatic JDK installation</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Player & world management</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Plugin, mod & datapack support</li>
+                        </ul>
+                        <a href="download.html" class="btn btn-primary platform-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Download for Windows
+                        </a>
+                    </div>
+
+                    <!-- Android Card -->
+                    <div class="platform-card">
+                        <div class="platform-header">
+                            <div class="platform-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                                    <line x1="4" y1="22" x2="20" y2="22"></line>
+                                </svg>
+                            </div>
+                            <div class="platform-info">
+                                <h3>Portal Host for Android</h3>
+                                <span class="platform-os">Mobile Application</span>
+                            </div>
+                        </div>
+                        <p class="platform-version">Version ${androidVersion} · ${PortalHost.formatDate(androidDate)}</p>
+                        <ul class="platform-features">
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Background server hosting (foreground service)</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Live notification with server stats</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Full player management (ban, op, whitelist)</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>Performance charts (CPU, RAM, TPS)</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>playit.gg tunnel integration</li>
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>RCON remote console</li>
+                        </ul>
+                        <a href="#" class="btn btn-primary platform-btn" id="android-download-btn" disabled>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Download APK
+                        </a>
+                    </div>
+                `;
+
+                // Enable Android download button if URL available
+                if (release.android && release.android.url) {
+                    const btn = document.getElementById('android-download-btn');
+                    btn.href = release.android.url;
+                    btn.removeAttribute('disabled');
+                }
+            } catch (error) {
+                console.error('Failed to load platform info:', error);
+                container.innerHTML = `
+                    <p style="text-align: center; color: var(--text-secondary);">Failed to load platform information.</p>
+                `;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadPlatformCards);
+    </script>
+</main>
+
+    <footer class="footer">
+        <div class="footer-links">
+            <a href="index.html">Home</a>
+            <a href="download.html">Download</a>
+            <a href="changelog.html">Changelog</a>
+        </div>
+        <p class="footer-copyright">Portal Host &copy; 2026 — Minecraft Java Edition Server Manager</p>
+    </footer>
 </body>
 </html>

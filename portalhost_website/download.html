@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Download Portal Host - Minecraft Java Edition Server Manager for Windows">
+    <meta name="description" content="Download Portal Host - Minecraft Java Edition Server Manager for Windows and Android">
     <title>Download - Portal Host</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <canvas class="particles-canvas" id="particles"></canvas>
-
     <nav class="navbar" id="navbar">
         <a href="index.html" class="nav-logo">
             <img src="images/portalhost_logo2.png" alt="Portal Host" class="nav-logo-img">
@@ -50,9 +48,7 @@
             <div class="download-cards" id="download-cards">
                 <div class="download-card">
                     <div class="download-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
+                        <img src="images/portalhost_logo2.png" alt="MSI Installer">
                     </div>
                     <h3 class="download-title">MSI Installer</h3>
                     <p class="download-version" id="msi-version">Loading...</p>
@@ -69,9 +65,7 @@
 
                 <div class="download-card">
                     <div class="download-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
-                        </svg>
+                        <img src="images/portalhost_logo2.png" alt="EXE Installer">
                     </div>
                     <h3 class="download-title">EXE Installer</h3>
                     <p class="download-version" id="exe-version">Loading...</p>
@@ -101,6 +95,36 @@
 
         <section class="section" style="background: var(--bg-secondary);">
             <div class="section-header">
+                <h2 class="section-title">Android</h2>
+                <p class="section-subtitle">Run Minecraft servers on your mobile device</p>
+            </div>
+
+            <div class="android-download" id="android-download">
+                <div class="download-card">
+                    <div class="download-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; color: var(--bg-primary);">
+                            <rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect>
+                            <line x1="4" y1="22" x2="20" y2="22"></line>
+                        </svg>
+                    </div>
+                    <h3 class="download-title">Portal Host for Android</h3>
+                    <p class="download-version" id="android-version">Loading...</p>
+                    <p class="download-size" id="android-size">Loading...</p>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">Requires Android 7.0+ (API 24)</p>
+                    <a href="#" class="btn btn-primary download-btn" id="android-download-btn" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download APK
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" style="background: var(--bg-secondary);">
+            <div class="section-header">
                 <h2 class="section-title">Previous Versions</h2>
                 <p class="section-subtitle">All releases are available on GitHub</p>
             </div>
@@ -121,7 +145,7 @@
             <a href="about.html">About</a>
             <a href="changelog.html">Changelog</a>
         </div>
-        <p class="footer-copyright">Portal Host &copy; 2025 — Minecraft Java Edition Server Manager</p>
+        <p class="footer-copyright">Portal Host &copy; 2026 — Minecraft Java Edition Server Manager</p>
     </footer>
 
     <script src="js/main.js"></script>
@@ -135,6 +159,9 @@
             const exeSize = document.getElementById('exe-size');
             const msiDownload = document.getElementById('msi-download');
             const exeDownload = document.getElementById('exe-download');
+            const androidVersion = document.getElementById('android-version');
+            const androidSize = document.getElementById('android-size');
+            const androidDownload = document.getElementById('android-download-btn');
 
             try {
                 const response = await fetch('latest.json');
@@ -170,11 +197,25 @@
                     exeDownload.classList.remove('btn-primary');
                     exeDownload.classList.add('btn-secondary');
                 }
+
+                if (release.android && release.android.url) {
+                    androidVersion.textContent = `v${release.android.version || version}`;
+                    androidSize.textContent = release.android.size ? PortalHost.formatBytes(release.android.size) : 'Unknown size';
+                    androidDownload.href = release.android.url;
+                    androidDownload.removeAttribute('disabled');
+                } else {
+                    androidVersion.textContent = 'Not available';
+                    androidSize.textContent = '';
+                    androidDownload.textContent = 'APK not available';
+                    androidDownload.classList.remove('btn-primary');
+                    androidDownload.classList.add('btn-secondary');
+                }
             } catch (error) {
                 console.error('Failed to load release:', error);
                 versionDisplay.textContent = 'Failed to load';
                 msiVersion.textContent = 'Failed to load';
                 exeVersion.textContent = 'Failed to load';
+                androidVersion.textContent = 'Failed to load';
                 
                 // Fallback: show manual download links
                 msiDownload.href = `https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest`;
@@ -184,6 +225,10 @@
                 exeDownload.href = `https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest`;
                 exeDownload.textContent = 'Check GitHub Releases';
                 exeDownload.removeAttribute('disabled');
+                
+                androidDownload.href = `https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest`;
+                androidDownload.textContent = 'Check GitHub Releases';
+                androidDownload.removeAttribute('disabled');
             }
         }
 

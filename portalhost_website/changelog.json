@@ -1,0 +1,38 @@
+[
+  {
+    "version": "5.0.52",
+    "date": "2026-07-24",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.52</strong></p><ul><li>Fixed close dialog \"Quit\" button — now properly stops servers and exits application</li><li>Removed GitHub token initialization from main() — token now passed explicitly to update checker</li><li>Updated version to 5.0.52 across all build files</li><li>Removed unused Base64 import from UpdateChecker</li></ul>"
+  },
+  {
+    "version": "5.0.51",
+    "date": "2026-07-23",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.51</strong></p><ul><li>Fixed window dragging jitter in TitleBar — pixel-perfect drag gestures</li><li>Fixed FilePicker deadlock — rewritten as proper suspend function with Dispatchers.IO</li><li>Server folders now use sanitized server name instead of UUID (with UUID fallback)</li><li>Native Windows file dialog enabled via awt.fileDialog.useNativeLF</li></ul>"
+  },
+  {
+    "version": "5.0.50",
+    "date": "2026-07-20",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.50</strong></p><ul><li>Major UI overhaul with Material3 design</li><li>New server creation wizard with 6-step guided setup</li><li>Real-time console with color-coded output and command history</li><li>Player management: ban, kick, whitelist, op/de-op</li><li>World import/export (ZIP), plugin/mod/datapack management</li><li>System tray integration with quick actions</li><li>Automatic JDK detection and installation (Adoptium)</li><li>Multi-version support: Paper, Fabric, Forge, NeoForge, Purpur, Folia, Vanilla</li></ul>"
+  },
+  {
+    "version": "5.0.30",
+    "date": "2026-07-15",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.30</strong></p><ul><li>Initial Android release — Minecraft Java Edition server manager for mobile</li><li>Background server hosting via foreground service with live notification</li><li>Full server management: create, start, stop, delete servers</li><li>6-step server creation wizard with Paper/Fabric/Forge/NeoForge/Purpur/Folia/Vanilla</li><li>Player management: online players, whitelist, operators, banned players/IPs</li><li>Real-time console with log levels, search, command history</li><li>Performance charts: CPU%, RAM, TPS history</li><li>playit.gg tunnel integration for public access</li><li>RCON remote console support</li><li>World/plugin/mod/datapack/backup management</li><li>Automatic JDK installation (Adoptium)</li><li>Device-aware RAM/GC configuration</li><li>Battery optimization exemption</li><li>Dark/Light theme support</li></ul>"
+  },
+  {
+    "version": "5.0.25",
+    "date": "2026-07-10",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.25</strong></p><ul><li>Custom WiX installer template with uninstall shortcut</li><li>Self-locating uninstaller batch script in install folder</li><li>Update checker with GitHub API fallback to HTML scraping</li><li>Release tag regex handles suffixes like <code>-desktop</code></li><li>GitHub token support for private repo access</li></ul>"
+  },
+  {
+    "version": "5.0.20",
+    "date": "2026-07-01",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.20</strong></p><ul><li>Compose Multiplatform migration from Swing</li><li>Kotlin Multiplatform project structure (common/desktop)</li><li>ServerManager with sanitized folder names</li><li>Preferences with DataStore (JDK paths, tokens, theme)</li><li>Dashboard with server cards, status, quick actions</li></ul>"
+  }
+]

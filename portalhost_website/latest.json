@@ -8,5 +8,11 @@
   "exe": {
     "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.52-desktop/PortalHost-5.0.52.exe",
     "size": 127955456
+  },
+  "android": {
+    "version": "5.0.30",
+    "date": "2026-07-24",
+    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.30-desktop/PortalHost.apk",
+    "size": 15000000
   }
 }
