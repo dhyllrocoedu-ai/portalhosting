@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Games
 import androidx.compose.material.icons.filled.PlayArrow
@@ -640,6 +641,7 @@ private fun WorldsTab(serverId: String) {
     var worlds by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importFilePath by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(serverId) {
         val dir = File(fileSystem.getServersDirBlocking(), serverId)

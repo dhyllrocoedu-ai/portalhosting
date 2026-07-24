@@ -1,5 +1,11 @@
 [
   {
+    "version": "5.0.53",
+    "date": "2026-07-24",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.53</strong></p><ul><li>Added \"Browse\" button to Import World from ZIP dialog — native file picker with .zip filter</li><li>Fixed world import workflow in Worlds tab</li></ul>"
+  },
+  {
     "version": "5.0.52",
     "date": "2026-07-24",
     "prerelease": false,
