@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.portalhost.BuildConfig
 import com.portalhost.desktop.util.UpdateChecker
+import com.portalhost.desktop.util.UpdateInfo
 import com.portalhost.desktop.util.UpdateResult
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
@@ -96,6 +97,12 @@ fun SettingsScreen() {
     var themeExpanded by remember { mutableStateOf(false) }
     var logLevelExpanded by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
+
+    var isChecking by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<String?>(null) }
+    var hasUpdate by remember { mutableStateOf(false) }
+    var foundUpdateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
@@ -167,11 +174,7 @@ fun SettingsScreen() {
 
         Spacer(Modifier.height(20.dp))
 
-        SettingsSection("Updates") {
-            var isChecking by remember { mutableStateOf(false) }
-            var updateResult by remember { mutableStateOf<String?>(null) }
-            var hasUpdate by remember { mutableStateOf(false) }
-
+SettingsSection("Updates") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -205,6 +208,7 @@ fun SettingsScreen() {
                         when (val result = UpdateChecker.checkForUpdate(preferences.githubToken.value)) {
                             is UpdateResult.UpdateAvailable -> {
                                 hasUpdate = true
+                                foundUpdateInfo = result.info
                                 updateResult = "Update available: v${result.info.latestVersion}"
                             }
                             is UpdateResult.UpToDate -> {
@@ -245,11 +249,7 @@ fun SettingsScreen() {
                 if (hasUpdate) {
                     Spacer(Modifier.height(8.dp))
                     Button(
-                        onClick = {
-                            try {
-                                java.awt.Desktop.getDesktop().browse(java.net.URI("https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"))
-                            } catch (_: Exception) {}
-                        },
+                        onClick = { showUpdateDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text("Download Update")
@@ -553,6 +553,14 @@ fun SettingsScreen() {
             Icon(Icons.Filled.RestartAlt, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
             Text("Reset to Defaults")
         }
+    }
+
+    if (showUpdateDialog && foundUpdateInfo != null) {
+        UpdateDialog(
+            updateInfo = foundUpdateInfo!!,
+            onDismiss = { showUpdateDialog = false },
+            onNoLongerNeeded = { foundUpdateInfo = null; hasUpdate = false; updateResult = null }
+        )
     }
 }
 

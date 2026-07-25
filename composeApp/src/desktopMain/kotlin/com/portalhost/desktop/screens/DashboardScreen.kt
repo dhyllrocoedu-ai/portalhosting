@@ -178,6 +178,7 @@ fun DashboardScreen(
     val localIpInfo = remember { mutableStateOf(networkManager.getLocalIpAddress()) }
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showUpdateBanner by remember { mutableStateOf(true) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (preferences.autoCheckUpdates.value) {
@@ -244,9 +245,7 @@ fun DashboardScreen(
                         Text("Update available: v${updateInfo!!.latestVersion}", style = MaterialTheme.typography.titleSmall)
                         Text(updateInfo!!.releaseNotes, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    TextButton(onClick = {
-                        try { java.awt.Desktop.getDesktop().browse(java.net.URI(updateInfo!!.downloadUrl)) } catch (_: Exception) {}
-                    }) { Text("Download") }
+                    TextButton(onClick = { showUpdateDialog = true }) { Text("Download") }
                     IconButton(onClick = { showUpdateBanner = false }) {
                         Icon(Icons.Default.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp))
                     }
@@ -260,17 +259,11 @@ fun DashboardScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Dns, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(16.dp))
                     Text("No servers yet", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(8.dp))
-                    Text("Create your first Minecraft server", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(24.dp))
-                    Button(onClick = onNavigateToCreate) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Create Server")
-                    }
+                    Text("Go to the Servers tab to create one", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -409,6 +402,14 @@ fun DashboardScreen(
 
                 ActivityCard(activities = activities)
         }
+    }
+
+    if (showUpdateDialog && updateInfo != null) {
+        UpdateDialog(
+            updateInfo = updateInfo!!,
+            onDismiss = { showUpdateDialog = false },
+            onNoLongerNeeded = { updateInfo = null; showUpdateBanner = false }
+        )
     }
 }
 

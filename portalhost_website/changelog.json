@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.57",
+    "date": "2026-07-25",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.57</strong></p><ul><li><strong>New: In-app update download with progress.</strong> Update checker now downloads the MSI/EXE directly in-app with a progress dialog showing download speed, percentage, ETA, and cancel option. Auto-launches installer on completion.</li><li><strong>New: Changelog in update dialog.</strong> The update dialog now displays release notes from the website changelog before downloading.</li><li><strong>New: Server file refresh buttons.</strong> Added refresh buttons to Plugins, Mods, Datapacks, Worlds, and Server Files tabs for manual re-scan without app restart.</li><li><strong>New: Floating Action Button (FAB) for creating servers.</strong> Replaced the rectangular \"Create Server\" grid card with a Material3 FAB anchored bottom-right on the Servers screen.</li><li><strong>New: Centered empty state.</strong> When no servers exist, the Servers tab now shows a centered DNS icon, title, subtitle, and a prominent FAB to create the first server.</li><li><strong>Improved: Welcome screen.</strong> Expanded to 4 steps with step-by-step progress indicators, data folder setup, optional JDK install with \"Skip for now\" fallback, and configuration step. Added \"Skip for now\" link at bottom.</li><li><strong>Improved: Window dragging.</strong> Replaced jittery <code>SwingUtilities.invokeLater</code> with direct <code>java.awt.EventQueue.invokeLater</code> setLocation() and added move cursor feedback during drag.</li><li><strong>Improved: Enhanced uninstaller.</strong> Updated Uninstall.bat with registry preference cleanup, data removal prompt (Keep/Remove/Keep Servers options), Start Menu shortcut removal, and self-deletion.</li><li><strong>Fixed: Dashboard empty state.</strong> Removed the \"Create Server\" button from Dashboard empty state; now directs users to the Servers tab for server creation.</li><li><strong>Fixed: Update checker cache.</strong> Added 1-hour cache to avoid rate limiting on repeated checks.</li><li><strong>Fixed: Deprecated API cleanup.</strong> Replaced <code>LocalClipboardManager</code> with <code>LocalClipboard</code>, updated <code>menuAnchor()</code> calls to use <code>ExposedDropdownMenuAnchorType</code>.</li></ul>"
+  },
+  {
     "version": "5.0.56",
     "date": "2026-07-25",
     "platform": "desktop",

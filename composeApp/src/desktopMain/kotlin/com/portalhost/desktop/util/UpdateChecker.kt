@@ -3,10 +3,14 @@ package com.portalhost.desktop.util
 import com.portalhost.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mu.KotlinLogging
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -16,6 +20,15 @@ data class UpdateInfo(
     val latestVersion: String,
     val downloadUrl: String,
     val releaseNotes: String,
+    val changelog: List<ChangelogEntry> = emptyList(),
+)
+
+@Serializable
+data class ChangelogEntry(
+    val version: String = "",
+    val date: String = "",
+    val desktop: List<String> = emptyList(),
+    val mobile: List<String> = emptyList(),
 )
 
 sealed class UpdateResult {
@@ -26,25 +39,133 @@ sealed class UpdateResult {
 
 object UpdateChecker {
     private const val WEBSITE_LATEST_URL = "https://portalhost.pages.dev/latest.json"
+    private const val WEBSITE_CHANGELOG_URL = "https://portalhost.pages.dev/changelog.json"
     private const val GITHUB_API_URL = "https://api.github.com/repos/dhyllrocoedu-ai/portalhosting/releases/latest"
     private const val GITHUB_HTML_URL = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"
+    private const val GITHUB_DOWNLOAD_URL = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest/download"
+    private const val CACHE_DURATION_MS = 3_600_000L // 1 hour
     private val json = Json { ignoreUnknownKeys = true }
 
     var githubToken: String? = null
         private set
 
-    suspend fun checkForUpdate(token: String? = null): UpdateResult = withContext(Dispatchers.IO) {
+    private var lastCheckTime = 0L
+    private var cachedResult: UpdateResult? = null
+
+    suspend fun checkForUpdate(token: String? = null, forceCheck: Boolean = false): UpdateResult = withContext(Dispatchers.IO) {
         token?.takeIf { it.isNotBlank() }?.let { githubToken = it }
-        
-        // Primary: check website (public, no auth needed)
+
+        if (!forceCheck && cachedResult != null && System.currentTimeMillis() - lastCheckTime < CACHE_DURATION_MS) {
+            return@withContext cachedResult!!
+        }
+
         val websiteResult = tryWebsiteCheck()
-        if (websiteResult != null) return@withContext websiteResult
-        
-        // Fallback: GitHub API
-        tryGithubApiCheck()
+        if (websiteResult != null) {
+            cachedResult = websiteResult
+            lastCheckTime = System.currentTimeMillis()
+            return@withContext websiteResult
+        }
+
+        val githubResult = tryGithubApiCheck()
+        cachedResult = githubResult
+        lastCheckTime = System.currentTimeMillis()
+        githubResult
     }
 
-    private fun tryWebsiteCheck(): UpdateResult? {
+    suspend fun fetchChangelog(): List<ChangelogEntry> = withContext(Dispatchers.IO) {
+        try {
+            val connection = URL(WEBSITE_CHANGELOG_URL).openConnection() as HttpURLConnection
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+
+            if (connection.responseCode != 200) {
+                connection.disconnect()
+                return@withContext emptyList()
+            }
+
+            val body = connection.inputStream.bufferedReader().readText()
+            connection.disconnect()
+
+            val root = json.parseToJsonElement(body).jsonObject
+            val versions = root["versions"]?.jsonObject ?: return@withContext emptyList()
+
+            versions.entries.mapNotNull { (key, value) ->
+                try {
+                    val obj = value.jsonObject
+                    val platform = obj["platform"]?.jsonPrimitive?.content ?: "desktop"
+                    if (platform != "desktop") return@mapNotNull null
+                    ChangelogEntry(
+                        version = key,
+                        date = obj["date"]?.jsonPrimitive?.content ?: "",
+                        desktop = obj["desktop"]?.let { json.decodeFromJsonElement<List<String>>(it) } ?: emptyList(),
+                        mobile = obj["mobile"]?.let { json.decodeFromJsonElement<List<String>>(it) } ?: emptyList(),
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn { "Failed to fetch changelog: ${e.message}" }
+            emptyList()
+        }
+    }
+
+    suspend fun downloadUpdate(
+        url: String,
+        destination: File,
+        onProgress: (downloaded: Long, total: Long, speed: Long) -> Unit,
+    ): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            destination.parentFile?.mkdirs()
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 30_000
+
+            if (connection.responseCode != 200) {
+                return@withContext Result.failure(Exception("HTTP ${connection.responseCode}"))
+            }
+
+            val contentLength = connection.contentLengthLong.coerceAtLeast(0)
+            var downloaded = 0L
+            var lastTime = System.currentTimeMillis()
+            var lastBytes = 0L
+
+            connection.inputStream.use { input ->
+                FileOutputStream(destination).use { output ->
+                    val buffer = ByteArray(65536)
+                    var bytesRead = input.read(buffer)
+                    while (bytesRead != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        downloaded += bytesRead
+
+                        val now = System.currentTimeMillis()
+                        val elapsed = now - lastTime
+                        if (elapsed >= 500) {
+                            val speed = ((downloaded - lastBytes) * 1000 / elapsed)
+                            onProgress(downloaded, contentLength, speed)
+                            lastTime = now
+                            lastBytes = downloaded
+                        }
+
+                        bytesRead = input.read(buffer)
+                    }
+                    onProgress(downloaded, contentLength, 0)
+                }
+            }
+            connection.disconnect()
+
+            Result.success(destination)
+        } catch (e: Exception) {
+            logger.warn { "Download failed: ${e.message}" }
+            destination.delete()
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun tryWebsiteCheck(): UpdateResult? {
         try {
             val connection = URL(WEBSITE_LATEST_URL).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/json")
@@ -64,11 +185,13 @@ object UpdateChecker {
             val root = json.parseToJsonElement(body).jsonObject
             val version = root["version"]?.jsonPrimitive?.content ?: ""
             val msiUrl = root["msi"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
+            val msiSize = root["msi"]?.jsonObject?.get("size")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
             val exeUrl = root["exe"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
+            val exeSize = root["exe"]?.jsonObject?.get("size")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
             val date = root["date"]?.jsonPrimitive?.content ?: ""
-            
-            // Use MSI as primary download URL, fallback to EXE
+
             val downloadUrl = if (msiUrl.isNotBlank()) msiUrl else exeUrl
+            val fileSize = if (msiUrl.isNotBlank()) msiSize else exeSize
             val releaseNotes = "Released $date. See website for full changelog."
 
             if (version.isBlank() || downloadUrl.isBlank()) {
@@ -78,11 +201,13 @@ object UpdateChecker {
 
             val currentVersion = BuildConfig.VERSION_NAME
             if (isNewerVersion(version, currentVersion)) {
+                val changelog = try { fetchChangelog() } catch (_: Exception) { emptyList() }
                 return UpdateResult.UpdateAvailable(
                     UpdateInfo(
                         latestVersion = version,
                         downloadUrl = downloadUrl,
                         releaseNotes = releaseNotes,
+                        changelog = changelog.filter { it.version == version || it.version == "v$version" },
                     )
                 )
             } else {
@@ -99,11 +224,11 @@ object UpdateChecker {
             val connection = URL(GITHUB_API_URL).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
-            
+
             githubToken?.let { token ->
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }
-            
+
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
 
@@ -133,7 +258,7 @@ object UpdateChecker {
                 UpdateResult.UpdateAvailable(
                     UpdateInfo(
                         latestVersion = tagName,
-                        downloadUrl = htmlUrl,
+                        downloadUrl = "$GITHUB_DOWNLOAD_URL/v$tagName/PortalHost-$tagName.msi",
                         releaseNotes = releaseNotes,
                     )
                 )
@@ -149,11 +274,11 @@ object UpdateChecker {
     private fun tryHtmlFallback(): UpdateResult {
         try {
             val connection = URL(GITHUB_HTML_URL).openConnection() as HttpURLConnection
-            
+
             githubToken?.let { token ->
                 connection.setRequestProperty("Authorization", "Bearer $token")
             }
-            
+
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
@@ -182,7 +307,7 @@ object UpdateChecker {
                 UpdateResult.UpdateAvailable(
                     UpdateInfo(
                         latestVersion = tagName,
-                        downloadUrl = GITHUB_HTML_URL,
+                        downloadUrl = "$GITHUB_DOWNLOAD_URL/v$tagName/PortalHost-$tagName.msi",
                         releaseNotes = releaseNotes,
                     )
                 )

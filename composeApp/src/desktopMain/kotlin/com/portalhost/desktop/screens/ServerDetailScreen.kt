@@ -653,10 +653,20 @@ private fun WorldsTab(serverId: String) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Worlds (${worlds.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Button(onClick = { showImportDialog = true }) {
-                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Import ZIP")
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = {
+                    val dir = File(fileSystem.getServersDirBlocking(), serverId)
+                    worlds = dir.listFiles()?.filter {
+                        it.isDirectory && (it.name == "world" || it.name.startsWith("world_"))
+                    } ?: emptyList()
+                }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(18.dp))
+                }
+                Button(onClick = { showImportDialog = true }) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Import ZIP")
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -775,24 +785,29 @@ private fun PluginsTab(serverId: String) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Plugins (${plugins.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Button(onClick = {
-                scope.launch {
-                    val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
-                    if (files.isNotEmpty()) {
-                        withContext(Dispatchers.IO) {
-                            val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
-                            dir.mkdirs()
-                            files.forEach { f ->
-                                File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
-                            }
-                        }
-                        refreshPlugins()
-                    }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = { refreshPlugins() }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(18.dp))
                 }
-            }) {
-                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Import JAR")
+                Button(onClick = {
+                    scope.launch {
+                        val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
+                        if (files.isNotEmpty()) {
+                            withContext(Dispatchers.IO) {
+                                val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
+                                dir.mkdirs()
+                                files.forEach { f ->
+                                    File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
+                                }
+                            }
+                            refreshPlugins()
+                        }
+                    }
+                }) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Import JAR")
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -842,24 +857,29 @@ private fun ModsTab(serverId: String) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Mods (${mods.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Button(onClick = {
-                scope.launch {
-                    val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
-                    if (files.isNotEmpty()) {
-                        withContext(Dispatchers.IO) {
-                            val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
-                            dir.mkdirs()
-                            files.forEach { f ->
-                                File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
-                            }
-                        }
-                        refreshMods()
-                    }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = { refreshMods() }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(18.dp))
                 }
-            }) {
-                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Import JAR")
+                Button(onClick = {
+                    scope.launch {
+                        val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
+                        if (files.isNotEmpty()) {
+                            withContext(Dispatchers.IO) {
+                                val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
+                                dir.mkdirs()
+                                files.forEach { f ->
+                                    File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
+                                }
+                            }
+                            refreshMods()
+                        }
+                    }
+                }) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Import JAR")
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
@@ -909,24 +929,29 @@ private fun DatapacksTab(serverId: String) {
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Datapacks (${datapacks.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Button(onClick = {
-                scope.launch {
-                    val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"), multiSelection = true)
-                    if (files.isNotEmpty()) {
-                        withContext(Dispatchers.IO) {
-                            val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
-                            dir.mkdirs()
-                            files.forEach { f ->
-                                File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
-                            }
-                        }
-                        refreshDatapacks()
-                    }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = { refreshDatapacks() }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "Refresh", modifier = Modifier.size(18.dp))
                 }
-            }) {
-                Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Import ZIP")
+                Button(onClick = {
+                    scope.launch {
+                        val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"), multiSelection = true)
+                        if (files.isNotEmpty()) {
+                            withContext(Dispatchers.IO) {
+                                val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
+                                dir.mkdirs()
+                                files.forEach { f ->
+                                    File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
+                                }
+                            }
+                            refreshDatapacks()
+                        }
+                    }
+                }) {
+                    Icon(Icons.Filled.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Import ZIP")
+                }
             }
         }
         Spacer(Modifier.height(12.dp))

@@ -64,7 +64,6 @@ import com.portalhost.server.ServerManager
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.uinotify.ToastManager
 import kotlinx.coroutines.launch
-import javax.swing.SwingUtilities
 
 sealed class Screen {
     object Home : Screen()
@@ -105,13 +104,37 @@ fun TitleBar(
                     .fillMaxHeight()
                     .padding(start = 12.dp)
                     .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
+                        detectDragGestures(
+                            onDragStart = {
+                                window?.let { w ->
+                                    java.awt.EventQueue.invokeLater {
+                                        w.cursor = java.awt.Cursor(java.awt.Cursor.MOVE_CURSOR)
+                                    }
+                                }
+                            },
+                            onDragEnd = {
+                                window?.let { w ->
+                                    java.awt.EventQueue.invokeLater {
+                                        w.cursor = java.awt.Cursor.getDefaultCursor()
+                                    }
+                                }
+                            },
+                            onDragCancel = {
+                                window?.let { w ->
+                                    java.awt.EventQueue.invokeLater {
+                                        w.cursor = java.awt.Cursor.getDefaultCursor()
+                                    }
+                                }
+                            }
+                        ) { change, dragAmount ->
                             change.consume()
                             window?.let { w ->
                                 val dx = dragAmount.x.roundToInt()
                                 val dy = dragAmount.y.roundToInt()
-                                SwingUtilities.invokeLater {
-                                    w.setLocation(w.x + dx, w.y + dy)
+                                if (dx != 0 || dy != 0) {
+                                    java.awt.EventQueue.invokeLater {
+                                        w.setLocation(w.x + dx, w.y + dy)
+                                    }
                                 }
                             }
                         }
