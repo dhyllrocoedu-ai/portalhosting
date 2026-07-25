@@ -66,6 +66,7 @@ import com.portalhost.BuildConfig
 import com.portalhost.desktop.util.UpdateChecker
 import com.portalhost.desktop.util.UpdateInfo
 import com.portalhost.desktop.util.UpdateResult
+import com.portalhost.desktop.util.UninstallHelper
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.TunnelManager
@@ -505,6 +506,56 @@ SettingsSection("Updates") {
                         )
                     }
                 }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        SettingsSection("Uninstall") {
+            Text("Create an uninstall script to remove PortalHost from your computer.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            var uninstallResult by remember { mutableStateOf<String?>(null) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = {
+                        val result = UninstallHelper.saveToDesktop()
+                        uninstallResult = if (result.isSuccess) {
+                            "Saved to Desktop"
+                        } else {
+                            "Error: ${result.exceptionOrNull()?.message}"
+                        }
+                    },
+                ) {
+                    Text("Save to Desktop")
+                }
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val dir = pickDirectory(title = "Choose Save Location")
+                            if (dir != null) {
+                                val file = java.io.File(dir, "Uninstall PortalHost.bat")
+                                val result = UninstallHelper.saveTo(file)
+                                uninstallResult = if (result.isSuccess) {
+                                    "Saved to: ${file.absolutePath}"
+                                } else {
+                                    "Error: ${result.exceptionOrNull()?.message}"
+                                }
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(),
+                ) {
+                    Text("Choose Location")
+                }
+            }
+            if (uninstallResult != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(uninstallResult!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             }
         }
 
