@@ -4,6 +4,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class CachedResponse(
     val body: String,
@@ -110,5 +112,14 @@ object HttpCache {
     fun clear() {
         memoryCache.clear()
         cacheDir?.listFiles()?.forEach { it.delete() }
+    }
+
+    suspend fun fetchWithCacheSuspend(
+        url: String,
+        connectTimeoutMs: Int = 10000,
+        readTimeoutMs: Int = 15000,
+        maxRetries: Int = 2
+    ): Result<String> = withContext(Dispatchers.IO) {
+        fetchWithCache(url, connectTimeoutMs, readTimeoutMs, maxRetries)
     }
 }

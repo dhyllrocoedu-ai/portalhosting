@@ -5,9 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Column
-import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -102,43 +100,7 @@ fun TitleBar(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(start = 12.dp)
-                    .pointerInput(Unit) {
-                        detectDragGestures(
-                            onDragStart = {
-                                window?.let { w ->
-                                    java.awt.EventQueue.invokeLater {
-                                        w.cursor = java.awt.Cursor(java.awt.Cursor.MOVE_CURSOR)
-                                    }
-                                }
-                            },
-                            onDragEnd = {
-                                window?.let { w ->
-                                    java.awt.EventQueue.invokeLater {
-                                        w.cursor = java.awt.Cursor.getDefaultCursor()
-                                    }
-                                }
-                            },
-                            onDragCancel = {
-                                window?.let { w ->
-                                    java.awt.EventQueue.invokeLater {
-                                        w.cursor = java.awt.Cursor.getDefaultCursor()
-                                    }
-                                }
-                            }
-                        ) { change, dragAmount ->
-                            change.consume()
-                            window?.let { w ->
-                                val dx = dragAmount.x.roundToInt()
-                                val dy = dragAmount.y.roundToInt()
-                                if (dx != 0 || dy != 0) {
-                                    java.awt.EventQueue.invokeLater {
-                                        w.setLocation(w.x + dx, w.y + dy)
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    .padding(start = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (iconPainter != null) {

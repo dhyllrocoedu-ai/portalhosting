@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.0.57"
+version = "5.0.58"
 
 kotlin {
     jvm("desktop")
@@ -65,7 +65,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.0.57"
+            packageVersion = "5.0.58"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             modules("java.sql", "java.naming", "java.management", "java.net.http", "java.desktop")
@@ -83,5 +83,51 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         freeCompilerArgs.addAll(listOf("-opt-in=kotlin.RequiresOptIn"))
+    }
+}
+
+afterEvaluate {
+    tasks.named("packageMsi") {
+        doFirst {
+            val buildDir = layout.buildDirectory.get().asFile
+            val candidates = listOf(
+                File(buildDir, "compose/binaries/main/app/PortalHost"),
+                File(buildDir, "compose/binaries/main/msi/PortalHost"),
+                File(buildDir, "compose/jpackage/PortalHost"),
+                File(buildDir, "jpackage/PortalHost")
+            )
+            val stagingDir = candidates.firstOrNull { it.exists() }
+            if (stagingDir != null) {
+                val src = file("src/windows/jpackage/resources/Uninstall.bat")
+                if (src.exists()) {
+                    src.copyTo(File(stagingDir, "Uninstall.bat"), overwrite = true)
+                    logger.lifecycle("Copied Uninstall.bat to ${stagingDir.absolutePath}")
+                }
+            } else {
+                logger.warn("Could not find jpackage staging directory for Uninstall.bat")
+            }
+        }
+    }
+
+    tasks.named("packageExe") {
+        doFirst {
+            val buildDir = layout.buildDirectory.get().asFile
+            val candidates = listOf(
+                File(buildDir, "compose/binaries/main/app/PortalHost"),
+                File(buildDir, "compose/binaries/main/exe/PortalHost"),
+                File(buildDir, "compose/jpackage/PortalHost"),
+                File(buildDir, "jpackage/PortalHost")
+            )
+            val stagingDir = candidates.firstOrNull { it.exists() }
+            if (stagingDir != null) {
+                val src = file("src/windows/jpackage/resources/Uninstall.bat")
+                if (src.exists()) {
+                    src.copyTo(File(stagingDir, "Uninstall.bat"), overwrite = true)
+                    logger.lifecycle("Copied Uninstall.bat to ${stagingDir.absolutePath}")
+                }
+            } else {
+                logger.warn("Could not find jpackage staging directory for Uninstall.bat")
+            }
+        }
     }
 }

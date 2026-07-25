@@ -87,6 +87,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -245,7 +246,11 @@ fun CreateServerScreen(
     var retryTrigger by remember { mutableIntStateOf(0) }
     var importFolderPath by remember { mutableStateOf<String?>(null) }
     var importedServerProps by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-
+    val importReadyToCreate by remember(importFolderPath, jarPath, serverName) {
+        derivedStateOf {
+            importFolderPath?.isNotBlank() == true && jarPath?.isNotBlank() == true && serverName.isNotBlank()
+        }
+    }
     val serversDir = fileSystem.getServersDirBlocking()
     val availableBytes = serversDir.parentFile?.let { it.usableSpace } ?: 0L
     val requiredBytes = (maxRam * 1024 * 1024 * 1024).toLong() + 500_000_000L
@@ -303,9 +308,13 @@ fun CreateServerScreen(
     }
 
     LaunchedEffect(importFolderPath) {
-        if (importFolderPath.isNullOrBlank()) return@LaunchedEffect
+        if (importFolderPath.isNullOrBlank()) {
+            return@LaunchedEffect
+        }
         val folder = File(importFolderPath!!)
-        if (!folder.exists() || !folder.isDirectory) return@LaunchedEffect
+        if (!folder.exists() || !folder.isDirectory) {
+            return@LaunchedEffect
+        }
         val propsFile = File(folder, "server.properties")
         if (propsFile.exists()) {
             try {
@@ -524,6 +533,52 @@ fun CreateServerScreen(
             Spacer(Modifier.height(12.dp))
             Text("Selected: ${cs.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }} — $mcVersion",
                 color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (createSource == CreateSource.IMPORT_FOLDER && importFolderPath?.isNotBlank() == true) {
+            Spacer(Modifier.height(12.dp))
+            if (importReadyToCreate) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Import Ready", style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("Server folder \"$serverName\" detected with JAR and properties. Ready to create.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Will skip Version, Build, RAM, Properties, Storage steps. Go directly to EULA.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                    }
+                }
+            } else {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text("Import Incomplete", style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Selected folder must contain a server JAR file. No JAR found in folder.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f))
+                    }
+                }
+            }
         }
     }
 
@@ -937,7 +992,13 @@ fun CreateServerScreen(
                                             errorMessage = "Please select a Minecraft version"
                                             return@Button
                                         }
-                                        currentStep++
+                                        
+                                        // Auto-skip to EULA if importing folder with valid server
+                                        if (importReadyToCreate) {
+                                            currentStep = 5  // Jump to EULA step (step 5)
+                                        } else {
+                                            currentStep++
+                                        }
                                     }
                                     else -> currentStep++
                                 }
@@ -978,6 +1039,17 @@ fun CreateServerScreen(
                                         CreateSource.DOWNLOAD_PURPUR -> "purpur"
                                         else -> "custom"
                                     }
+                                    
+                                    // Use imported properties when available (for IMPORT_FOLDER)
+                                    val importedGamemode = importedServerProps["gamemode"] ?: "survival"
+                                    val importedDifficulty = importedServerProps["difficulty"] ?: "easy"
+                                    val importedMotd = importedServerProps["motd"] ?: "A Minecraft Server"
+                                    val importedPort = importedServerProps["server-port"]?.toIntOrNull() ?: 25565
+                                    val importedPvp = importedServerProps["pvp"]?.toBooleanStrictOrNull() ?: true
+                                    val importedOnlineMode = importedServerProps["online-mode"]?.toBooleanStrictOrNull() ?: true
+                                    val importedWhitelist = importedServerProps["white-list"]?.toBooleanStrictOrNull() ?: false
+                                    val importedSpawnProtection = importedServerProps["spawn-protection"] ?: "0"
+
                                     val config = ServerConfig(
                                         name = serverName.ifBlank { "My Server" },
                                         version = mcVersion.ifBlank { "latest" },
@@ -996,18 +1068,18 @@ fun CreateServerScreen(
                                         javaVersion = selectedJavaVersion,
                                         memoryMin = (minRam * 1024).toInt(),
                                         memoryMax = (maxRam * 1024).toInt(),
-                                        port = port.toIntOrNull() ?: 25565,
+                                        port = if (importReadyToCreate) importedPort else port.toIntOrNull() ?: 25565,
                                         autoRestart = true,
                                         rconEnabled = false,
                                         rconPort = 25575,
                                         properties = mapOf(
-                                            "gamemode" to gamemode,
-                                            "difficulty" to difficulty,
-                                            "motd" to motd.text,
-                                            "pvp" to "true",
-                                            "online-mode" to "true",
-                                            "white-list" to "false",
-                                            "spawn-protection" to "0",
+                                            "gamemode" to (if (importReadyToCreate) importedGamemode else gamemode),
+                                            "difficulty" to (if (importReadyToCreate) importedDifficulty else difficulty),
+                                            "motd" to (if (importReadyToCreate) importedMotd else motd.text),
+                                            "pvp" to (if (importReadyToCreate) importedPvp.toString() else "true"),
+                                            "online-mode" to (if (importReadyToCreate) importedOnlineMode.toString() else "true"),
+                                            "white-list" to (if (importReadyToCreate) importedWhitelist.toString() else "false"),
+                                            "spawn-protection" to (if (importReadyToCreate) importedSpawnProtection else "0"),
                                         ),
                                     )
 

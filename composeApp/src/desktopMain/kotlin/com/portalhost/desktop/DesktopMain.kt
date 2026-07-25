@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -232,6 +233,15 @@ fun main() {
             undecorated = true,
         ) {
             val awtWindow = this.window
+
+            DisposableEffect(awtWindow) {
+                val scale = try { awtWindow.graphicsConfiguration.defaultTransform.scaleX } catch (_: Exception) { 1.0 }
+                val titleBarHeightPx = (40 * scale).toInt()
+                val handler = com.portalhost.desktop.window.NativeTitleBarDragHandler(awtWindow, titleBarHeightPx)
+                handler.install()
+                onDispose { handler.uninstall() }
+            }
+
             MaterialTheme(colorScheme = colorScheme) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     DesktopApp(

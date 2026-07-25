@@ -17,9 +17,10 @@ class ForgeProvider : ServerProvider {
     
     private val baseUrl = "https://maven.minecraftforge.net/net/minecraftforge/forge"
     private val json = Json { ignoreUnknownKeys = true }
+    private val buildsCache = mutableMapOf<String, List<ServerBuild>>()
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> {
-        return HttpCache.fetchWithCache("$baseUrl/maven-metadata.xml")
+        return HttpCache.fetchWithCacheSuspend("$baseUrl/maven-metadata.xml")
             .map { response ->
                 parseMavenMetadata(response)
                     .filter { it.startsWith("1.") }
@@ -29,9 +30,10 @@ class ForgeProvider : ServerProvider {
     }
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> {
-        return HttpCache.fetchWithCache("$baseUrl/$version/maven-metadata.xml")
+        buildsCache[version]?.let { return Result.success(it) }
+        return HttpCache.fetchWithCacheSuspend("$baseUrl/$version/maven-metadata.xml")
             .map { response ->
-                parseMavenMetadataBuilds(response)
+                val builds = parseMavenMetadataBuilds(response)
                     .filter { it.contains(version) && it.length > version.length }
                     .map { build ->
                         ServerBuild(
@@ -42,6 +44,8 @@ class ForgeProvider : ServerProvider {
                         )
                     }
                     .sortedWith(compareByDescending { parseSemver(it.id) })
+                buildsCache[version] = builds
+                builds
             }
     }
 

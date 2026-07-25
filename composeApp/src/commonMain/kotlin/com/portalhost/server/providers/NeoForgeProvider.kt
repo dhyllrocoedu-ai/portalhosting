@@ -17,10 +17,13 @@ class NeoForgeProvider : ServerProvider {
     
     private val baseUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge"
     private val json = Json { ignoreUnknownKeys = true }
+    private val buildsCache = mutableMapOf<String, List<ServerBuild>>()
+    private var cachedMetadataXml: String? = null
 
     override suspend fun fetchVersions(): Result<List<ServerVersion>> {
-        return HttpCache.fetchWithCache("$baseUrl/maven-metadata.xml")
+        return HttpCache.fetchWithCacheSuspend("$baseUrl/maven-metadata.xml")
             .map { response ->
+                cachedMetadataXml = response
                 val allVersions = parseMavenMetadata(response)
                 val mcVersions = mutableSetOf<String>()
                 for (v in allVersions) {
@@ -43,26 +46,39 @@ class NeoForgeProvider : ServerProvider {
     }
 
     override suspend fun fetchBuilds(version: String): Result<List<ServerBuild>> {
-        return HttpCache.fetchWithCache("$baseUrl/maven-metadata.xml")
-            .map { response ->
-                val allVersions = parseMavenMetadataBuilds(response)
-                val neoPrefix = version.removePrefix("1.")
-                val matchingBuilds = allVersions.filter { v ->
-                    v.startsWith("$version-") ||
-                        (neoPrefix.isNotEmpty() && neoPrefix.all { it.isDigit() || it == '.' } &&
-                            v.startsWith(neoPrefix + "."))
+        buildsCache[version]?.let { return Result.success(it) }
+        val xml = cachedMetadataXml
+        return if (xml != null) {
+            Result.success(parseBuildsFromXml(xml, version))
+        } else {
+            HttpCache.fetchWithCacheSuspend("$baseUrl/maven-metadata.xml")
+                .map { response ->
+                    cachedMetadataXml = response
+                    parseBuildsFromXml(response, version)
                 }
-                matchingBuilds
-                    .map { build ->
-                        ServerBuild(
-                            id = build,
-                            url = "$baseUrl/$build/neoforge-$build-installer.jar",
-                            sha256 = null,
-                            size = 0
-                        )
-                    }
-                    .sortedWith(compareByDescending { parseSemver(it.id) })
+        }
+    }
+
+    private fun parseBuildsFromXml(xml: String, version: String): List<ServerBuild> {
+        val allVersions = parseMavenMetadataBuilds(xml)
+        val neoPrefix = version.removePrefix("1.")
+        val matchingBuilds = allVersions.filter { v ->
+            v.startsWith("$version-") ||
+                (neoPrefix.isNotEmpty() && neoPrefix.all { it.isDigit() || it == '.' } &&
+                    v.startsWith(neoPrefix + "."))
+        }
+        val builds = matchingBuilds
+            .map { build ->
+                ServerBuild(
+                    id = build,
+                    url = "$baseUrl/$build/neoforge-$build-installer.jar",
+                    sha256 = null,
+                    size = 0
+                )
             }
+            .sortedWith(compareByDescending { parseSemver(it.id) })
+        buildsCache[version] = builds
+        return builds
     }
 
     override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = runCatching {
