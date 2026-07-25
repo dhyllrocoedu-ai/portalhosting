@@ -121,11 +121,23 @@ object UpdateChecker {
             destination.parentFile?.mkdirs()
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+
+            if (url.contains("github.com") && !githubToken.isNullOrBlank()) {
+                connection.setRequestProperty("Authorization", "Bearer $githubToken")
+            }
+
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
 
             if (connection.responseCode != 200) {
-                return@withContext Result.failure(Exception("HTTP ${connection.responseCode}"))
+                val code = connection.responseCode
+                connection.disconnect()
+                val msg = if (code == 403) {
+                    "Authentication required. Set a GitHub token in Settings > Updates."
+                } else {
+                    "HTTP $code"
+                }
+                return@withContext Result.failure(Exception(msg))
             }
 
             val contentLength = connection.contentLengthLong.coerceAtLeast(0)

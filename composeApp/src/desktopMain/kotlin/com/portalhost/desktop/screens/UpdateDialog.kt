@@ -236,21 +236,20 @@ fun UpdateDialog(
                     }
                 }
                 is UpdateDownloadState.Error -> {
-                    if (state.retriesLeft > 0) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
-                            downloadState = UpdateDownloadState.Idle
+                            try { Desktop.getDesktop().browse(URI(updateInfo.downloadUrl)) } catch (_: Exception) {}
+                            onDismiss()
                         }) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Retry")
+                            Text("Open in Browser")
                         }
-                    } else {
-                        Row {
+                        if (state.retriesLeft > 0) {
                             Button(onClick = {
-                                try { Desktop.getDesktop().browse(URI("https://portalhost.pages.dev")) } catch (_: Exception) {}
-                                onDismiss()
+                                downloadState = UpdateDownloadState.Idle
                             }) {
-                                Text("Download Manually")
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Retry")
                             }
                         }
                     }
