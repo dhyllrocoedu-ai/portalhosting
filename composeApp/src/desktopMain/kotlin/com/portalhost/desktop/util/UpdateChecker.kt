@@ -6,6 +6,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mu.KotlinLogging
@@ -40,9 +43,6 @@ sealed class UpdateResult {
 object UpdateChecker {
     private const val WEBSITE_LATEST_URL = "https://portalhost.pages.dev/latest.json"
     private const val WEBSITE_CHANGELOG_URL = "https://portalhost.pages.dev/changelog.json"
-    private const val GITHUB_API_URL = "https://api.github.com/repos/dhyllrocoedu-ai/portalhosting/releases/latest"
-    private const val GITHUB_HTML_URL = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest"
-    private const val GITHUB_DOWNLOAD_URL = "https://github.com/dhyllrocoedu-ai/portalhosting/releases/latest/download"
     private const val CACHE_DURATION_MS = 3_600_000L // 1 hour
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -66,10 +66,11 @@ object UpdateChecker {
             return@withContext websiteResult
         }
 
-        val githubResult = tryGithubApiCheck()
-        cachedResult = githubResult
+        // No GitHub fallback - website is the only source
+        val errorResult = UpdateResult.Error("Unable to check for updates: website unavailable")
+        cachedResult = errorResult
         lastCheckTime = System.currentTimeMillis()
-        githubResult
+        errorResult
     }
 
     suspend fun fetchChangelog(): List<ChangelogEntry> = withContext(Dispatchers.IO) {
@@ -121,23 +122,11 @@ object UpdateChecker {
             destination.parentFile?.mkdirs()
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
-
-            if (url.contains("github.com") && !githubToken.isNullOrBlank()) {
-                connection.setRequestProperty("Authorization", "Bearer $githubToken")
-            }
-
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
 
             if (connection.responseCode != 200) {
-                val code = connection.responseCode
-                connection.disconnect()
-                val msg = if (code == 403) {
-                    "Authentication required. Set a GitHub token in Settings > Updates."
-                } else {
-                    "HTTP $code"
-                }
-                return@withContext Result.failure(Exception(msg))
+                return@withContext Result.failure(Exception("HTTP ${connection.responseCode}"))
             }
 
             val contentLength = connection.contentLengthLong.coerceAtLeast(0)
@@ -228,107 +217,6 @@ object UpdateChecker {
         } catch (e: Exception) {
             logger.warn { "Website update check failed: ${e.message}" }
             return null
-        }
-    }
-
-    private fun tryGithubApiCheck(): UpdateResult {
-        try {
-            val connection = URL(GITHUB_API_URL).openConnection() as HttpURLConnection
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
-            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
-
-            githubToken?.let { token ->
-                connection.setRequestProperty("Authorization", "Bearer $token")
-            }
-
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-
-            val responseCode = connection.responseCode
-            if (responseCode == 403) {
-                return UpdateResult.Error("GitHub API rate limited. Try again later.")
-            }
-            if (responseCode == 404 || responseCode != 200) {
-                logger.warn { "GitHub API returned $responseCode, trying HTML fallback" }
-                return tryHtmlFallback()
-            }
-
-            val body = connection.inputStream.bufferedReader().readText()
-            connection.disconnect()
-
-            val root = json.parseToJsonElement(body).jsonObject
-            val tagName = root["tag_name"]?.jsonPrimitive?.content?.removePrefix("v") ?: ""
-            val htmlUrl = root["html_url"]?.jsonPrimitive?.content ?: ""
-            val releaseNotes = root["body"]?.jsonPrimitive?.content?.take(200) ?: ""
-
-            if (tagName.isBlank()) {
-                return UpdateResult.Error("Invalid release data from GitHub")
-            }
-
-            val currentVersion = BuildConfig.VERSION_NAME
-            return if (isNewerVersion(tagName, currentVersion)) {
-                UpdateResult.UpdateAvailable(
-                    UpdateInfo(
-                        latestVersion = tagName,
-                        downloadUrl = "$GITHUB_DOWNLOAD_URL/v$tagName/PortalHost-$tagName.msi",
-                        releaseNotes = releaseNotes,
-                    )
-                )
-            } else {
-                UpdateResult.UpToDate
-            }
-        } catch (e: Exception) {
-            logger.warn { "Update check failed: ${e.message}" }
-            return tryHtmlFallback()
-        }
-    }
-
-    private fun tryHtmlFallback(): UpdateResult {
-        try {
-            val connection = URL(GITHUB_HTML_URL).openConnection() as HttpURLConnection
-
-            githubToken?.let { token ->
-                connection.setRequestProperty("Authorization", "Bearer $token")
-            }
-
-            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-
-            val responseCode = connection.responseCode
-            if (responseCode != 200) {
-                connection.disconnect()
-                return UpdateResult.Error("Unable to check for updates (HTTP $responseCode)")
-            }
-
-            val body = connection.inputStream.bufferedReader().readText()
-            connection.disconnect()
-
-            val tagMatch = Regex("""/releases/tag/v?([0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9]+)?)""").find(body)
-            val notesMatch = Regex("""<h2[^>]*>([^<]+)</h2>""").find(body)
-
-            val tagName = tagMatch?.groupValues?.getOrNull(1) ?: ""
-            val releaseNotes = notesMatch?.groupValues?.getOrNull(1)?.take(200) ?: ""
-
-            if (tagName.isBlank()) {
-                return UpdateResult.Error("Unable to parse release info from GitHub")
-            }
-
-            val currentVersion = BuildConfig.VERSION_NAME
-            return if (isNewerVersion(tagName, currentVersion)) {
-                UpdateResult.UpdateAvailable(
-                    UpdateInfo(
-                        latestVersion = tagName,
-                        downloadUrl = "$GITHUB_DOWNLOAD_URL/v$tagName/PortalHost-$tagName.msi",
-                        releaseNotes = releaseNotes,
-                    )
-                )
-            } else {
-                UpdateResult.UpToDate
-            }
-        } catch (e: Exception) {
-            logger.warn { "HTML fallback update check failed: ${e.message}" }
-            return UpdateResult.Error("Network error: ${e.message ?: "Unknown error"}")
         }
     }
 
