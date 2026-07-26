@@ -74,22 +74,46 @@ class ServerManager(
         val consoleMap = mutableMapOf<String, List<String>>()
         for ((id, config) in serversMap) {
             val serverDir = getServerDir(config)
-            serverDir.mkdirs()
-            val oldJar = File(serversDir, "$id.jar")
-            val newJar = File(serverDir, "$id.jar")
-            if (oldJar.exists() && !newJar.exists()) {
-                oldJar.renameTo(newJar)
-            }
-            // Clean up empty UUID-named folder if it exists and is different from the resolved serverDir
+            val nameFolder = serverDir
             val uuidFolder = File(serversDir, id)
-            if (uuidFolder.exists() && uuidFolder != serverDir) {
-                if (uuidFolder.listFiles()?.isEmpty() == true) {
+
+            if (uuidFolder.exists() && uuidFolder != nameFolder) {
+                migrateServerFiles(uuidFolder, nameFolder)
+                if (uuidFolder.exists() && uuidFolder.listFiles()?.isEmpty() == true) {
                     uuidFolder.delete()
                 }
             }
+
+            serverDir.mkdirs()
+            val oldJar = File(serversDir, "$id.jar")
+            val newJar = File(serverDir, "${id}.jar")
+            if (oldJar.exists() && !newJar.exists()) {
+                oldJar.renameTo(newJar)
+            }
+            if (oldJar.exists() && newJar.exists()) {
+                oldJar.delete()
+            }
+
             consoleMap[id] = database.getConsoleLogs(id)
         }
         _consoleOutputs.value = consoleMap
+    }
+
+    private fun migrateServerFiles(source: File, dest: File) {
+        if (!source.exists() || source == dest) return
+        try {
+            source.listFiles()?.forEach { file ->
+                val destFile = File(dest, file.name)
+                if (file.isDirectory) {
+                    file.copyRecursively(destFile, overwrite = true)
+                } else if (!destFile.exists()) {
+                    file.copyTo(destFile)
+                }
+            }
+            logger.info { "Migrated server files from ${source.absolutePath} to ${dest.absolutePath}" }
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to migrate server files from ${source.absolutePath} to ${dest.absolutePath}" }
+        }
     }
 
     private fun sanitizeFolderName(name: String): String {
@@ -98,13 +122,7 @@ class ServerManager(
     }
 
     private fun getServerDir(config: ServerConfig): File {
-        val nameFolder = File(serversDir, sanitizeFolderName(config.name))
-        val uuidFolder = File(serversDir, config.id)
-        return when {
-            nameFolder.exists() -> nameFolder.also { it.mkdirs() }
-            uuidFolder.exists() -> uuidFolder.also { it.mkdirs() }
-            else -> nameFolder.also { it.mkdirs() }
-        }
+        return File(serversDir, sanitizeFolderName(config.name)).also { it.mkdirs() }
     }
 
     private fun getServerDir(serverId: String): File {

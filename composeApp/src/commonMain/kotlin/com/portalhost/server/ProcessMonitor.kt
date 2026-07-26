@@ -55,11 +55,16 @@ class ProcessMonitor {
 
     private fun getPid(process: java.lang.Process): Int? {
         return try {
-            val pidField = process::class.java.getDeclaredField("pid")
-            pidField.isAccessible = true
-            pidField.getInt(process)
+            val pid = process.pid()
+            if (pid > 0) pid.toInt() else null
         } catch (_: Exception) {
-            null
+            try {
+                val pidField = process::class.java.getDeclaredField("pid")
+                pidField.isAccessible = true
+                pidField.getInt(process)
+            } catch (_: Exception) {
+                null
+            }
         }
     }
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -49,10 +50,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.portalhost.java.JdkManager
+import com.portalhost.native.NativeFilePicker
+import com.portalhost.native.PickConfig
 import com.portalhost.preferences.Preferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import java.io.File
 
 @Composable
 fun WelcomeScreen(
@@ -72,8 +76,16 @@ fun WelcomeScreen(
     var jdkSkipped by remember { mutableStateOf(false) }
 
     var dataFolderCreated by remember { mutableStateOf(false) }
+    var selectedDataDir by remember { mutableStateOf("") }
     var prefsConfigured by remember { mutableStateOf(false) }
     var showSkipDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        selectedDataDir = preferences.dataDirectory.value.ifBlank {
+            System.getProperty("user.home")?.let { File(it, ".portalhost").absolutePath }
+                ?: ".portalhost"
+        }
+    }
 
     LaunchedEffect(jdkInstalling) {
         if (jdkInstalling) {
@@ -86,10 +98,6 @@ fun WelcomeScreen(
     LaunchedEffect(currentStep) {
         when (currentStep) {
             1 -> {
-                if (!dataFolderCreated) {
-                    delay(500)
-                    dataFolderCreated = true
-                }
             }
             2 -> {
                 if (!jdkInstalled && !jdkSkipped && !jdkInstalling) {
@@ -137,12 +145,13 @@ fun WelcomeScreen(
                         description = "Manage your Minecraft Java Edition servers with ease. This quick setup will configure your data folder, install the Java runtime, and get you started in minutes.",
                         subtitle = "Click Next to begin the setup process."
                     )
-                    1 -> SetupStepContent(
-                        icon = Icons.Default.CreateNewFolder,
-                        title = "Data Folder",
-                        description = "Portal Host stores server data, JDKs, and configurations in a dedicated data folder on your computer.",
-                        isComplete = dataFolderCreated,
-                        statusText = if (dataFolderCreated) "Data folder ready" else "Setting up data folder..."
+                    1 -> DataFolderStep(
+                        currentPath = selectedDataDir,
+                        onPathChange = { selectedDataDir = it },
+                        onConfirm = {
+                            preferences.dataDirectory.value = selectedDataDir
+                            dataFolderCreated = true
+                        }
                     )
                     2 -> JdkInstallStep(
                         isInstalling = jdkInstalling,
@@ -516,6 +525,106 @@ private fun JdkInstallStep(
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun DataFolderStep(
+    currentPath: String,
+    onPathChange: (String) -> Unit,
+    onConfirm: () -> Unit
+) {
+    val filePicker = remember { NativeFilePicker() }
+    val scope = rememberCoroutineScope()
+    var isConfirming by remember { mutableStateOf(false) }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier.size(120.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(60.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(64.dp)
+            )
+        }
+        Text(
+            text = "Data Folder",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = "Choose where Portal Host will store server data, JDKs, and configurations.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Current location:",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = currentPath,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                val result = filePicker.pickDirectory(PickConfig(title = "Select Data Folder"))
+                                result.getOrNull()?.let { uri ->
+                                    onPathChange(uri.path)
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CreateNewFolder,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Browse")
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = {
+                isConfirming = true
+                onConfirm()
+            },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)
+        ) {
+            Text("Use This Location")
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 8.dp).size(18.dp)
+            )
         }
     }
 }

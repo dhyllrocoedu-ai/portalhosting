@@ -4,6 +4,8 @@ import com.portalhost.db.DatabaseDriverFactory
 import com.portalhost.db.DatabaseRepository
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.log.LogRepository
+import com.portalhost.marketplace.MarketplaceRepository
+import com.portalhost.marketplace.MarketplacePreferences
 import com.portalhost.preferences.Preferences
 import com.portalhost.process.ProcessManager
 import com.portalhost.server.ActivityLog
@@ -67,6 +69,9 @@ fun commonModule() = module {
             activityLog = get(),
         )
     }
+
+    single { MarketplaceRepository() }
+    single { MarketplacePreferences() }
 }
 
 fun initKoin(platformModule: Module) {

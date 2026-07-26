@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.Density
 import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
+import com.portalhost.desktop.screens.MarketplaceScreen
 import com.portalhost.desktop.screens.PlayerManagementScreen
 import com.portalhost.desktop.screens.ServerConsoleScreen
 import com.portalhost.desktop.screens.ServerDetailScreen
@@ -71,6 +72,7 @@ sealed class Screen {
     object Create : Screen()
     object Settings : Screen()
     data class Players(val serverId: String) : Screen()
+    object Marketplace : Screen()
 }
 
 @Composable
@@ -164,6 +166,7 @@ fun NavSidebar(
 
     val homeIcon = rememberResourcePainter("/icons/plains_small_house_3.png")
     val serversIcon = rememberResourcePainter("/icons/ender_dragon_portal.png")
+    val marketplaceIcon = rememberResourcePainter("/icons/Chest.png")
     val settingsActive = rememberResourcePainter("/icons/armadillo.webp")
     val settingsInactive = rememberResourcePainter("/icons/armadillo_rolled.webp")
 
@@ -208,6 +211,13 @@ fun NavSidebar(
                     selected = currentScreen is Screen.Servers,
                     expanded = expanded,
                     onClick = { onScreenChange(Screen.Servers) }
+                )
+                NavItem(
+                    label = "Add-ons",
+                    iconPainter = marketplaceIcon,
+                    selected = currentScreen is Screen.Marketplace,
+                    expanded = expanded,
+                    onClick = { onScreenChange(Screen.Marketplace) }
                 )
                 NavItem(
                     label = "Settings",
@@ -301,6 +311,7 @@ fun ScreenContent(
         onBack = { onNavigate(Screen.Home) }
     )
     Screen.Settings -> SettingsScreen()
+    Screen.Marketplace -> MarketplaceScreen()
 }
 
 @Composable

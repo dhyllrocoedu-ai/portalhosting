@@ -105,6 +105,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -393,14 +394,40 @@ fun DashboardScreen(
                     onCommandInputChange = { commandInput = it }
                 )
 
-                PlayerListCard(
-                    players = activeState?.players ?: emptyList(),
-                    onlineCount = activeState?.playersOnline ?: 0,
-                    maxPlayers = activeState?.maxPlayers ?: 20,
-                    onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
-                )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val useTwoColumnLayout = maxWidth >= 900.dp
 
-                ActivityCard(activities = activities)
+                    if (useTwoColumnLayout) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            PlayerListCard(
+                                modifier = Modifier.weight(1f),
+                                players = activeState?.players ?: emptyList(),
+                                onlineCount = activeState?.playersOnline ?: 0,
+                                maxPlayers = activeState?.maxPlayers ?: 20,
+                                onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
+                            )
+
+                            ActivityCard(
+                                modifier = Modifier.weight(1f),
+                                activities = activities
+                            )
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            PlayerListCard(
+                                players = activeState?.players ?: emptyList(),
+                                onlineCount = activeState?.playersOnline ?: 0,
+                                maxPlayers = activeState?.maxPlayers ?: 20,
+                                onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
+                            )
+
+                            ActivityCard(activities = activities)
+                        }
+                    }
+                }
         }
     }
 
@@ -1281,9 +1308,12 @@ private fun ConsoleCard(
 }
 
 @Composable
-private fun ActivityCard(activities: List<ActivityEntry>) {
+private fun ActivityCard(
+    modifier: Modifier = Modifier,
+    activities: List<ActivityEntry>
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
@@ -1359,13 +1389,14 @@ private fun ActivityRow(entry: ActivityEntry) {
 
 @Composable
 private fun PlayerListCard(
+    modifier: Modifier = Modifier,
     players: List<String> = emptyList(),
     onlineCount: Int = players.size,
     maxPlayers: Int = 20,
     onOpenPlayers: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
