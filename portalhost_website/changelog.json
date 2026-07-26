@@ -7,6 +7,13 @@
     "notes": "<p><strong>Desktop v5.0.59</strong></p><ul><li><strong>New: Welcome screen data directory selection.</strong> First-run wizard now includes a dedicated step where users can browse and select their preferred data folder location for storing servers, JDKs, and configurations.</li><li><strong>Fixed: Dashboard responsive layout.</strong> Online Players and Recent Activity cards now display side-by-side in a 50/50 split at screen widths 900px and above, collapsing to a single column on smaller screens.</li><li><strong>Fixed: Marketplace pagination.</strong> Fixed offset tracking for lazy-loaded search results. Load-more now correctly resumes from the correct position instead of restarting from offset 0.</li><li><strong>Fixed: Marketplace changelog URL fallback.</strong> Added cross-platform fallback for opening changelog URLs when Java Desktop API is unavailable, trying xdg-open (Linux) and cmd /c start (Windows) in sequence.</li></ul>"
   },
   {
+    "version": "5.0.40-mobilev2",
+    "date": "2026-07-25",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Mobile v5.0.40-mobilev2</strong></p><ul><li><strong>New: Add-ons tab.</strong> Added dedicated Add-ons navigation tab with Chest icon for future Modrinth marketplace integration.</li><li><strong>Fixed: ConsoleScreen drawable references.</strong> Added missing R class import for drawable resources in ConsoleScreen.</li><li><strong>Improved: Navigation bar stability.</strong> Fixed layout size import in AppNavigation.</li></ul>"
+  },
+  {
     "version": "5.0.58",
     "date": "2026-07-25",
     "platform": "desktop",

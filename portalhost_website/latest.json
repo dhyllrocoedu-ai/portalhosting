@@ -10,9 +10,9 @@
     "size": 128066048
   },
   "android": {
-    "version": "5.0.30",
-    "date": "2026-07-24",
-    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.30-desktop/PortalHost.apk",
+    "version": "5.0.40-mobilev2",
+    "date": "2026-07-25",
+    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.40-mobilev2/PortalHost.apk",
     "size": 15000000
   }
 }
