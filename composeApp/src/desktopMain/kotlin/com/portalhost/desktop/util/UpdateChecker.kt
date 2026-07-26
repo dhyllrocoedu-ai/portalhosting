@@ -94,7 +94,14 @@ object UpdateChecker {
             return@withContext websiteResult
         }
 
-        val errorResult = UpdateResult.Error("Unable to check for updates: website unavailable")
+        val githubResult = tryGithubCheck()
+        if (githubResult != null) {
+            cachedResult = githubResult
+            lastCheckTime = System.currentTimeMillis()
+            return@withContext githubResult
+        }
+
+        val errorResult = UpdateResult.Error("Unable to check for updates: website and GitHub unavailable")
         cachedResult = errorResult
         lastCheckTime = System.currentTimeMillis()
         errorResult
@@ -241,6 +248,61 @@ object UpdateChecker {
             }
         } catch (e: Exception) {
             logger.warn { "Website update check failed: ${e.message}" }
+            null
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private suspend fun tryGithubCheck(): UpdateResult? {
+        val token = githubToken?.takeIf { it.isNotBlank() }
+        val latestReleaseUrl = "https://api.github.com/repos/dhyllrocoedu-ai/portalhosting/releases/latest"
+        val connection = URL(latestReleaseUrl).openConnection() as HttpURLConnection
+        return try {
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+            token?.let { connection.setRequestProperty("Authorization", "Bearer $it") }
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+
+            if (connection.responseCode == 404) {
+                logger.warn { "GitHub release not found (404)" }
+                return null
+            }
+            if (connection.responseCode != 200) {
+                logger.warn { "GitHub API returned ${connection.responseCode}" }
+                return null
+            }
+
+            val body = connection.inputStream.bufferedReader().readText()
+            val root = json.parseToJsonElement(body).jsonObject
+            val tagName = root["tag_name"]?.jsonPrimitive?.content ?: ""
+            val version = tagName.removePrefix("v").removeSuffix("--desktopv2").trim()
+            val htmlUrl = root["html_url"]?.jsonPrimitive?.content ?: ""
+            val bodyText = root["body"]?.jsonPrimitive?.content ?: ""
+            val dateStr = root["published_at"]?.jsonPrimitive?.content?.take(10) ?: ""
+
+            if (version.isBlank() || htmlUrl.isBlank()) {
+                logger.warn { "Invalid GitHub release data" }
+                return null
+            }
+
+            val currentVersion = BuildConfig.VERSION_NAME
+            if (isNewerVersion(version, currentVersion)) {
+                val releaseNotes = "Released $dateStr. See GitHub for full changelog."
+                UpdateResult.UpdateAvailable(
+                    UpdateInfo(
+                        latestVersion = version,
+                        downloadUrl = htmlUrl,
+                        releaseNotes = releaseNotes,
+                        changelog = emptyList(),
+                    )
+                )
+            } else {
+                UpdateResult.UpToDate
+            }
+        } catch (e: Exception) {
+            logger.warn { "GitHub update check failed: ${e.message}" }
             null
         } finally {
             connection.disconnect()
