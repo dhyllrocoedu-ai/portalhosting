@@ -51,5 +51,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "PortalHost"
 include(":app")
-include(":composeApp")
-project(":composeApp").projectDir = file("../composeApp")

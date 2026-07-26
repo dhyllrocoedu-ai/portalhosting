@@ -11,6 +11,7 @@ enum class AppTab(
 ) {
     HOME("Home", Icons.Default.Home, "home"),
     SERVERS("Servers", Icons.Default.Dns, "servers"),
+    ADDONS("Add-ons", Icons.Default.Extension, "addons"),
     SETTINGS("Settings", Icons.Default.Settings, "settings")
 }
 

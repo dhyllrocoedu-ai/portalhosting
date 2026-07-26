@@ -6,6 +6,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -89,6 +90,7 @@ fun AppNavigation(
                                 when (tab) {
                                     AppTab.HOME -> Icon(painter = painterResource(R.drawable.savanna_small_house_7), contentDescription = "Home", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
                                     AppTab.SERVERS -> Icon(painter = painterResource(R.drawable.ender_dragon_portal), contentDescription = "Servers", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
+                                    AppTab.ADDONS -> Icon(painter = painterResource(R.drawable.chest), contentDescription = "Add-ons", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
                                     AppTab.SETTINGS -> Icon(painter = painterResource(if (selected) R.drawable.armadillo else R.drawable.armadillo_rolled), contentDescription = "Settings", modifier = Modifier.size(20.dp), tint = Color.Unspecified)
                                 }
                             },
@@ -189,6 +191,10 @@ fun AppNavigation(
                         appState.deleteServer(server)
                     }
                 )
+            }
+
+            composable(AppTab.ADDONS.route) {
+                AddonsScreen(onBack = { navController.popBackStack() })
             }
 
             composable(Routes.FULL_CONSOLE) {
