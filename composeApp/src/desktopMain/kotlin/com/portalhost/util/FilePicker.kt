@@ -2,12 +2,30 @@ package com.portalhost.util
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.awt.FileDialog
-import java.awt.Frame
 import java.io.File
-import java.io.FilenameFilter
 import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
+import javax.swing.filechooser.FileNameExtensionFilter
+
+private fun <T> runInEventDispatchThread(block: () -> T): T {
+    if (SwingUtilities.isEventDispatchThread()) {
+        return block()
+    }
+    val result = java.util.concurrent.atomic.AtomicReference<T?>()
+    val latch = java.util.concurrent.CountDownLatch(1)
+    SwingUtilities.invokeLater {
+        try {
+            result.set(block())
+        } catch (_: Exception) {
+            result.set(null)
+        } finally {
+            latch.countDown()
+        }
+    }
+    latch.await()
+    @Suppress("UNCHECKED_CAST")
+    return result.get() as T
+}
 
 suspend fun pickFile(
     title: String = "Select File",
@@ -15,21 +33,28 @@ suspend fun pickFile(
     directory: File? = null,
     multiSelection: Boolean = false,
 ): List<File> = withContext(Dispatchers.IO) {
-    System.setProperty("awt.fileDialog.useNativeLF", "true")
+    runInEventDispatchThread {
+        val chooser = JFileChooser()
+        chooser.dialogTitle = title
+        chooser.fileSelectionMode = JFileChooser.FILES_ONLY
+        chooser.isMultiSelectionEnabled = multiSelection
+        directory?.let { chooser.currentDirectory = it }
 
-    val dialog = FileDialog(null as Frame?, title, FileDialog.LOAD)
-    dialog.isMultipleMode = multiSelection
-    if (extensionFilter != null) {
-        val exts = extensionFilter.second.map { ".${it.lowercase()}" }.toTypedArray()
-        dialog.filenameFilter = FilenameFilter { _, name ->
-            exts.any { name.lowercase().endsWith(it) }
+        if (extensionFilter != null) {
+            chooser.fileFilter = FileNameExtensionFilter(
+                extensionFilter.first,
+                *extensionFilter.second.map { it.lowercase() }.toTypedArray()
+            )
+        }
+
+        val returnVal = chooser.showOpenDialog(null)
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            val selected = if (multiSelection) chooser.selectedFiles else arrayOf(chooser.selectedFile)
+            selected.filterNotNull().toList()
+        } else {
+            emptyList()
         }
     }
-    directory?.let { dialog.directory = it.absolutePath }
-
-    dialog.isVisible = true
-    val files = dialog.files
-    if (files != null && files.isNotEmpty()) files.toList() else emptyList()
 }
 
 suspend fun pickSaveFile(
@@ -38,53 +63,37 @@ suspend fun pickSaveFile(
     defaultName: String? = null,
     directory: File? = null,
 ): File? = withContext(Dispatchers.IO) {
-    System.setProperty("awt.fileDialog.useNativeLF", "true")
+    runInEventDispatchThread {
+        val chooser = JFileChooser()
+        chooser.dialogTitle = title
+        chooser.fileSelectionMode = JFileChooser.FILES_ONLY
+        directory?.let { chooser.currentDirectory = it }
+        defaultName?.let { chooser.selectedFile = File(it) }
 
-    val dialog = FileDialog(null as Frame?, title, FileDialog.SAVE)
-    if (extensionFilter != null) {
-        val exts = extensionFilter.second.map { ".${it.lowercase()}" }.toTypedArray()
-        dialog.filenameFilter = FilenameFilter { _, name ->
-            exts.any { name.lowercase().endsWith(it) }
+        if (extensionFilter != null) {
+            chooser.fileFilter = FileNameExtensionFilter(
+                extensionFilter.first,
+                *extensionFilter.second.map { it.lowercase() }.toTypedArray()
+            )
         }
-    }
-    directory?.let { dialog.directory = it.absolutePath }
-    defaultName?.let { dialog.file = it }
 
-    dialog.isVisible = true
-    val f = dialog.file
-    val dir = dialog.directory
-    if (f != null && dir != null) File(dir, f) else null
+        val returnVal = chooser.showSaveDialog(null)
+        if (returnVal == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+    }
 }
 
 suspend fun pickDirectory(
     title: String = "Select Directory",
     directory: File? = null,
 ): File? = withContext(Dispatchers.IO) {
-    val result = java.util.concurrent.CountDownLatch(1)
-    var selectedDir: File? = null
+    runInEventDispatchThread {
+        val chooser = JFileChooser()
+        chooser.dialogTitle = title
+        chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+        chooser.isMultiSelectionEnabled = false
+        directory?.let { chooser.currentDirectory = it }
 
-    try {
-        SwingUtilities.invokeLater {
-            try {
-                val chooser = JFileChooser()
-                chooser.dialogTitle = title
-                chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-                chooser.isMultiSelectionEnabled = false
-                directory?.let { chooser.currentDirectory = it }
-
-                val returnVal = chooser.showOpenDialog(null)
-                if (returnVal == JFileChooser.APPROVE_OPTION) {
-                    selectedDir = chooser.selectedFile
-                }
-            } catch (_: Exception) {
-            } finally {
-                result.countDown()
-            }
-        }
-    } catch (_: Exception) {
-        result.countDown()
+        val returnVal = chooser.showOpenDialog(null)
+        if (returnVal == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
     }
-
-    result.await()
-    selectedDir
 }

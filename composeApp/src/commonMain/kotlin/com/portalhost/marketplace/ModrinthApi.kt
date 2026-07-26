@@ -134,7 +134,7 @@ class ModrinthApi {
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "PortalHost/5.0.60")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.61")
 
                 val responseCode = conn.responseCode
                 val response = conn.inputStream.bufferedReader().readText()
@@ -166,7 +166,7 @@ class ModrinthApi {
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "PortalHost/5.0.60")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.61")
                 conn.doOutput = true
 
                 conn.outputStream.use { os ->

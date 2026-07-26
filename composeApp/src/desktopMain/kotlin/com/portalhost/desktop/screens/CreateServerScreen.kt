@@ -311,30 +311,40 @@ fun CreateServerScreen(
         if (importFolderPath.isNullOrBlank()) {
             return@LaunchedEffect
         }
-        val folder = File(importFolderPath!!)
-        if (!folder.exists() || !folder.isDirectory) {
-            return@LaunchedEffect
-        }
-        val propsFile = File(folder, "server.properties")
-        if (propsFile.exists()) {
-            try {
-                val props = java.util.Properties()
-                props.load(propsFile.inputStream())
-                importedServerProps = props.entries.associate { (it.key as String) to (it.value as String) }
-                props["server-name"]?.let { serverName = it.toString() }
-                props["server-port"]?.let { port = it.toString() }
-                props["gamemode"]?.let { gamemode = it.toString() }
-                props["difficulty"]?.let { difficulty = it.toString() }
-                props["motd"]?.let { motd = TextFieldValue(it.toString()) }
-            } catch (_: Exception) { }
-        }
-        val jarFiles = folder.listFiles { _, name -> name.endsWith(".jar") } ?: emptyArray()
-        if (jarFiles.isNotEmpty()) {
-            jarPath = jarFiles.first().absolutePath
-            jarName = jarFiles.first().name
-        }
-        if (serverName.isBlank()) {
-            serverName = folder.name
+        val path = importFolderPath!!
+        withContext(Dispatchers.IO) {
+            val folder = File(path)
+            if (!folder.exists() || !folder.isDirectory) {
+                return@withContext
+            }
+            val propsFile = File(folder, "server.properties")
+            val propsResult = mutableMapOf<String, String>()
+            if (propsFile.exists()) {
+                try {
+                    val props = java.util.Properties()
+                    props.load(propsFile.inputStream())
+                    propsResult.putAll(props.entries.associate { (it.key as String) to (it.value as String) })
+                } catch (_: Exception) { }
+            }
+            val jarFiles = folder.listFiles { _, name -> name.endsWith(".jar") } ?: emptyArray()
+            val jarResult = jarFiles.firstOrNull()
+            withContext(Dispatchers.Main) {
+                if (propsResult.isNotEmpty()) {
+                    importedServerProps = propsResult
+                    propsResult["server-name"]?.let { serverName = it }
+                    propsResult["server-port"]?.let { port = it }
+                    propsResult["gamemode"]?.let { gamemode = it }
+                    propsResult["difficulty"]?.let { difficulty = it }
+                    propsResult["motd"]?.let { motd = TextFieldValue(it) }
+                }
+                if (jarResult != null) {
+                    jarPath = jarResult.absolutePath
+                    jarName = jarResult.name
+                }
+                if (serverName.isBlank()) {
+                    serverName = path.substringAfterLast(java.io.File.separator)
+                }
+            }
         }
     }
 
@@ -471,7 +481,17 @@ fun CreateServerScreen(
         Spacer(Modifier.height(12.dp))
 
         Card(
-            onClick = { createSource = CreateSource.PICK_FILE },
+            onClick = {
+                createSource = CreateSource.PICK_FILE
+                scope.launch {
+                    val files = pickFile("Select Server JAR", "JAR files" to listOf("jar"))
+                    if (files.isNotEmpty()) {
+                        jarPath = files.first().absolutePath
+                        jarName = files.first().name
+                        toastManager.success("Selected: ${files.first().name}")
+                    }
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
                 containerColor = if (createSource == CreateSource.PICK_FILE)

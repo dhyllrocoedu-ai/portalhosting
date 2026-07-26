@@ -5,11 +5,59 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ModrinthSearchResult(
-    @SerialName("hits") val projects: List<ModrinthProject>,
+    @SerialName("hits") val hits: List<ModrinthSearchHit>,
     @SerialName("offset") val offset: Int,
     @SerialName("limit") val limit: Int,
     @SerialName("total_hits") val totalHits: Int
-)
+) {
+    val projects: List<ModrinthProject>
+        get() = hits.map { it.toProject() }
+}
+
+@Serializable
+data class ModrinthSearchHit(
+    @SerialName("project_id") val projectId: String,
+    @SerialName("slug") val slug: String? = null,
+    @SerialName("title") val title: String,
+    @SerialName("description") val description: String,
+    @SerialName("categories") val categories: List<String> = emptyList(),
+    @SerialName("client_side") val clientSide: String = "optional",
+    @SerialName("server_side") val serverSide: String = "optional",
+    @SerialName("project_type") val projectType: String,
+    @SerialName("downloads") val downloads: Int = 0,
+    @SerialName("icon_url") val iconUrl: String? = null,
+    @SerialName("latest_version") val latestVersion: String? = null,
+    @SerialName("versions") val versions: List<String> = emptyList(),
+    @SerialName("loaders") val loaders: List<String> = emptyList(),
+    @SerialName("created") val created: String? = null,
+    @SerialName("updated") val updated: String? = null,
+    @SerialName("followers") val followers: Int = 0,
+    @SerialName("featured") val featured: Boolean = false,
+    @SerialName("color") val color: Int? = null
+) {
+    fun toProject(installed: Boolean = false, installedVersion: String? = null): ModrinthProject = ModrinthProject(
+        id = projectId,
+        slug = slug ?: "",
+        title = title,
+        description = description,
+        categories = categories,
+        clientSide = clientSide,
+        serverSide = serverSide,
+        projectType = projectType,
+        downloads = downloads,
+        iconUrl = iconUrl,
+        latestVersion = latestVersion,
+        versions = versions,
+        loaders = loaders,
+        created = created,
+        updated = updated,
+        followers = followers,
+        featured = featured,
+        color = color,
+        installed = installed,
+        installedVersion = installedVersion
+    )
+}
 
 @Serializable
 data class ModrinthProject(
