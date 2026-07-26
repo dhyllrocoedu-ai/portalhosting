@@ -125,28 +125,39 @@ class ModrinthApi {
     }
 
     private fun httpPost(urlString: String, body: JsonObject): String {
-        val url = URL(urlString)
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.connectTimeout = 15000
-        conn.readTimeout = 15000
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.setRequestProperty("Accept", "application/json")
-        conn.setRequestProperty("User-Agent", "PortalHost/5.0.58")
-        conn.doOutput = true
+        var lastException: Exception? = null
+        for (attempt in 0 until 3) {
+            try {
+                val url = URL(urlString)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("Accept", "application/json")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.59")
+                conn.doOutput = true
 
-        conn.outputStream.use { os ->
-            os.write(json.encodeToString(body).toByteArray())
+                conn.outputStream.use { os ->
+                    os.write(json.encodeToString(body).toByteArray())
+                }
+
+                val responseCode = conn.responseCode
+                val response = conn.inputStream.bufferedReader().readText()
+
+                if (responseCode !in 200..299) {
+                    val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                    throw Exception("HTTP $responseCode: $errorBody")
+                }
+
+                return response
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) {
+                    try { Thread.sleep((attempt + 1) * 1000L) } catch (_: InterruptedException) { }
+                }
+            }
         }
-
-        val responseCode = conn.responseCode
-        val response = conn.inputStream.bufferedReader().readText()
-
-        if (responseCode !in 200..299) {
-            val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
-            throw Exception("HTTP $responseCode: $errorBody")
-        }
-
-        return response
+        throw lastException ?: Exception("HTTP request failed")
     }
 }

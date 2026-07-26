@@ -4,8 +4,10 @@ import com.portalhost.filesystem.FileSystem
 import com.portalhost.model.JavaInstallation
 import com.portalhost.model.ServerType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -16,15 +18,16 @@ import java.util.zip.ZipFile
 class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.FileSystem()) {
     private val _knownInstallations = MutableStateFlow<List<JavaInstallation>>(emptyList())
     val knownInstallations: StateFlow<List<JavaInstallation>> = _knownInstallations
-    
+    private val refreshScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+
     val isInstalling: MutableStateFlow<Boolean> = MutableStateFlow(false)
     val installProgress: MutableStateFlow<Double> = MutableStateFlow(0.0)
-    
+
     private val knownJdks = mutableMapOf<Int, String>()
-    
+
     init {
         loadKnownJdks()
-        kotlinx.coroutines.runBlocking { refresh() }
+        refreshScope.launch { refresh() }
     }
     
     private fun knownJdksFile(): File {

@@ -114,6 +114,33 @@ fun MarketplaceScreen(
         }
     }
 
+    var initialSearchFired by remember { mutableStateOf(false) }
+    LaunchedEffect(filters) {
+        if (!initialSearchFired && uiState is MarketplaceUiState.Initial) {
+            val hasContent = filters.query.isNotBlank() ||
+                filters.version != null ||
+                filters.loader != null ||
+                filters.projectType != null ||
+                filters.categories.isNotEmpty()
+            if (hasContent) {
+                uiState = MarketplaceUiState.Loading
+                searchProjects(repository, filters, scope) { result ->
+                    result.onSuccess { searchResult ->
+                        currentOffset = searchResult.projects.size
+                        uiState = MarketplaceUiState.Success(
+                            projects = searchResult.projects,
+                            totalHits = searchResult.totalHits,
+                            hasMore = searchResult.offset + searchResult.limit < searchResult.totalHits
+                        )
+                    }.onFailure { e ->
+                        uiState = MarketplaceUiState.Error(e.message ?: "Failed to load")
+                    }
+                }
+            }
+        }
+        initialSearchFired = true
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

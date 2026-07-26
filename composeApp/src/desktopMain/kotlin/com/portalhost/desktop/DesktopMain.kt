@@ -144,13 +144,19 @@ fun DesktopApp(
 
 fun main() {
     try {
+        val earlyPrefs = com.russhwolf.settings.PreferencesSettings(java.util.prefs.Preferences.userRoot().node("com/portalhost"))
+        val earlyDataDir = earlyPrefs.getString("dataDirectory", "")
+        if (earlyDataDir.isNotBlank()) {
+            System.setProperty("portalhost.data.dir", earlyDataDir)
+        }
+
         initKoin(desktopModule())
         val prefs = GlobalContext.get().get<Preferences>()
         val dataDir = prefs.dataDirectory.value
         if (dataDir.isNotBlank()) {
             System.setProperty("portalhost.data.dir", dataDir)
         }
-        
+
         val logRepo = GlobalContext.get().get<com.portalhost.log.LogRepository>()
         setupLogging(logRepo)
         org.slf4j.LoggerFactory.getLogger("PortalHost").info("Application starting")

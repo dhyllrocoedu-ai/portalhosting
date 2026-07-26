@@ -118,7 +118,7 @@ fun UpdateDialog(
                     HorizontalDivider()
                     Text("What's New", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     changelogEntries.take(1).forEach { entry ->
-                        val changes = entry.desktop.ifEmpty { entry.mobile }
+                        val changes = entry.items
                         changes.take(8).forEach { change ->
                             Text("• $change", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }

@@ -5,10 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mu.KotlinLogging
@@ -30,9 +28,39 @@ data class UpdateInfo(
 data class ChangelogEntry(
     val version: String = "",
     val date: String = "",
-    val desktop: List<String> = emptyList(),
-    val mobile: List<String> = emptyList(),
-)
+    val platform: String = "desktop",
+    val notes: String = "",
+) {
+    val items: List<String>
+        get() = itemsFromHtml(notes)
+}
+
+private fun itemsFromHtml(html: String): List<String> {
+    val result = mutableListOf<String>()
+    val tagRegex = Regex("<[^>]*>")
+    var pos = 0
+    while (pos < html.length) {
+        val liStart = html.indexOf("<li>", pos)
+        if (liStart == -1) break
+        val liEnd = html.indexOf("</li>", liStart)
+        if (liEnd == -1) break
+        val content = html.substring(liStart + 4, liEnd)
+        val text = tagRegex.replace(content, "")
+        val unescaped = unescapeHtmlEntities(text)
+        if (unescaped.isNotBlank()) result.add(unescaped.trim())
+        pos = liEnd + 5
+    }
+    return result
+}
+
+private fun unescapeHtmlEntities(text: String): String {
+    return text
+        .replace("\u0026amp;", "\u0026")
+        .replace("\u0026lt;", "\u003c")
+        .replace("\u0026gt;", "\u003e")
+        .replace("\u0026quot;", "\"")
+        .replace("\u0026apos;", "'")
+}
 
 sealed class UpdateResult {
     data class UpdateAvailable(val info: UpdateInfo) : UpdateResult()
@@ -66,7 +94,6 @@ object UpdateChecker {
             return@withContext websiteResult
         }
 
-        // No GitHub fallback - website is the only source
         val errorResult = UpdateResult.Error("Unable to check for updates: website unavailable")
         cachedResult = errorResult
         lastCheckTime = System.currentTimeMillis()
@@ -74,53 +101,52 @@ object UpdateChecker {
     }
 
     suspend fun fetchChangelog(): List<ChangelogEntry> = withContext(Dispatchers.IO) {
+        val connection = URL(WEBSITE_CHANGELOG_URL).openConnection() as HttpURLConnection
         try {
-            val connection = URL(WEBSITE_CHANGELOG_URL).openConnection() as HttpURLConnection
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
             connection.connectTimeout = 10000
             connection.readTimeout = 10000
 
             if (connection.responseCode != 200) {
-                connection.disconnect()
                 return@withContext emptyList()
             }
 
             val body = connection.inputStream.bufferedReader().readText()
-            connection.disconnect()
+            val root = json.parseToJsonElement(body)
+            if (root !is kotlinx.serialization.json.JsonArray) {
+                return@withContext emptyList()
+            }
 
-            val root = json.parseToJsonElement(body).jsonObject
-            val versions = root["versions"]?.jsonObject ?: return@withContext emptyList()
-
-            versions.entries.mapNotNull { (key, value) ->
+            root.mapNotNull { element ->
                 try {
-                    val obj = value.jsonObject
+                    val obj = element.jsonObject
                     val platform = obj["platform"]?.jsonPrimitive?.content ?: "desktop"
                     if (platform != "desktop") return@mapNotNull null
                     ChangelogEntry(
-                        version = key,
+                        version = obj["version"]?.jsonPrimitive?.content ?: "",
                         date = obj["date"]?.jsonPrimitive?.content ?: "",
-                        desktop = obj["desktop"]?.let { json.decodeFromJsonElement<List<String>>(it) } ?: emptyList(),
-                        mobile = obj["mobile"]?.let { json.decodeFromJsonElement<List<String>>(it) } ?: emptyList(),
+                        platform = platform,
+                        notes = obj["notes"]?.jsonPrimitive?.content ?: "",
                     )
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     null
                 }
             }
-        } catch (e: Exception) {
-            logger.warn { "Failed to fetch changelog: ${e.message}" }
-            emptyList()
+        } finally {
+            connection.disconnect()
         }
     }
+
+    
 
     suspend fun downloadUpdate(
         url: String,
         destination: File,
         onProgress: (downloaded: Long, total: Long, speed: Long) -> Unit,
     ): Result<File> = withContext(Dispatchers.IO) {
+        val connection = URL(url).openConnection() as HttpURLConnection
         try {
-            destination.parentFile?.mkdirs()
-            val connection = URL(url).openConnection() as HttpURLConnection
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
             connection.connectTimeout = 30_000
             connection.readTimeout = 30_000
@@ -156,19 +182,20 @@ object UpdateChecker {
                     onProgress(downloaded, contentLength, 0)
                 }
             }
-            connection.disconnect()
 
             Result.success(destination)
         } catch (e: Exception) {
             logger.warn { "Download failed: ${e.message}" }
             destination.delete()
             Result.failure(e)
+        } finally {
+            connection.disconnect()
         }
     }
 
     private suspend fun tryWebsiteCheck(): UpdateResult? {
-        try {
-            val connection = URL(WEBSITE_LATEST_URL).openConnection() as HttpURLConnection
+        val connection = URL(WEBSITE_LATEST_URL).openConnection() as HttpURLConnection
+        return try {
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
             connection.connectTimeout = 10000
@@ -176,12 +203,10 @@ object UpdateChecker {
 
             if (connection.responseCode != 200) {
                 logger.warn { "Website latest.json returned ${connection.responseCode}" }
-                connection.disconnect()
                 return null
             }
 
             val body = connection.inputStream.bufferedReader().readText()
-            connection.disconnect()
 
             val root = json.parseToJsonElement(body).jsonObject
             val version = root["version"]?.jsonPrimitive?.content ?: ""
@@ -203,20 +228,22 @@ object UpdateChecker {
             val currentVersion = BuildConfig.VERSION_NAME
             if (isNewerVersion(version, currentVersion)) {
                 val changelog = try { fetchChangelog() } catch (_: Exception) { emptyList() }
-                return UpdateResult.UpdateAvailable(
+                UpdateResult.UpdateAvailable(
                     UpdateInfo(
                         latestVersion = version,
                         downloadUrl = downloadUrl,
                         releaseNotes = releaseNotes,
-                        changelog = changelog.filter { it.version == version || it.version == "v$version" },
+                        changelog = changelog.filter { entry -> entry.version == version || entry.version == "v$version" },
                     )
                 )
             } else {
-                return UpdateResult.UpToDate
+                UpdateResult.UpToDate
             }
         } catch (e: Exception) {
             logger.warn { "Website update check failed: ${e.message}" }
-            return null
+            null
+        } finally {
+            connection.disconnect()
         }
     }
 
