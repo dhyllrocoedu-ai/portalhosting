@@ -1,35 +1,35 @@
 [
   {
     "version": "5.0.59",
-    "date": "2026-07-25",
+    "date": "2026-07-26",
     "platform": "desktop",
     "prerelease": false,
     "notes": "<p><strong>Desktop v5.0.59</strong></p><ul><li><strong>New: Welcome screen data directory selection.</strong> First-run wizard now includes a dedicated step where users can browse and select their preferred data folder location for storing servers, JDKs, and configurations.</li><li><strong>Fixed: Dashboard responsive layout.</strong> Online Players and Recent Activity cards now display side-by-side in a 50/50 split at screen widths 900px and above, collapsing to a single column on smaller screens.</li><li><strong>Fixed: Marketplace pagination.</strong> Fixed offset tracking for lazy-loaded search results. Load-more now correctly resumes from the correct position instead of restarting from offset 0.</li><li><strong>Fixed: Marketplace changelog URL fallback.</strong> Added cross-platform fallback for opening changelog URLs when Java Desktop API is unavailable, trying xdg-open (Linux) and cmd /c start (Windows) in sequence.</li></ul>"
   },
   {
     "version": "5.0.40-mobilev2",
-    "date": "2026-07-25",
+    "date": "2026-07-26",
     "platform": "mobile",
     "prerelease": false,
     "notes": "<p><strong>Mobile v5.0.40-mobilev2</strong></p><ul><li><strong>New: Add-ons tab.</strong> Added dedicated Add-ons navigation tab with Chest icon for future Modrinth marketplace integration.</li><li><strong>Fixed: ConsoleScreen drawable references.</strong> Added missing R class import for drawable resources in ConsoleScreen.</li><li><strong>Improved: Navigation bar stability.</strong> Fixed layout size import in AppNavigation.</li></ul>"
   },
   {
     "version": "5.0.57",
-    "date": "2026-07-25",
+    "date": "2026-07-26",
     "platform": "desktop",
     "prerelease": false,
     "notes": "<p><strong>Desktop v5.0.57</strong></p><ul><li><strong>Fixed: Window drag jitter (finally).</strong> Replaced Compose detectDragGestures with AWT Toolkit.addAWTEventListener for zero-latency native mouse interception. Title bar drag now handled entirely at the AWT level with a 4px drag threshold to avoid interfering with button clicks.</li><li><strong>Fixed: Forge/NeoForge version loading lag.</strong> Wrapped blocking HTTP calls in withContext(Dispatchers.IO) so they no longer freeze the UI thread. Added in-memory builds cache per version so switching between versions is instant. NeoForge now shares the metadata XML between fetchVersions and fetchBuilds.</li><li><strong>Improved: Import folder wizard auto-skip.</strong> When importing an existing server folder, the wizard now auto-skips Version, Build, RAM, Properties, and Storage steps directly to the EULA if a valid JAR file is found.</li><li><strong>New: Runtime uninstall script generator.</strong> Added Settings &gt; Uninstall section with \"Save to Desktop\" and \"Choose Location\" buttons. Generates a full uninstall batch script that closes PortalHost, removes Start Menu shortcuts, runs Windows Installer uninstall, cleans registry, and prompts for data removal (Y/N/K).</li></ul>"
   },
   {
     "version": "5.0.57",
-    "date": "2026-07-25",
+    "date": "2026-07-26",
     "platform": "desktop",
     "prerelease": false,
     "notes": "<p><strong>Desktop v5.0.57</strong></p><ul><li><strong>New: In-app update download with progress.</strong> Update checker now downloads the MSI/EXE directly in-app with a progress dialog showing download speed, percentage, ETA, and cancel option. Auto-launches installer on completion.</li><li><strong>New: Changelog in update dialog.</strong> The update dialog now displays release notes from the website changelog before downloading.</li><li><strong>New: Server file refresh buttons.</strong> Added refresh buttons to Plugins, Mods, Datapacks, Worlds, and Server Files tabs for manual re-scan without app restart.</li><li><strong>New: Floating Action Button (FAB) for creating servers.</strong> Replaced the rectangular \"Create Server\" grid card with a Material3 FAB anchored bottom-right on the Servers screen.</li><li><strong>New: Centered empty state.</strong> When no servers exist, the Servers tab now shows a centered DNS icon, title, subtitle, and a prominent FAB to create the first server.</li><li><strong>Improved: Welcome screen.</strong> Expanded to 4 steps with step-by-step progress indicators, data folder setup, optional JDK install with \"Skip for now\" fallback, and configuration step. Added \"Skip for now\" link at bottom.</li><li><strong>Improved: Window dragging.</strong> Replaced jittery <code>SwingUtilities.invokeLater</code> with direct <code>java.awt.EventQueue.invokeLater</code> setLocation() and added move cursor feedback during drag.</li><li><strong>Improved: Enhanced uninstaller.</strong> Updated Uninstall.bat with registry preference cleanup, data removal prompt (Keep/Remove/Keep Servers options), Start Menu shortcut removal, and self-deletion.</li><li><strong>Fixed: Dashboard empty state.</strong> Removed the \"Create Server\" button from Dashboard empty state; now directs users to the Servers tab for server creation.</li><li><strong>Fixed: Update checker cache.</strong> Added 1-hour cache to avoid rate limiting on repeated checks.</li><li><strong>Fixed: Deprecated API cleanup.</strong> Replaced <code>LocalClipboardManager</code> with <code>LocalClipboard</code>, updated <code>menuAnchor()</code> calls to use <code>ExposedDropdownMenuAnchorType</code>.</li></ul>"
   },
   {
     "version": "5.0.56",
-    "date": "2026-07-25",
+    "date": "2026-07-26",
     "platform": "desktop",
     "prerelease": false,
     "notes": "<p><strong>Desktop v5.0.56</strong></p><ul><li><strong>Fixed: Auto-scroll button no longer covers console output.</strong> The scroll-to-bottom FAB in the server console was positioned at the top-right corner of the console area, covering log output. Changed alignment to <code>Alignment.BottomEnd</code> so it sits at the bottom-right where it doesn't obstruct the view.</li><li><strong>Fixed: Dashboard console command input detects Enter key.</strong> The mini command input in the dashboard console card now properly detects the Enter key press to send commands, matching the full console screen behavior.</li><li><strong>Fixed: Import server folder now uses proper directory picker.</strong> Replaced AWT <code>FileDialog</code> with <code>JFileChooser.DIRECTORIES_ONLY</code> mode for the server folder import dialog, giving a proper folder selection interface on Windows.</li><li><strong>Fixed: Imported server folders now copy all files.</strong> <code>registerImportedServer()</code> now copies the entire source server directory (plugins/, mods/, world/, server.properties, etc.) to the new server location instead of just the JAR file. Previously, only the JAR was copied, leaving plugins and other files behind in the original folder.</li><li><strong>Changed: Server status badge now shows \u201cOnline\u201d instead of \u201cRunning\u201d.</strong> The status label on server cards and detail screen now displays \u201cOnline\u201d for running servers, making it clearer that the server is joinable.</li></ul>"
