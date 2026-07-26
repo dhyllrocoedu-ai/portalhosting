@@ -29,15 +29,15 @@ class ModrinthApi {
     ): Result<ModrinthSearchResult> = withContext(Dispatchers.IO) {
         try {
             val facets = buildFacets(version, loader, projectType, categories)
-            val body = buildJsonObject {
-                put("query", query)
-                put("facets", json.encodeToString(JsonArray.serializer(), facets))
-                put("index", sort.apiValue)
-                put("offset", offset)
-                put("limit", limit)
-            }
+            val params = mutableListOf<String>()
+            if (query.isNotBlank()) params.add("query=${java.net.URLEncoder.encode(query, "UTF-8")}")
+            params.add("facets=${java.net.URLEncoder.encode(json.encodeToString(JsonArray.serializer(), facets), "UTF-8")}")
+            params.add("index=${sort.apiValue}")
+            if (offset > 0) params.add("offset=$offset")
+            params.add("limit=$limit")
+            val url = "$baseUrl/search?${params.joinToString("&")}"
 
-            val response = httpPost("$baseUrl/search", body)
+            val response = httpGet(url)
             Result.success(json.decodeFromString<ModrinthSearchResult>(response))
         } catch (e: Exception) {
             Result.failure(e)
@@ -124,6 +124,37 @@ class ModrinthApi {
         return buildJsonArray { facetList.forEach { add(it) } }
     }
 
+    private fun httpGet(urlString: String): String {
+        var lastException: Exception? = null
+        for (attempt in 0 until 3) {
+            try {
+                val url = URL(urlString)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
+                conn.setRequestProperty("Accept", "application/json")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.60")
+
+                val responseCode = conn.responseCode
+                val response = conn.inputStream.bufferedReader().readText()
+
+                if (responseCode !in 200..299) {
+                    val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                    throw Exception("HTTP $responseCode: $errorBody")
+                }
+
+                return response
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) {
+                    try { Thread.sleep((attempt + 1) * 1000L) } catch (_: InterruptedException) { }
+                }
+            }
+        }
+        throw lastException ?: Exception("HTTP request failed")
+    }
+
     private fun httpPost(urlString: String, body: JsonObject): String {
         var lastException: Exception? = null
         for (attempt in 0 until 3) {
@@ -135,7 +166,7 @@ class ModrinthApi {
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "PortalHost/5.0.59")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.60")
                 conn.doOutput = true
 
                 conn.outputStream.use { os ->

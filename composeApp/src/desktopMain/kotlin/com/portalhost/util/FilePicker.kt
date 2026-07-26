@@ -63,17 +63,25 @@ suspend fun pickDirectory(
     val result = java.util.concurrent.CountDownLatch(1)
     var selectedDir: File? = null
 
-    SwingUtilities.invokeLater {
-        val chooser = JFileChooser()
-        chooser.dialogTitle = title
-        chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
-        chooser.isMultiSelectionEnabled = false
-        directory?.let { chooser.currentDirectory = it }
+    try {
+        SwingUtilities.invokeLater {
+            try {
+                val chooser = JFileChooser()
+                chooser.dialogTitle = title
+                chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                chooser.isMultiSelectionEnabled = false
+                directory?.let { chooser.currentDirectory = it }
 
-        val returnVal = chooser.showOpenDialog(null)
-        if (returnVal == JFileChooser.APPROVE_OPTION) {
-            selectedDir = chooser.selectedFile
+                val returnVal = chooser.showOpenDialog(null)
+                if (returnVal == JFileChooser.APPROVE_OPTION) {
+                    selectedDir = chooser.selectedFile
+                }
+            } catch (_: Exception) {
+            } finally {
+                result.countDown()
+            }
         }
+    } catch (_: Exception) {
         result.countDown()
     }
 
