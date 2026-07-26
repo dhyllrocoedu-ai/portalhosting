@@ -263,7 +263,7 @@
                 // Enable Android download button if URL available
                 if (release.android && release.android.url) {
                     const btn = document.getElementById('android-download-btn');
-                    btn.href = release.android.url;
+                    btn.href = 'download.html';
                     btn.removeAttribute('disabled');
                 }
             } catch (error) {
