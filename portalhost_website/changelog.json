@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.60",
+    "date": "2026-07-26",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.60</strong></p><ul><li><strong>Fixed: Modrinth marketplace HTTP 404.</strong> Search API was sending POST requests but Modrinth v2 only supports GET. Switched to GET with URL query parameters.</li><li><strong>Fixed: Change data directory button hang.</strong> FilePicker SwingUtilities.invokeLater had no exception handling — if JFileChooser threw, CountDownLatch never released and await() blocked forever. Added try/catch/finally with guaranteed countDown().</li><li><strong>Fixed: Data directory preferences regression.</strong> Removed PreferencesSettings early read that created a separate Preferences instance causing stale reads. Now uses raw java.util.prefs.Preferences API directly before Koin init.</li></ul>"
+  },
+  {
     "version": "5.0.59",
     "date": "2026-07-26",
     "platform": "desktop",
