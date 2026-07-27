@@ -1,17 +1,17 @@
 {
-  "version": "5.0.61",
-  "date": "2026-07-26",
+  "version": "5.0.62",
+  "date": "2026-07-27",
   "msi": {
-    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.61--desktopv2/PortalHost-5.0.61.msi",
-    "size": 127790433
+    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.62--desktopv2/PortalHost-5.0.62.msi",
+    "size": 127798624
   },
   "exe": {
-    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.61--desktopv2/PortalHost-5.0.61.exe",
-    "size": 128463360
+    "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.62--desktopv2/PortalHost-5.0.62.exe",
+    "size": 128471552
   },
   "android": {
     "version": "5.0.40-mobilev2",
-"date": "2026-07-26",
+    "date": "2026-07-26",
     "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.40-mobilev2/PortalHost.apk",
     "size": 33272352
   }

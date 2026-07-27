@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.62",
+    "date": "2026-07-27",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.62</strong></p><ul><li><strong>Fixed: Native file picker (Windows Explorer integration).</strong> Welcome screen directory picker and all file dialogs now use JFileChooser with FileSystemView, showing native Windows Explorer with proper directory-only mode, extension filters, and startDir support.</li><li><strong>Fixed: Modrinth search with filters HTTP 404.</strong> Fixed facets URL encoding and added HTTP 429 rate-limit handling with Retry-After support.</li><li><strong>Fixed: Marketplace auto-load.</strong> Add-ons tab now auto-searches on first mount even with empty filters (default: sort by Downloads).</li><li><strong>Fixed: Uninstall.bat bundled in MSI installer.</strong> Gradle task now copies Uninstall.bat to both WiX and jpackage resource dirs as dependency of packageMsi and packageExe.</li></ul>"
+  },
+  {
     "version": "5.0.61",
     "date": "2026-07-26",
     "platform": "desktop",
