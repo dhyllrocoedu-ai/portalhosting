@@ -30,9 +30,11 @@ class ModrinthApi {
         try {
             val facets = buildFacets(version, loader, projectType, categories)
             val params = mutableListOf<String>()
-            if (query.isNotBlank()) params.add("query=${java.net.URLEncoder.encode(query, "UTF-8")}")
-            val facetsJson = json.encodeToString(JsonArray.serializer(), facets)
-            params.add("facets=${java.net.URLEncoder.encode(facetsJson, "UTF-8").replace("+", "%20")}")
+            if (query.isNotBlank()) params.add("query=${encodeUrl(query)}")
+            if (facets.isNotEmpty()) {
+                val facetsJson = json.encodeToString(JsonArray.serializer(), facets)
+                params.add("facets=${encodeUrl(facetsJson)}")
+            }
             params.add("index=${sort.apiValue}")
             if (offset > 0) params.add("offset=$offset")
             params.add("limit=$limit")
@@ -44,6 +46,9 @@ class ModrinthApi {
             Result.failure(e)
         }
     }
+
+    private fun encodeUrl(value: String): String =
+        java.net.URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 
     suspend fun getProject(projectId: String): Result<ModrinthProject> = withContext(Dispatchers.IO) {
         HttpCache.fetchWithCacheSuspend("$baseUrl/project/$projectId")
@@ -135,10 +140,20 @@ class ModrinthApi {
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "PortalHost/5.0.61")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.62")
 
                 val responseCode = conn.responseCode
                 val response = conn.inputStream.bufferedReader().readText()
+
+                if (responseCode == 429) {
+                    val retryAfter = conn.getHeaderField("Retry-After")?.toLongOrNull() ?: 30L
+                    if (attempt < 2) {
+                        try { Thread.sleep(retryAfter * 1000L) } catch (_: InterruptedException) { }
+                        lastException = Exception("Rate limited (HTTP 429). Retry after ${retryAfter}s")
+                        continue
+                    }
+                    throw Exception("Rate limited (HTTP 429). Retry after ${retryAfter}s")
+                }
 
                 if (responseCode !in 200..299) {
                     val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }

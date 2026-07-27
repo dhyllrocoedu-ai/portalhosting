@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.0.61"
+version = "5.0.62"
 
 kotlin {
     jvm("desktop")
@@ -65,7 +65,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.0.61"
+            packageVersion = "5.0.62"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             modules("java.sql", "java.naming", "java.management", "java.net.http", "java.desktop")
@@ -87,18 +87,31 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 }
 
 val copyUninstallForWix by tasks.registering {
+    val wixDir = file("src/windows/wix")
+    val jpackageDir = file("src/windows/jpackage/resources")
+    val uninstallSource = file("src/desktopMain/resources/Uninstall.bat")
+
+    inputs.file(uninstallSource)
+    outputs.files(
+        file("${wixDir.absolutePath}/Uninstall.bat"),
+        file("${jpackageDir.absolutePath}/Uninstall.bat")
+    )
+
     doLast {
-        val wixDir = file("src/windows/wix")
-        val uninstallSource = file("src/desktopMain/resources/Uninstall.bat")
-        val uninstallTarget = file("${wixDir.absolutePath}/Uninstall.bat")
-        uninstallTarget.parentFile?.mkdirs()
-        uninstallSource.copyTo(uninstallTarget, overwrite = true)
-        println("Copied Uninstall.bat to ${uninstallTarget.absolutePath} for WiX build")
+        val targets = listOf(
+            file("${wixDir.absolutePath}/Uninstall.bat"),
+            file("${jpackageDir.absolutePath}/Uninstall.bat"),
+        )
+        for (target in targets) {
+            target.parentFile?.mkdirs()
+            uninstallSource.copyTo(target, overwrite = true)
+            println("Copied Uninstall.bat to ${target.absolutePath}")
+        }
     }
 }
 
 tasks.whenTaskAdded {
-    if (name == "packageMsi") {
+    if (name == "packageMsi" || name == "packageExe") {
         dependsOn(copyUninstallForWix)
     }
 }

@@ -1,72 +1,131 @@
 package com.portalhost.native
 
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
-import java.io.FilenameFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
+import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
+import javax.swing.filechooser.FileNameExtensionFilter
+import javax.swing.filechooser.FileSystemView
 
 actual class NativeFilePicker {
 
     actual suspend fun pickFile(config: PickConfig): Result<List<Uri>> = withContext(Dispatchers.IO) {
-        try {
-            System.setProperty("awt.fileDialog.useNativeLF", "true")
+        runCatching {
+            runInEventDispatchThread {
+                val chooser = JFileChooser(FileSystemView.getFileSystemView())
+                chooser.dialogTitle = config.title
+                chooser.fileSelectionMode = JFileChooser.FILES_ONLY
+                chooser.isMultiSelectionEnabled = config.multiSelect
 
-            val dialog = FileDialog(null as Frame?, config.title, FileDialog.LOAD)
-            dialog.isMultipleMode = config.multiSelect
-            dialog.isVisible = true
-            val files = dialog.files
-            if (files != null && files.isNotEmpty()) {
-                Result.success(files.map { Uri(it.absolutePath) })
-            } else {
-                Result.success(emptyList())
+                config.startDir?.let { path ->
+                    val dir = File(path)
+                    if (dir.exists()) chooser.currentDirectory = dir
+                }
+
+                if (config.filters.isNotEmpty()) {
+                    val first = config.filters.first()
+                    chooser.fileFilter = FileNameExtensionFilter(
+                        first.name,
+                        *first.extensions.map { it.lowercase() }.toTypedArray()
+                    )
+                    if (config.filters.size > 1) {
+                        for (filter in config.filters.drop(1)) {
+                            chooser.addChoosableFileFilter(
+                                FileNameExtensionFilter(
+                                    filter.name,
+                                    *filter.extensions.map { it.lowercase() }.toTypedArray()
+                                )
+                            )
+                        }
+                    }
+                }
+
+                chooser.setAcceptAllFileFilterUsed(true)
+
+                val returnVal = chooser.showOpenDialog(null)
+                if (returnVal == JFileChooser.APPROVE_OPTION) {
+                    val selected = if (config.multiSelect) chooser.selectedFiles else arrayOf(chooser.selectedFile)
+                    selected.filterNotNull().map { Uri(it.absolutePath) }
+                } else {
+                    emptyList()
+                }
             }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
     actual suspend fun pickDirectory(config: PickConfig): Result<Uri?> = withContext(Dispatchers.IO) {
-        try {
-            System.setProperty("awt.fileDialog.useNativeLF", "true")
+        runCatching {
+            runInEventDispatchThread {
+                val chooser = JFileChooser(FileSystemView.getFileSystemView())
+                chooser.dialogTitle = config.title
+                chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+                chooser.isMultiSelectionEnabled = false
+                chooser.setAcceptAllFileFilterUsed(false)
 
-            val dialog = FileDialog(null as Frame?, config.title, FileDialog.LOAD)
-            dialog.filenameFilter = FilenameFilter { _, _ -> true }
-            dialog.isVisible = true
-            val file = dialog.file
-            val directory = dialog.directory
-            if (file != null && directory != null) {
-                Result.success(Uri(File(directory, file).absolutePath))
-            } else if (directory != null) {
-                Result.success(Uri(directory))
-            } else {
-                Result.success(null)
+                config.startDir?.let { path ->
+                    val dir = File(path)
+                    if (dir.exists()) chooser.currentDirectory = dir
+                }
+
+                val returnVal = chooser.showOpenDialog(null)
+                if (returnVal == JFileChooser.APPROVE_OPTION) {
+                    chooser.selectedFile?.absolutePath?.let { Uri(it) }
+                } else {
+                    null
+                }
             }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
     actual suspend fun saveFile(config: SaveConfig): Result<Uri?> = withContext(Dispatchers.IO) {
-        try {
-            System.setProperty("awt.fileDialog.useNativeLF", "true")
+        runCatching {
+            runInEventDispatchThread {
+                val chooser = JFileChooser(FileSystemView.getFileSystemView())
+                chooser.dialogTitle = config.title
+                chooser.fileSelectionMode = JFileChooser.FILES_ONLY
 
-            val dialog = FileDialog(null as Frame?, config.title, FileDialog.SAVE)
-            if (!config.defaultName.isNullOrBlank()) {
-                dialog.file = config.defaultName
+                config.startDir?.let { path ->
+                    val dir = File(path)
+                    if (dir.exists()) chooser.currentDirectory = dir
+                }
+                config.defaultName?.let { chooser.selectedFile = File(it) }
+
+                if (config.filters.isNotEmpty()) {
+                    val first = config.filters.first()
+                    chooser.fileFilter = FileNameExtensionFilter(
+                        first.name,
+                        *first.extensions.map { it.lowercase() }.toTypedArray()
+                    )
+                }
+
+                val returnVal = chooser.showSaveDialog(null)
+                if (returnVal == JFileChooser.APPROVE_OPTION) {
+                    chooser.selectedFile?.absolutePath?.let { Uri(it) }
+                } else {
+                    null
+                }
             }
-            dialog.isVisible = true
-            val file = dialog.file
-            val directory = dialog.directory
-            if (file != null && directory != null) {
-                Result.success(Uri(File(directory, file).absolutePath))
-            } else {
-                Result.success(null)
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
         }
+    }
+
+    private fun <T> runInEventDispatchThread(block: () -> T): T {
+        if (SwingUtilities.isEventDispatchThread()) {
+            return block()
+        }
+        val result = java.util.concurrent.atomic.AtomicReference<T?>()
+        val latch = java.util.concurrent.CountDownLatch(1)
+        SwingUtilities.invokeLater {
+            try {
+                result.set(block())
+            } catch (_: Exception) {
+                result.set(null)
+            } finally {
+                latch.countDown()
+            }
+        }
+        latch.await()
+        @Suppress("UNCHECKED_CAST")
+        return result.get() as T
     }
 }
