@@ -9,6 +9,21 @@ import java.sql.DriverManager
 
 private val logger = KotlinLogging.logger {}
 
+fun defaultDataDir(): File {
+    val appDir = System.getProperty("skiko.library.path")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { File(it) }
+    if (appDir != null && appDir.isDirectory) return appDir
+
+    val resourcesDir = System.getProperty("compose.application.resources.dir")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { File(it).parentFile }
+    if (resourcesDir != null && resourcesDir.isDirectory) return resourcesDir
+
+    val home = System.getProperty("user.home") ?: "."
+    return File(home, ".portalhost")
+}
+
 class DatabaseDriverFactory(private val customDataDir: String? = null) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -17,8 +32,7 @@ class DatabaseDriverFactory(private val customDataDir: String? = null) {
             val dataDir = if (!customDataDir.isNullOrBlank()) {
                 File(customDataDir)
             } else {
-                val home = System.getProperty("user.home") ?: "."
-                File(home, ".portalhost")
+                defaultDataDir()
             }
             dataDir.mkdirs()
             val dbFile = File(dataDir, "portalhost.db")

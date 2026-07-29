@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.portalhost.db.defaultDataDir
 import com.portalhost.java.JdkManager
 import com.portalhost.native.NativeFilePicker
 import com.portalhost.native.PickConfig
@@ -82,8 +83,7 @@ fun WelcomeScreen(
 
     LaunchedEffect(Unit) {
         selectedDataDir = preferences.dataDirectory.value.ifBlank {
-            System.getProperty("user.home")?.let { File(it, ".portalhost").absolutePath }
-                ?: ".portalhost"
+            defaultDataDir().absolutePath
         }
     }
 
