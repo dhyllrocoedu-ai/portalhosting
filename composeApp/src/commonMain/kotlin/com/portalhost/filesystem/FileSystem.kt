@@ -109,8 +109,7 @@ class FileSystem(private val preferences: Preferences? = null) {
         val totalBytes: Long get() = worldBytes + pluginsBytes + modsBytes + datapacksBytes + resourcepacksBytes + otherBytes
     }
 
-    suspend fun getServerStorageStats(serverId: String): StorageBreakdown = withContext(Dispatchers.IO) {
-        val serverDir = File(getServersDirBlocking(), serverId)
+    suspend fun getServerStorageStats(serverDir: File): StorageBreakdown = withContext(Dispatchers.IO) {
         if (!serverDir.exists()) return@withContext StorageBreakdown()
 
         fun dirSize(dir: File): Long =

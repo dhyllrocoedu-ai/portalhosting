@@ -143,7 +143,6 @@ class ModrinthApi {
                 conn.setRequestProperty("User-Agent", "PortalHost/5.0.62")
 
                 val responseCode = conn.responseCode
-                val response = conn.inputStream.bufferedReader().readText()
 
                 if (responseCode == 429) {
                     val retryAfter = conn.getHeaderField("Retry-After")?.toLongOrNull() ?: 30L
@@ -160,6 +159,7 @@ class ModrinthApi {
                     throw Exception("HTTP $responseCode: $errorBody")
                 }
 
+                val response = conn.inputStream.bufferedReader().readText()
                 return response
             } catch (e: Exception) {
                 lastException = e
@@ -190,13 +190,13 @@ class ModrinthApi {
                 }
 
                 val responseCode = conn.responseCode
-                val response = conn.inputStream.bufferedReader().readText()
 
                 if (responseCode !in 200..299) {
                     val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
                     throw Exception("HTTP $responseCode: $errorBody")
                 }
 
+                val response = conn.inputStream.bufferedReader().readText()
                 return response
             } catch (e: Exception) {
                 lastException = e

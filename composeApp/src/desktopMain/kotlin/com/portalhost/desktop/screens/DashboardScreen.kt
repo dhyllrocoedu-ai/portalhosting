@@ -219,7 +219,7 @@ fun DashboardScreen(
     val activeConsole = selectedServerId?.let { consoleOutputs[it] } ?: emptyList()
     val serverIcon = remember(activeServer?.id) {
         activeServer?.id?.let { id ->
-            val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), id))
+            val iconFile = getServerIconFile(serverManager.getServerDir(id))
             loadServerIcon(iconFile)
         }
     }
@@ -1450,10 +1450,11 @@ private fun StorageCard(
     serverId: String?,
     fileSystem: com.portalhost.filesystem.FileSystem,
 ) {
+    val serverManager = koinInject<ServerManager>()
     var storage by remember(serverId) { mutableStateOf<com.portalhost.filesystem.FileSystem.StorageBreakdown?>(null) }
     LaunchedEffect(serverId) {
         if (serverId != null) {
-            storage = fileSystem.getServerStorageStats(serverId)
+            storage = fileSystem.getServerStorageStats(serverManager.getServerDir(serverId))
         } else {
             storage = null
         }

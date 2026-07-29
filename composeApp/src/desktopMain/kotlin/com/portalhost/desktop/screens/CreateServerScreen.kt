@@ -1115,7 +1115,7 @@ fun CreateServerScreen(
                                             return@launch
                                         }
                                         if (iconPath != null) {
-                                            val iconDest = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), config.id))
+                                            val iconDest = getServerIconFile(serverManager.getServerDir(config.id))
                                             withContext(Dispatchers.IO) {
                                                 saveServerIcon(java.io.File(iconPath!!), iconDest)
                                             }
@@ -1124,7 +1124,7 @@ fun CreateServerScreen(
                                         onServerCreated(config.id)
                                     }
                                     withContext(Dispatchers.IO) {
-                                        val propsFile = java.io.File(fileSystem.getServersDirBlocking(), "${config.id}/server.properties")
+                                        val propsFile = java.io.File(serverManager.getServerDir(config.id), "server.properties")
                                         val propsToWrite = mapOf(
                                             "gamemode" to gamemode,
                                             "difficulty" to difficulty,

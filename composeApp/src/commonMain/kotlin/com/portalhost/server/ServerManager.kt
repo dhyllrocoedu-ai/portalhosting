@@ -79,8 +79,8 @@ class ServerManager(
 
             if (uuidFolder.exists() && uuidFolder != nameFolder) {
                 migrateServerFiles(uuidFolder, nameFolder)
-                if (uuidFolder.exists() && uuidFolder.listFiles()?.isEmpty() == true) {
-                    uuidFolder.delete()
+                if (uuidFolder.exists()) {
+                    uuidFolder.deleteRecursively()
                 }
             }
 
@@ -109,6 +109,7 @@ class ServerManager(
                 } else if (!destFile.exists()) {
                     file.copyTo(destFile)
                 }
+                file.delete()
             }
             logger.info { "Migrated server files from ${source.absolutePath} to ${dest.absolutePath}" }
         } catch (e: Exception) {
@@ -125,7 +126,7 @@ class ServerManager(
         return File(serversDir, sanitizeFolderName(config.name)).also { it.mkdirs() }
     }
 
-    private fun getServerDir(serverId: String): File {
+    fun getServerDir(serverId: String): File {
         val config = _servers.value[serverId]
         return if (config != null) {
             getServerDir(config)

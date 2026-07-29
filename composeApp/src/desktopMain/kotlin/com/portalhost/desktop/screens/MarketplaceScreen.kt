@@ -83,8 +83,9 @@ fun MarketplaceScreen(
     var downloadProgress by remember { mutableStateOf(0f) }
     var currentOffset by remember { mutableStateOf(0) }
 
+    val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
     val servers: List<ServerConfig> = serverManager.servers.value.values.toList()
-    val serversDirBase = File(File(System.getProperty("user.home"), ".portalhost"), "servers")
+    val serversDirBase = fileSystem.getServersDirBlocking()
 
     val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val listState = rememberLazyListState()
@@ -391,8 +392,8 @@ fun MarketplaceScreen(
             downloadProgress = downloadProgress,
             getInstallPath = { target ->
                 val server = servers.find { it.id == target.serverId }
-                val serverDir = server?.name?.replace(Regex("[^a-zA-Z0-9._-]"), "_") ?: target.serverName
-                File(serversDirBase, "$serverDir/${target.folderHint}").absolutePath
+                val serverDir = if (server != null) serverManager.getServerDir(server.id) else File(serversDirBase, target.serverName.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Server" })
+                File(serverDir, target.folderHint).absolutePath
             },
             onTargetSelect = { target -> selectedTarget = target },
             onInstall = {

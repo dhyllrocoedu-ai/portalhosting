@@ -184,7 +184,7 @@ fun ServerDetailScreen(
 
     val serverIcon = remember(config?.id) {
         config?.id?.let { id ->
-            val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), id))
+            val iconFile = getServerIconFile(serverManager.getServerDir(id))
             loadServerIcon(iconFile)
         }
     }
@@ -338,7 +338,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
     var rconPort by remember(config) { mutableStateOf<String>(config.rconPort.toString()) }
     var autoRestart by remember(config) { mutableStateOf<Boolean>(config.autoRestart) }
     var savedMessage by remember { mutableStateOf<String?>(null) }
-    var iconPreview by remember(config) { mutableStateOf<ImageBitmap?>(loadServerIcon(getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), config.id)))) }
+    var iconPreview by remember(config) { mutableStateOf<ImageBitmap?>(loadServerIcon(getServerIconFile(serverManager.getServerDir(config.id)))) }
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
@@ -346,7 +346,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
     fun writeServerPropertiesFile(props: Map<String, String>) {
         scope.launch {
             withContext(Dispatchers.IO) {
-                val propsFile = File(fileSystem.getServersDirBlocking(), "$serverId/server.properties")
+                val propsFile = java.io.File(serverManager.getServerDir(serverId), "server.properties")
                 if (propsFile.exists()) {
                     val lines = propsFile.readLines().toMutableList()
                     for ((key, value) in props) {
@@ -452,7 +452,7 @@ private fun PropertiesTab(config: ServerConfig, state: com.portalhost.model.Serv
                     scope.launch {
                         val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
                         if (files.isNotEmpty()) {
-                            val iconDest = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), serverId))
+                            val iconDest = getServerIconFile(serverManager.getServerDir(serverId))
                             withContext(Dispatchers.IO) {
                                 saveServerIcon(java.io.File(files[0].absolutePath), iconDest)
                             }
@@ -644,7 +644,7 @@ private fun WorldsTab(serverId: String) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(serverId) {
-        val dir = File(fileSystem.getServersDirBlocking(), serverId)
+        val dir = serverManager.getServerDir(serverId)
         worlds = dir.listFiles()?.filter {
             it.isDirectory && (it.name == "world" || it.name.startsWith("world_"))
         } ?: emptyList()
@@ -655,7 +655,7 @@ private fun WorldsTab(serverId: String) {
             Text("Worlds (${worlds.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick = {
-                    val dir = File(fileSystem.getServersDirBlocking(), serverId)
+                    val dir = serverManager.getServerDir(serverId)
                     worlds = dir.listFiles()?.filter {
                         it.isDirectory && (it.name == "world" || it.name.startsWith("world_"))
                     } ?: emptyList()
@@ -731,7 +731,7 @@ private fun WorldsTab(serverId: String) {
             confirmButton = {
                 TextButton(onClick = {
                     if (importFilePath.isNotBlank()) {
-                        importWorldZip(fileSystem.getServersDirBlocking(), serverId, importFilePath)
+                        importWorldZip(serverManager.getServerDir(serverId), importFilePath)
                         showImportDialog = false
                         importFilePath = ""
                     }
@@ -742,9 +742,9 @@ private fun WorldsTab(serverId: String) {
     }
 }
 
-private fun importWorldZip(serversDir: File, serverId: String, zipPath: String) {
+private fun importWorldZip(serverDir: File, zipPath: String) {
     val zipFile = File(zipPath)
-    val targetDir = File(serversDir, serverId)
+    val targetDir = serverDir
     targetDir.mkdirs()
     try {
         ZipFile(zipFile).use { zip ->
@@ -771,12 +771,12 @@ private fun importWorldZip(serversDir: File, serverId: String, zipPath: String) 
 
 @Composable
 private fun PluginsTab(serverId: String) {
-    val fileSystem = koinInject<FileSystem>()
+    val serverManager = koinInject<ServerManager>()
     val scope = rememberCoroutineScope()
     var plugins by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
     fun refreshPlugins() {
-        val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
+        val dir = java.io.File(serverManager.getServerDir(serverId), "plugins")
         plugins = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
@@ -794,7 +794,7 @@ private fun PluginsTab(serverId: String) {
                         val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
                         if (files.isNotEmpty()) {
                             withContext(Dispatchers.IO) {
-                                val dir = File(fileSystem.getServersDirBlocking(), "$serverId/plugins")
+                                val dir = java.io.File(serverManager.getServerDir(serverId), "plugins")
                                 dir.mkdirs()
                                 files.forEach { f ->
                                     File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
@@ -843,12 +843,12 @@ private fun PluginsTab(serverId: String) {
 
 @Composable
 private fun ModsTab(serverId: String) {
-    val fileSystem = koinInject<FileSystem>()
+    val serverManager = koinInject<ServerManager>()
     val scope = rememberCoroutineScope()
     var mods by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
     fun refreshMods() {
-        val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
+        val dir = java.io.File(serverManager.getServerDir(serverId), "mods")
         mods = if (dir.exists()) dir.listFiles()?.filter { it.name.endsWith(".jar") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
@@ -866,7 +866,7 @@ private fun ModsTab(serverId: String) {
                         val files = pickFile("Select JAR file", "JAR files" to listOf("jar"), multiSelection = true)
                         if (files.isNotEmpty()) {
                             withContext(Dispatchers.IO) {
-                                val dir = File(fileSystem.getServersDirBlocking(), "$serverId/mods")
+                                val dir = java.io.File(serverManager.getServerDir(serverId), "mods")
                                 dir.mkdirs()
                                 files.forEach { f ->
                                     File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)
@@ -915,12 +915,12 @@ private fun ModsTab(serverId: String) {
 
 @Composable
 private fun DatapacksTab(serverId: String) {
-    val fileSystem = koinInject<FileSystem>()
+    val serverManager = koinInject<ServerManager>()
     val scope = rememberCoroutineScope()
     var datapacks by remember(serverId) { mutableStateOf<List<File>>(emptyList()) }
 
     fun refreshDatapacks() {
-        val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
+        val dir = java.io.File(serverManager.getServerDir(serverId), "world/datapacks")
         datapacks = if (dir.exists()) dir.listFiles()?.filter { it.isDirectory || it.name.endsWith(".zip") }?.sortedBy { it.name } ?: emptyList() else emptyList()
     }
 
@@ -938,7 +938,7 @@ private fun DatapacksTab(serverId: String) {
                         val files = pickFile("Select datapack file", "Datapack files" to listOf("zip"), multiSelection = true)
                         if (files.isNotEmpty()) {
                             withContext(Dispatchers.IO) {
-                                val dir = File(fileSystem.getServersDirBlocking(), "$serverId/world/datapacks")
+                                val dir = java.io.File(serverManager.getServerDir(serverId), "world/datapacks")
                                 dir.mkdirs()
                                 files.forEach { f ->
                                     File(f.absolutePath).copyTo(File(dir, f.name), overwrite = true)

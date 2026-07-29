@@ -263,9 +263,9 @@ private fun ServerListItem(
     var showMenu by remember { mutableStateOf(false) }
     val typeInfo = serverTypeInfo(server.serverType)
     val status = state?.status ?: ServerStatus.STOPPED
-    val fileSystem = koinInject<FileSystem>()
+    val serverManager = koinInject<ServerManager>()
     val serverIcon = remember(server.id) {
-        val iconFile = getServerIconFile(java.io.File(fileSystem.getServersDirBlocking(), server.id))
+        val iconFile = getServerIconFile(serverManager.getServerDir(server.id))
         loadServerIcon(iconFile)
     }
     val statusColor = ThemeColors.serverStatusColor(status)
