@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.63",
+    "date": "2026-07-30",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.63</strong></p><ul><li><strong>Fixed: JVM launch failure (FAILED TO LAUNCH JVM).</strong> Added java.base and proper jlink modules (java.base, java.sql, java.naming, java.management, java.net.http, java.desktop) with jlink launcher configuration so the bundled JRE includes java.exe and the app launches correctly.</li><li><strong>Fixed: Native file picker (Windows Explorer integration).</strong> Welcome screen directory picker and all file dialogs now use JFileChooser with FileSystemView, showing native Windows Explorer with proper directory-only mode, extension filters, and startDir support.</li><li><strong>Fixed: Modrinth search with filters HTTP 404.</strong> Fixed facets URL encoding and added HTTP 429 rate-limit handling with Retry-After support.</li><li><strong>Fixed: Marketplace auto-load.</strong> Add-ons tab now auto-searches on first mount even with empty filters (default: sort by Downloads).</li><li><strong>Fixed: Uninstall.bat bundled in MSI/EXE installer.</strong> Gradle task copies Uninstall.bat to both WiX and jpackage resource dirs as dependency of packageMsi and packageExe tasks.</li></ul>"
+  },
+  {
     "version": "5.0.62",
     "date": "2026-07-27",
     "platform": "desktop",
