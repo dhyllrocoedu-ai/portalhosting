@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.0.63"
+version = "5.0.64"
 
 kotlin {
     jvm("desktop")
@@ -65,7 +65,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.0.63"
+            packageVersion = "5.0.64"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             windows {
@@ -74,6 +74,7 @@ compose.desktop {
                 shortcut = true
                 iconFile.set(project.file("src/desktopMain/resources/icons/portalhost2.ico"))
             }
+            modules("java.sql", "java.naming", "java.management", "java.net.http", "java.security.jgss")
         }
     }
 }
@@ -83,6 +84,26 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         freeCompilerArgs.addAll(listOf("-opt-in=kotlin.RequiresOptIn"))
     }
+}
+
+val jdkHome = file(System.getenv("JAVA_HOME") ?: System.getProperty("java.home"))
+
+val restoreJavaExeInRuntime by tasks.registering {
+    val runtimeBin = file("build/compose/tmp/main/runtime/bin")
+    outputs.dir(runtimeBin)
+    doLast {
+        copy {
+            from(jdkHome.resolve("bin")) {
+                include("java.exe", "javaw.exe")
+            }
+            into(runtimeBin)
+            println("Copied java.exe/javaw.exe to ${runtimeBin.absolutePath}")
+        }
+    }
+}
+
+tasks.matching { it.name == "createRuntimeImage" }.configureEach {
+    finalizedBy(restoreJavaExeInRuntime)
 }
 
 val copyUninstallForWix by tasks.registering {
@@ -112,5 +133,6 @@ val copyUninstallForWix by tasks.registering {
 tasks.whenTaskAdded {
     if (name == "packageMsi" || name == "packageExe") {
         dependsOn(copyUninstallForWix)
+        dependsOn(restoreJavaExeInRuntime)
     }
 }

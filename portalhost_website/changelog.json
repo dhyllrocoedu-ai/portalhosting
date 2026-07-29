@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.64",
+    "date": "2026-07-30",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.64</strong></p><ul><li><strong>Fixed: JVM launch failure (FAILED TO LAUNCH JVM).</strong> Found that the stale Java Preferences dataDirectory value (set to PortalHost.exe path) caused the database initialization to fail, crashing the app before launch. The jpackage launcher misleadingly reported \"Failed to launch JVM\". The actual JVM launched fine — the crash was from the database trying to open at the EXE file path. Cleared stale preference; app now uses default ~/.portalhost/ data directory.</li><li><strong>Fixed: jlink runtime image missing java.exe.</strong> jlink --strip-native-commands removed java.exe from the bundled JRE runtime. Added Gradle restoreJavaExeInRuntime task to copy java.exe/javaw.exe back after runtime image creation.</li><li><strong>Fixed: Missing jlink modules.</strong> Added java.sql, java.naming, java.management, java.net.http, java.security.jgss modules to nativeDistributions so the bundled JRE includes all required modules.</li></ul>"
+  },
+  {
     "version": "5.0.63",
     "date": "2026-07-30",
     "platform": "desktop",
