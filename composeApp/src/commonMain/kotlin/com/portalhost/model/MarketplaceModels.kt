@@ -33,6 +33,7 @@ data class ModrinthSearchHit(
     @SerialName("updated") val updated: String? = null,
     @SerialName("followers") val followers: Int = 0,
     @SerialName("featured") val featured: Boolean = false,
+    @SerialName("author") val author: String? = null,
     @SerialName("color") val color: Int? = null
 ) {
     fun toProject(installed: Boolean = false, installedVersion: String? = null): ModrinthProject = ModrinthProject(
@@ -46,6 +47,7 @@ data class ModrinthSearchHit(
         projectType = projectType,
         downloads = downloads,
         iconUrl = iconUrl,
+        author = author,
         latestVersion = latestVersion,
         versions = versions,
         loaders = loaders,
@@ -60,6 +62,13 @@ data class ModrinthSearchHit(
 }
 
 @Serializable
+data class ModrinthLicense(
+    @SerialName("id") val id: String,
+    @SerialName("name") val name: String,
+    @SerialName("url") val url: String? = null
+)
+
+@Serializable
 data class ModrinthProject(
     @SerialName("id") val id: String,
     @SerialName("slug") val slug: String,
@@ -71,6 +80,7 @@ data class ModrinthProject(
     @SerialName("project_type") val projectType: String,
     @SerialName("downloads") val downloads: Int,
     @SerialName("icon_url") val iconUrl: String? = null,
+    @SerialName("author") val author: String? = null,
     @SerialName("latest_version") val latestVersion: String? = null,
     @SerialName("versions") val versions: List<String> = emptyList(),
     @SerialName("loaders") val loaders: List<String> = emptyList(),
@@ -80,7 +90,15 @@ data class ModrinthProject(
     @SerialName("featured") val featured: Boolean = false,
     @SerialName("color") val color: Int? = null,
     @SerialName("installed") val installed: Boolean = false,
-    @SerialName("installed_version") val installedVersion: String? = null
+    @SerialName("installed_version") val installedVersion: String? = null,
+    @SerialName("body") val body: String? = null,
+    @SerialName("body_url") val bodyUrl: String? = null,
+    @SerialName("license") val license: ModrinthLicense? = null,
+    @SerialName("issues_url") val issuesUrl: String? = null,
+    @SerialName("source_url") val sourceUrl: String? = null,
+    @SerialName("wiki_url") val wikiUrl: String? = null,
+    @SerialName("discord_url") val discordUrl: String? = null,
+    @SerialName("status") val status: String? = null
 )
 
 @Serializable

@@ -226,6 +226,20 @@ fun MarketplaceFiltersBar(
                 }
             )
         }
+
+        Spacer(Modifier.height(8.dp))
+
+        CategoryFilterChips(
+            selectedCategories = filters.categories,
+            onToggle = { cat ->
+                val newCategories = if (cat in filters.categories)
+                    filters.categories - cat
+                else
+                    filters.categories + cat
+                onFilterChange(filters.copy(categories = newCategories))
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

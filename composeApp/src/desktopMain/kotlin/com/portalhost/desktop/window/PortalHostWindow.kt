@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.Density
 import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
+import com.portalhost.desktop.screens.MarketplaceDetailScreen
 import com.portalhost.desktop.screens.MarketplaceScreen
 import com.portalhost.desktop.screens.PlayerManagementScreen
 import com.portalhost.desktop.screens.ServerConsoleScreen
@@ -73,6 +74,7 @@ sealed class Screen {
     object Settings : Screen()
     data class Players(val serverId: String) : Screen()
     object Marketplace : Screen()
+    data class MarketplaceDetail(val projectId: String) : Screen()
 }
 
 @Composable
@@ -311,7 +313,13 @@ fun ScreenContent(
         onBack = { onNavigate(Screen.Home) }
     )
     Screen.Settings -> SettingsScreen()
-    Screen.Marketplace -> MarketplaceScreen()
+    Screen.Marketplace -> MarketplaceScreen(
+        onNavigateToDetail = { projectId -> onNavigate(Screen.MarketplaceDetail(projectId)) }
+    )
+    is Screen.MarketplaceDetail -> MarketplaceDetailScreen(
+        projectId = (screen as Screen.MarketplaceDetail).projectId,
+        onBack = { onNavigate(Screen.Marketplace) }
+    )
 }
 
 @Composable

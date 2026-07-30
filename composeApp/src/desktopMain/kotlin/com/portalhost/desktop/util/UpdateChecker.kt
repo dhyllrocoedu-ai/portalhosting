@@ -201,57 +201,75 @@ object UpdateChecker {
     }
 
     private suspend fun tryWebsiteCheck(): UpdateResult? {
-        val connection = URL(WEBSITE_LATEST_URL).openConnection() as HttpURLConnection
-        return try {
-            connection.setRequestProperty("Accept", "application/json")
-            connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
-            connection.connectTimeout = 10000
-            connection.readTimeout = 10000
+        for (attempt in 0 until 3) {
+            val connection = URL(WEBSITE_LATEST_URL).openConnection() as HttpURLConnection
+            try {
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("User-Agent", "PortalHost/${BuildConfig.VERSION_NAME}")
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
 
-            if (connection.responseCode != 200) {
-                logger.warn { "Website latest.json returned ${connection.responseCode}" }
-                return null
-            }
+                val responseCode = connection.responseCode
 
-            val body = connection.inputStream.bufferedReader().readText()
+                if (responseCode != 200) {
+                    if (responseCode in 400..499 && responseCode != 429) {
+                        logger.warn { "Website latest.json returned $responseCode (not retrying)" }
+                        return null
+                    }
+                    if (attempt < 2) {
+                        logger.warn { "Website latest.json returned $responseCode, retrying (${attempt + 1}/3)" }
+                        kotlinx.coroutines.delay((attempt + 1) * 1000L)
+                        continue
+                    }
+                    logger.warn { "Website latest.json returned $responseCode after 3 attempts" }
+                    return null
+                }
 
-            val root = json.parseToJsonElement(body).jsonObject
-            val version = root["version"]?.jsonPrimitive?.content ?: ""
-            val msiUrl = root["msi"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
-            val msiSize = root["msi"]?.jsonObject?.get("size")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
-            val exeUrl = root["exe"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
-            val exeSize = root["exe"]?.jsonObject?.get("size")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
-            val date = root["date"]?.jsonPrimitive?.content ?: ""
+                val body = connection.inputStream.bufferedReader().readText()
+                val root = json.parseToJsonElement(body).jsonObject
+                val version = root["version"]?.jsonPrimitive?.content ?: ""
+                val msiUrl = root["msi"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
+                val msiSize = root["msi"]?.jsonObject?.get("size")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
+                val exeUrl = root["exe"]?.jsonObject?.get("url")?.jsonPrimitive?.content ?: ""
+                val exeSize = root["exe"]?.jsonObject?.get("size")?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
+                val date = root["date"]?.jsonPrimitive?.content ?: ""
 
-            val downloadUrl = if (msiUrl.isNotBlank()) msiUrl else exeUrl
-            val fileSize = if (msiUrl.isNotBlank()) msiSize else exeSize
-            val releaseNotes = "Released $date. See website for full changelog."
+                val downloadUrl = if (msiUrl.isNotBlank()) msiUrl else exeUrl
+                val fileSize = if (msiUrl.isNotBlank()) msiSize else exeSize
+                val releaseNotes = "Released $date. See website for full changelog."
 
-            if (version.isBlank() || downloadUrl.isBlank()) {
-                logger.warn { "Invalid data in latest.json" }
-                return null
-            }
+                if (version.isBlank() || downloadUrl.isBlank()) {
+                    logger.warn { "Invalid data in latest.json" }
+                    return null
+                }
 
-            val currentVersion = BuildConfig.VERSION_NAME
-            if (isNewerVersion(version, currentVersion)) {
-                val changelog = try { fetchChangelog() } catch (_: Exception) { emptyList() }
-                UpdateResult.UpdateAvailable(
-                    UpdateInfo(
-                        latestVersion = version,
-                        downloadUrl = downloadUrl,
-                        releaseNotes = releaseNotes,
-                        changelog = changelog.filter { entry -> entry.version == version || entry.version == "v$version" },
+                val currentVersion = BuildConfig.VERSION_NAME
+                if (isNewerVersion(version, currentVersion)) {
+                    val changelog = try { fetchChangelog() } catch (_: Exception) { emptyList() }
+                    return UpdateResult.UpdateAvailable(
+                        UpdateInfo(
+                            latestVersion = version,
+                            downloadUrl = downloadUrl,
+                            releaseNotes = releaseNotes,
+                            changelog = changelog.filter { entry -> entry.version == version || entry.version == "v$version" },
+                        )
                     )
-                )
-            } else {
-                UpdateResult.UpToDate
+                } else {
+                    return UpdateResult.UpToDate
+                }
+            } catch (e: Exception) {
+                if (attempt < 2) {
+                    logger.warn { "Website update check failed (${attempt + 1}/3): ${e.message}" }
+                    kotlinx.coroutines.delay((attempt + 1) * 1000L)
+                } else {
+                    logger.warn { "Website update check failed after 3 attempts: ${e.message}" }
+                    return null
+                }
+            } finally {
+                connection.disconnect()
             }
-        } catch (e: Exception) {
-            logger.warn { "Website update check failed: ${e.message}" }
-            null
-        } finally {
-            connection.disconnect()
         }
+        return null
     }
 
     private suspend fun tryGithubCheck(): UpdateResult? {

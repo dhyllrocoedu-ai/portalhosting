@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Store
@@ -20,17 +22,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,69 +38,46 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.portalhost.marketplace.MarketplacePreferences
 import com.portalhost.marketplace.MarketplaceRepository
 import com.portalhost.marketplace.formatDownloads
-import com.portalhost.marketplace.isProjectCompatible
 import com.portalhost.model.MarketplaceFilters
 import com.portalhost.model.MarketplaceUiState
-import com.portalhost.model.ModrinthProject
-import com.portalhost.model.ModrinthVersion
-import com.portalhost.model.ServerConfig
-import com.portalhost.model.ServerInstallTarget
-import com.portalhost.server.ServerManager
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import java.awt.Desktop
-import java.io.File
-import java.net.URI
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketplaceScreen(
+    onNavigateToDetail: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
     val repository: MarketplaceRepository = koinInject()
     val marketplacePreferences: MarketplacePreferences = koinInject()
-    val serverManager: ServerManager = koinInject()
 
     var uiState by remember { mutableStateOf<MarketplaceUiState>(MarketplaceUiState.Initial) }
     var filters by remember { mutableStateOf(marketplacePreferences.loadFilters()) }
-    var selectedProject by remember { mutableStateOf<ModrinthProject?>(null) }
-    var projectVersions by remember { mutableStateOf<List<ModrinthVersion>>(emptyList()) }
-    var selectedVersion by remember { mutableStateOf<ModrinthVersion?>(null) }
-    var detailSheetVisible by remember { mutableStateOf(false) }
-    var installModalVisible by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var selectedTarget by remember { mutableStateOf<ServerInstallTarget?>(null) }
-    var isDownloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf(0f) }
     var currentOffset by remember { mutableStateOf(0) }
 
-    val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
-    val servers: List<ServerConfig> = serverManager.servers.value.values.toList()
-    val serversDirBase = fileSystem.getServersDirBlocking()
-
-    val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val listState = rememberLazyListState()
+    val listState = rememberLazyGridState()
 
     val shouldLoadMore by remember {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
             val totalItems = layoutInfo.totalItemsCount
-            val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val visibleItems = layoutInfo.visibleItemsInfo
+            val lastVisibleItem = visibleItems.lastOrNull()?.index ?: 0
             lastVisibleItem >= totalItems - 4 && totalItems > 0
         }
     }
 
     LaunchedEffect(shouldLoadMore) {
         val success = uiState as? MarketplaceUiState.Success ?: return@LaunchedEffect
-        if (success.hasMore && !isDownloading) {
+        if (success.hasMore) {
             val nextOffset = success.projects.size
             loadMoreProjects(repository, filters, nextOffset, scope) { result ->
                 result.onSuccess { searchResult ->
@@ -231,9 +207,11 @@ fun MarketplaceScreen(
                 }
 
                 is MarketplaceUiState.Loading -> {
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(420.dp),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(6) {
@@ -252,13 +230,15 @@ fun MarketplaceScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
-                        LazyColumn(
+                        LazyVerticalGrid(
                             state = listState,
+                            columns = GridCells.Adaptive(420.dp),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            item {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
                                 Text(
                                     text = "${state.totalHits} results",
                                     style = MaterialTheme.typography.bodySmall,
@@ -272,36 +252,14 @@ fun MarketplaceScreen(
                             ) { project ->
                                 MarketplaceCard(
                                     project = project,
-                                    onClick = {
-                                        selectedProject = project
-                                        projectVersions = emptyList()
-                                        selectedVersion = null
-                                        detailSheetVisible = true
-                                        scope.launch {
-                                            repository.getProjectVersions(project.id).onSuccess { versions ->
-                                                projectVersions = versions
-                                                selectedVersion = versions.firstOrNull()
-                                            }
-                                        }
-                                    },
-                                    onInstallClick = {
-                                        selectedProject = project
-                                        projectVersions = emptyList()
-                                        selectedVersion = null
-                                        detailSheetVisible = true
-                                        scope.launch {
-                                            repository.getProjectVersions(project.id).onSuccess { versions ->
-                                                projectVersions = versions
-                                                selectedVersion = versions.firstOrNull()
-                                            }
-                                        }
-                                    },
+                                    onClick = { onNavigateToDetail(project.id) },
+                                    onInstallClick = { onNavigateToDetail(project.id) },
                                     formatDownloads = { formatDownloads(it) }
                                 )
                             }
 
                             if (state.hasMore) {
-                                item {
+                                item(span = { GridItemSpan(maxLineSpan) }) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -345,70 +303,6 @@ fun MarketplaceScreen(
         }
     }
 
-    if (detailSheetVisible && selectedProject != null) {
-        MarketplaceDetailSheet(
-            project = selectedProject!!,
-            versions = projectVersions,
-            selectedVersion = selectedVersion,
-            onVersionSelect = { version -> selectedVersion = version },
-            onInstallClick = {
-                if (servers.isNotEmpty()) {
-                    detailSheetVisible = false
-                    installModalVisible = true
-                }
-            },
-            onChangelogClick = { url ->
-                try {
-                    if (Desktop.isDesktopSupported()) {
-                        Desktop.getDesktop().browse(URI(url))
-                    } else {
-                        Runtime.getRuntime().exec(arrayOf("xdg-open", url))
-                    }
-                } catch (e: Exception) {
-                    try {
-                        Runtime.getRuntime().exec(arrayOf("xdg-open", url))
-                    } catch (_: Exception) {
-                        try {
-                            Runtime.getRuntime().exec(arrayOf("cmd", "/c", "start", url))
-                        } catch (_: Exception) { }
-                    }
-                }
-            },
-            onDismiss = {
-                detailSheetVisible = false
-                selectedProject = null
-                projectVersions = emptyList()
-                selectedVersion = null
-            },
-            sheetState = detailSheetState
-        )
-    }
-
-    if (installModalVisible) {
-        InstallTargetModal(
-            targets = getInstallTargets(selectedProject, selectedVersion, servers),
-            selectedTarget = selectedTarget,
-            isDownloading = isDownloading,
-            downloadProgress = downloadProgress,
-            getInstallPath = { target ->
-                val server = servers.find { it.id == target.serverId }
-                val serverDir = if (server != null) serverManager.getServerDir(server.id) else File(serversDirBase, target.serverName.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Server" })
-                File(serverDir, target.folderHint).absolutePath
-            },
-            onTargetSelect = { target -> selectedTarget = target },
-            onInstall = {
-                selectedTarget?.let {
-                    isDownloading = true
-                    downloadProgress = 0f
-                }
-            },
-            onCancel = {
-                installModalVisible = false
-                isDownloading = false
-                selectedTarget = null
-            }
-        )
-    }
 }
 
 private suspend fun searchProjects(
@@ -447,45 +341,6 @@ private fun loadMoreProjects(
             offset = offset,
             limit = 20
         ).let(callback)
-    }
-}
-
-private fun getInstallTargets(
-    project: ModrinthProject?,
-    version: ModrinthVersion?,
-    servers: List<ServerConfig>
-): List<ServerInstallTarget> {
-    if (project == null) return emptyList()
-
-    return servers.map { server ->
-        val serverLoader = server.serverType.name.lowercase()
-        val compatibilityVersion = version?.gameVersions?.firstOrNull { it.startsWith("1.") }
-            ?: server.version
-        val compatible = isProjectCompatible(project, compatibilityVersion, serverLoader)
-        val folderHint = getSuggestedFolder(project, version)
-
-        ServerInstallTarget(
-            serverId = server.id,
-            serverName = server.name,
-            serverVersion = server.version,
-            serverType = server.serverType.name,
-            compatible = compatible,
-            folderHint = folderHint
-        )
-    }
-}
-
-private fun getSuggestedFolder(project: ModrinthProject, version: ModrinthVersion?): String {
-    val primaryLoader = version?.loaders?.firstOrNull()?.lowercase()
-        ?: project.loaders.firstOrNull()?.lowercase()
-    return when {
-        primaryLoader in listOf("paper", "spigot", "purpur", "folia") -> "plugins"
-        primaryLoader in listOf("forge", "neoforge") -> "mods"
-        primaryLoader in listOf("fabric", "quilt") -> "mods"
-        project.projectType == "datapack" -> "datapacks"
-        project.projectType == "resourcepack" -> "resourcepacks"
-        project.projectType == "shader" -> "shaderpacks"
-        else -> "plugins"
     }
 }
 

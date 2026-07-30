@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
@@ -33,8 +30,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.desktop.marketplace.SimpleAsyncImage
+import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.model.ModrinthProject
 
 @Composable
@@ -47,6 +44,7 @@ fun MarketplaceCard(
 ) {
     val enchantmentBg = rememberResourcePainter("/icons/Enchantment.png")
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest
+    val accentColor = project.color?.let { Color(it) }
 
     Card(
         modifier = modifier
@@ -94,6 +92,15 @@ fun MarketplaceCard(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            project.author?.let {
+                                Text(
+                                    text = "by $it",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                             Text(
                                 text = project.description,
                                 style = MaterialTheme.typography.bodySmall,
@@ -117,25 +124,39 @@ fun MarketplaceCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = formatDownloads(project.followers),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "followers",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(Modifier.height(8.dp))
                             Card(
                                 modifier = Modifier.clickable { onInstallClick() },
                                 shape = RoundedCornerShape(6.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    containerColor = accentColor
+                                        ?: MaterialTheme.colorScheme.primaryContainer
                                 )
                             ) {
                                 Text(
                                     text = "Install",
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = if (accentColor != null) Color.White
+                                        else MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
 
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -151,43 +172,42 @@ fun MarketplaceCard(
                                 isPrimary = false
                             )
                         }
-                        project.versions.firstOrNull()?.let { version ->
-                            CategoryChip(
-                                label = version,
-                                isPrimary = false
-                            )
-                        }
-                        project.latestVersion?.let { latest ->
-                            CategoryChip(
-                                label = latest,
-                                isPrimary = false
-                            )
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Tap to view details",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        SideBadge(side = project.serverSide, label = "Server")
+                        SideBadge(side = project.clientSide, label = "Client")
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SideBadge(side: String, label: String) {
+    val (bgColor, textColor) = when (side) {
+        "required" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        "optional" -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerHigh to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val icon = when (side) {
+        "required" -> "\u2713"
+        "optional" -> "\u25CB"
+        else -> "\u2717"
+    }
+    SuggestionChip(
+        onClick = { },
+        label = {
+            Text(
+                text = "$icon $label",
+                style = MaterialTheme.typography.labelSmall
+            )
+        },
+        modifier = Modifier.height(22.dp),
+        colors = SuggestionChipDefaults.suggestionChipColors(
+            containerColor = bgColor,
+            labelColor = textColor
+        ),
+        border = null
+    )
 }
 
 @Composable
@@ -200,7 +220,7 @@ fun CategoryChip(label: String, isPrimary: Boolean) {
                 style = MaterialTheme.typography.labelSmall
             )
         },
-        modifier = Modifier.height(24.dp),
+        modifier = Modifier.height(22.dp),
         colors = SuggestionChipDefaults.suggestionChipColors(
             containerColor = if (isPrimary)
                 MaterialTheme.colorScheme.primaryContainer

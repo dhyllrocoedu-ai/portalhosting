@@ -110,13 +110,13 @@ class ModrinthApi {
             }
             facetList.add(buildJsonArray {
                 add(buildJsonArray {
-                    loaderFacets.forEach { add("loader:$it") }
+                    loaderFacets.forEach { add("categories:$it") }
                 })
             })
         }
 
         version?.let {
-            facetList.add(buildJsonArray { add(buildJsonArray { add("game_version:$it") }) })
+            facetList.add(buildJsonArray { add(buildJsonArray { add("versions:$it") }) })
         }
 
         if (categories.isNotEmpty()) {
@@ -140,7 +140,7 @@ class ModrinthApi {
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "PortalHost/5.0.62")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.65")
 
                 val responseCode = conn.responseCode
 
@@ -148,10 +148,15 @@ class ModrinthApi {
                     val retryAfter = conn.getHeaderField("Retry-After")?.toLongOrNull() ?: 30L
                     if (attempt < 2) {
                         try { Thread.sleep(retryAfter * 1000L) } catch (_: InterruptedException) { }
-                        lastException = Exception("Rate limited (HTTP 429). Retry after ${retryAfter}s")
                         continue
                     }
-                    throw Exception("Rate limited (HTTP 429). Retry after ${retryAfter}s")
+                    val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                    throw HttpException(429, errorBody)
+                }
+
+                if (responseCode in 400..499) {
+                    val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                    throw HttpException(responseCode, errorBody)
                 }
 
                 if (responseCode !in 200..299) {
@@ -161,6 +166,8 @@ class ModrinthApi {
 
                 val response = conn.inputStream.bufferedReader().readText()
                 return response
+            } catch (e: HttpException) {
+                throw e
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < 2) {
@@ -182,7 +189,7 @@ class ModrinthApi {
                 conn.readTimeout = 15000
                 conn.setRequestProperty("Content-Type", "application/json")
                 conn.setRequestProperty("Accept", "application/json")
-                conn.setRequestProperty("User-Agent", "PortalHost/5.0.61")
+                conn.setRequestProperty("User-Agent", "PortalHost/5.0.65")
                 conn.doOutput = true
 
                 conn.outputStream.use { os ->
@@ -191,6 +198,11 @@ class ModrinthApi {
 
                 val responseCode = conn.responseCode
 
+                if (responseCode in 400..499) {
+                    val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                    throw HttpException(responseCode, errorBody)
+                }
+
                 if (responseCode !in 200..299) {
                     val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
                     throw Exception("HTTP $responseCode: $errorBody")
@@ -198,6 +210,8 @@ class ModrinthApi {
 
                 val response = conn.inputStream.bufferedReader().readText()
                 return response
+            } catch (e: HttpException) {
+                throw e
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < 2) {
@@ -207,4 +221,6 @@ class ModrinthApi {
         }
         throw lastException ?: Exception("HTTP request failed")
     }
+
+    private class HttpException(val statusCode: Int, body: String) : Exception("HTTP $statusCode: $body")
 }
