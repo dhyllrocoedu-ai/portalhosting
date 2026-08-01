@@ -453,6 +453,7 @@ class ServerManager(
             val name = match.groupValues[1]
             _serverStates.update { states ->
                 val state = states[serverId] ?: return@update states
+                if (name in state.players) return@update states
                 states + (serverId to state.copy(
                     playersOnline = state.playersOnline + 1,
                     players = state.players + name

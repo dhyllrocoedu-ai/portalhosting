@@ -14,31 +14,35 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.GppBad
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,6 +61,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.portalhost.server.ServerManager
+import com.portalhost.model.ServerStatus
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.OptIn
@@ -110,7 +115,7 @@ fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
         }
 
         when (selectedTab) {
-            0 -> OnlinePlayersTab(serverDir)
+            0 -> OnlinePlayersTab(serverManager, serverId)
             1 -> WhitelistTab(serverDir)
             2 -> OperatorsTab(serverDir)
             3 -> BannedPlayersTab(serverDir)
@@ -120,28 +125,10 @@ fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
 }
 
 @Composable
-private fun OnlinePlayersTab(serverDir: File) {
-    val usercacheFile = File(serverDir, "usercache.json")
-
-    var players by remember { mutableStateOf<List<WhitelistEntry>>(emptyList()) }
-    var newPlayerName by remember { mutableStateOf("") }
-    var newPlayerUuid by remember { mutableStateOf("") }
-    var currentPage by remember { mutableIntStateOf(0) }
-    val pageSize = 5
-
-    LaunchedEffect(usercacheFile) {
-        if (usercacheFile.exists()) {
-            val json = Json { ignoreUnknownKeys = true }
-            val content = usercacheFile.readText()
-            val list = json.decodeFromString<List<WhitelistEntry>>(content)
-            players = list
-        } else {
-            players = emptyList()
-        }
-    }
-
-    val totalPages = ((players.size + pageSize - 1) / pageSize).coerceAtLeast(1)
-    val pagedPlayers = players.drop(currentPage * pageSize).take(pageSize)
+private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String) {
+    val serverStates by serverManager.serverStates.collectAsState()
+    val state = serverStates[serverId]
+    val players = state?.players ?: emptyList()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -150,7 +137,7 @@ private fun OnlinePlayersTab(serverDir: File) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Online Players (from usercache.json)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Online Players (${players.size})", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.width(8.dp))
         }
@@ -160,50 +147,112 @@ private fun OnlinePlayersTab(serverDir: File) {
         if (players.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Filled.PersonOff, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    Icon(Icons.Default.PersonOff, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                     Spacer(Modifier.height(8.dp))
-                    Text("No players have joined yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No players online", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
             LazyColumn {
-                items(pagedPlayers) { player ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(player.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                Text("UUID: ${player.uuid}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                items(players, key = { it }) { player ->
+                    PlayerActionCard(
+                        player = player,
+                        onCommand = { cmd ->
+                            val process = serverManager.getProcessForServer(serverId)
+                            if (process != null) {
+                                try {
+                                    val writer = process.outputStream.bufferedWriter()
+                                    writer.write("$cmd\n")
+                                    writer.flush()
+                                } catch (_: Exception) {}
                             }
                         }
-                    }
+                    )
                 }
             }
-            if (totalPages > 1) {
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { currentPage = (currentPage - 1).coerceAtLeast(0) }, enabled = currentPage > 0) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous page")
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Text("${currentPage + 1} / $totalPages", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.width(16.dp))
-                    IconButton(onClick = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }, enabled = currentPage < totalPages - 1) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "Next page")
-                    }
-                }
+        }
+    }
+}
+
+@Composable
+private fun PlayerActionCard(
+    player: String,
+    onCommand: (String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MinecraftHeadIcon(player = player, size = 24.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(player, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                ActionButton(
+                    label = "Kick",
+                    icon = Icons.Default.Block,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    onClick = { onCommand("/kick $player") }
+                )
+                ActionButton(
+                    label = "Ban",
+                    icon = Icons.Default.GppBad,
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    onClick = { onCommand("/ban $player") }
+                )
+                ActionButton(
+                    label = "OP",
+                    icon = Icons.Default.Shield,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    onClick = { onCommand("/op $player") }
+                )
+                ActionButton(
+                    label = "De-OP",
+                    icon = Icons.Default.PersonOff,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    onClick = { onCommand("/deop $player") }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: androidx.compose.ui.graphics.Color,
+    contentColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.height(28.dp).padding(horizontal = 8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = color,
+            contentColor = contentColor,
+            disabledContainerColor = color.copy(alpha = 0.38f),
+            disabledContentColor = contentColor.copy(alpha = 0.38f)
+        ),
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
         }
     }
 }

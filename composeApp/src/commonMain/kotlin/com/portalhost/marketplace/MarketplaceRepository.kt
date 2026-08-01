@@ -119,15 +119,36 @@ fun formatDownloads(downloads: Int): String {
 }
 
 fun getSuggestedFolder(project: ModrinthProject): String {
-    val primaryLoader = project.loaders.firstOrNull()?.lowercase()
-    return when {
-        primaryLoader in listOf("paper", "spigot", "purpur", "folia") -> "plugins"
-        primaryLoader in listOf("forge", "neoforge") -> "mods"
-        primaryLoader in listOf("fabric", "quilt") -> "mods"
-        project.projectType == "datapack" -> "datapacks"
-        project.projectType == "resourcepack" -> "resourcepacks"
-        project.projectType == "shader" -> "shaderpacks"
-        else -> "plugins"
+    val projectType = project.projectType.lowercase()
+    val loaders = project.loaders.map { it.lowercase() }
+    val hasDatapackLoader = "datapack" in loaders
+
+    // Project type takes precedence — Modrinth's project_type is the primary discriminator
+    return when (projectType) {
+        "datapack" -> "world/datapacks"
+        "resourcepack" -> "resourcepacks"
+        "shader" -> "shaderpacks" // client-side only, will be disabled in UI
+        "modpack" -> "modpacks"   // not a single-file install, will be disabled in UI
+        "mod" -> {
+            // Mods: loader determines fabric/forge/neoforge/quilt -> mods
+            if (loaders.any { it in listOf("fabric", "quilt", "forge", "neoforge") }) "mods"
+            else if (hasDatapackLoader) "world/datapacks" // some "mod" projects are actually datapacks
+            else "mods"
+        }
+        "plugin" -> {
+            // Plugins: loader determines paper/spigot/purpur/folia -> plugins
+            if (loaders.any { it in listOf("paper", "spigot", "purpur", "folia") }) "plugins"
+            else "plugins"
+        }
+        else -> {
+            // Fallback: infer from loaders for any unrecognized project_type
+            when {
+                hasDatapackLoader -> "world/datapacks"
+                loaders.any { it in listOf("paper", "spigot", "purpur", "folia") } -> "plugins"
+                loaders.any { it in listOf("forge", "neoforge", "fabric", "quilt") } -> "mods"
+                else -> "plugins" // safe default
+            }
+        }
     }
 }
 
@@ -140,11 +161,11 @@ fun isProjectCompatible(project: ModrinthProject, serverVersion: String, serverL
     val loaderMatch = project.loaders.any { loader ->
         val l = loader.lowercase()
         when {
-            serverLoaderLower in listOf("paper", "spigot", "purpur", "folia") -> l in listOf("paper", "spigot", "purpur", "folia")
+            serverLoaderLower in listOf("paper", "spigot", "purpur", "folia") -> l in listOf("paper", "spigot", "purpur", "folia", "datapack")
             serverLoaderLower == "forge" -> l == "forge"
             serverLoaderLower == "neoforge" -> l == "neoforge"
-            serverLoaderLower in listOf("fabric", "quilt") -> l in listOf("fabric", "quilt")
-            serverLoaderLower == "vanilla" -> l == "vanilla" || l.isEmpty()
+            serverLoaderLower in listOf("fabric", "quilt") -> l in listOf("fabric", "quilt", "datapack")
+            serverLoaderLower == "vanilla" -> l == "vanilla" || l.isEmpty() || l == "datapack"
             else -> true
         }
     }

@@ -423,6 +423,7 @@ fun MarketplaceDetailScreen(
                             isDownloading = isDownloading,
                             downloadProgress = downloadProgress,
                             servers = servers,
+                            projectType = p.projectType,
                             onInstallClick = {
                                 if (servers.isNotEmpty() && selectedVersion != null) {
                                     selectedTarget = null
@@ -962,10 +963,12 @@ private fun BottomInstallBar(
     isDownloading: Boolean,
     downloadProgress: Float,
     servers: List<ServerConfig>,
+    projectType: String,
     onInstallClick: () -> Unit,
     accentColor: androidx.compose.ui.graphics.Color?
 ) {
     val effectiveAccent = accentColor ?: MaterialTheme.colorScheme.primary
+    val isClientSide = isClientSideProject(projectType)
 
     Row(
         modifier = Modifier
@@ -993,6 +996,13 @@ private fun BottomInstallBar(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (isClientSide) {
+                Text(
+                    text = "This is a client-side addon (${projectType.replaceFirstChar { it.uppercase() }}) — cannot be installed to a server",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
         if (isDownloading) {
             LinearProgressIndicator(
@@ -1003,18 +1013,23 @@ private fun BottomInstallBar(
         } else {
             Button(
                 onClick = onInstallClick,
-                enabled = selectedVersion != null && servers.isNotEmpty(),
+                enabled = selectedVersion != null && servers.isNotEmpty() && !isClientSide,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = effectiveAccent,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = if (isClientSide) MaterialTheme.colorScheme.surfaceContainerHighest else effectiveAccent,
+                    contentColor = if (isClientSide) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
                 )
             ) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Install to Server")
+                Text(if (isClientSide) "Client-side Only" else "Install to Server")
             }
         }
     }
+}
+
+private fun isClientSideProject(projectType: String): Boolean {
+    val pt = projectType.lowercase()
+    return pt in listOf("shader", "resourcepack", "modpack")
 }
 
 @Composable
