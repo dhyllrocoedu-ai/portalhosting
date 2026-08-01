@@ -227,19 +227,6 @@ fun MarketplaceFiltersBar(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        CategoryFilterChips(
-            selectedCategories = filters.categories,
-            onToggle = { cat ->
-                val newCategories = if (cat in filters.categories)
-                    filters.categories - cat
-                else
-                    filters.categories + cat
-                onFilterChange(filters.copy(categories = newCategories))
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
@@ -283,36 +270,6 @@ private fun FilterDropdown(
                     } else null
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun CategoryFilterChips(
-    selectedCategories: Set<String>,
-    onToggle: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        categories.forEach { category ->
-            val selected = category in selectedCategories
-            FilterChip(
-                selected = selected,
-                onClick = { onToggle(category) },
-                label = { Text(category.replaceFirstChar { it.uppercase() }) },
-                leadingIcon = if (selected) {
-                    { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.height(16.dp)) }
-                } else null,
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            )
         }
     }
 }

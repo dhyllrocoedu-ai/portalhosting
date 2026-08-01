@@ -19,7 +19,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun ActivityCard(activityLog: ActivityLog) {
+fun ActivityCard(activityLog: ActivityLog, onViewAll: () -> Unit = {}) {
     val entries = activityLog.entries.takeLast(10)
 
     Card(
@@ -34,7 +34,7 @@ fun ActivityCard(activityLog: ActivityLog) {
             ) {
                 Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = {}) {
+                TextButton(onClick = onViewAll) {
                     Text("View All", style = MaterialTheme.typography.labelSmall)
                 }
             }

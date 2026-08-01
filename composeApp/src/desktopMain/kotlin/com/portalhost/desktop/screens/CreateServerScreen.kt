@@ -218,7 +218,7 @@ fun CreateServerScreen(
     val jdkInstallProgress by jdkManager.installProgress.collectAsState()
 
     var currentStep by remember { mutableIntStateOf(0) }
-    val totalSteps = 6
+    val totalSteps = 5
 
     var createSource by remember { mutableStateOf<CreateSource?>(null) }
     var jarPath by remember { mutableStateOf<String?>(null) }
@@ -603,20 +603,168 @@ fun CreateServerScreen(
     }
 
     @Composable
-    fun StepServerName() {
-        Text("Server Name", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+    fun StepNameAndProperties() {
+        Text("Server Details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text("Give your server a memorable name", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Give your server a name and configure its properties", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = serverName,
-            onValueChange = { serverName = it },
-            label = { Text("Server Name") },
-            placeholder = { Text("My Survival Server") },
-            singleLine = true,
+
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
-        )
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Server Name", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = serverName,
+                    onValueChange = { serverName = it },
+                    label = { Text("Server Name") },
+                    placeholder = { Text("My Survival Server") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Text("Port", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = port,
+                    onValueChange = { port = it.filter { c -> c.isDigit() }.take(5) },
+                    label = { Text("Port") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    leadingIcon = { Icon(Icons.Default.Lan, contentDescription = null) }
+                )
+
+                Spacer(Modifier.height(16.dp))
+                Text("Gamemode", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                var gamemodeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(expanded = gamemodeExpanded, onExpandedChange = { gamemodeExpanded = it }) {
+                    OutlinedTextField(
+                        value = gamemode.replaceFirstChar { it.uppercase() },
+                        onValueChange = {},
+                        readOnly = true,
+                        singleLine = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gamemodeExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                    )
+                    ExposedDropdownMenu(expanded = gamemodeExpanded, onDismissRequest = { gamemodeExpanded = false }) {
+                        gamemodes.forEach { gm ->
+                            DropdownMenuItem(
+                                text = { Text(gm.replaceFirstChar { it.uppercase() }) },
+                                onClick = { gamemode = gm; gamemodeExpanded = false }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text("Difficulty", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                var difficultyExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(expanded = difficultyExpanded, onExpandedChange = { difficultyExpanded = it }) {
+                    OutlinedTextField(
+                        value = difficulty.replaceFirstChar { it.uppercase() },
+                        onValueChange = {},
+                        readOnly = true,
+                        singleLine = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = difficultyExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                    )
+                    ExposedDropdownMenu(expanded = difficultyExpanded, onDismissRequest = { difficultyExpanded = false }) {
+                        difficulties.forEach { diff ->
+                            DropdownMenuItem(
+                                text = { Text(diff.replaceFirstChar { it.uppercase() }) },
+                                onClick = { difficulty = diff; difficultyExpanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text("MOTD (Message of the Day)", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(4.dp))
+                var showMotdColors by remember { mutableStateOf(false) }
+                OutlinedTextField(
+                    value = motd,
+                    onValueChange = { motd = if (it.text.length <= 60) it else it.copy(text = it.text.take(60)) },
+                    label = { Text("MOTD") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
+                )
+                TextButton(onClick = { showMotdColors = !showMotdColors }) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (showMotdColors) "Hide Codes" else "Color Codes", style = MaterialTheme.typography.labelSmall)
+                }
+                if (showMotdColors) {
+                    val insertCode: (String) -> Unit = { code ->
+                        val cursor = motd.selection.start
+                        val text = motd.text
+                        motd = TextFieldValue(
+                            text = text.substring(0, cursor) + code + text.substring(cursor),
+                            selection = TextRange(cursor + code.length)
+                        )
+                    }
+                    val mcColors = listOf(
+                        '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
+                        '4' to Color(0xFFAA0000), '5' to Color(0xFFAA00AA), '6' to Color(0xFFFFAA00), '7' to Color(0xFFAAAAAA),
+                        '8' to Color(0xFF555555), '9' to Color(0xFF5555FF), 'a' to Color(0xFF55FF55), 'b' to Color(0xFF55FFFF),
+                        'c' to Color(0xFFFF5555), 'd' to Color(0xFFFF55FF), 'e' to Color(0xFFFFFF55), 'f' to Color(0xFFFFFFFF),
+                    )
+                    Text("Colors", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        mcColors.forEach { (code, color) ->
+                            val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
+                            Box(modifier = Modifier.size(24.dp).clip(RoundedCornerShape(12.dp)).background(color).border(0.5.dp, borderColor, RoundedCornerShape(12.dp)).clickable { insertCode("§$code") }, contentAlignment = Alignment.Center) {
+                                Text(code.toString(), fontSize = 10.sp, color = if (code in listOf('0', '8', '4')) Color.White else Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Formatting", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val formatCodes = listOf("Bold" to "§l", "Italic" to "§o", "Underline" to "§n", "Strike" to "§m", "Obfuscated" to "§k", "Reset" to "§r")
+                        formatCodes.forEach { (label, code) ->
+                            SuggestionChip(onClick = { insertCode(code) }, label = { Text(label, fontSize = 11.sp) })
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("Preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B))) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            val parsed = remember(motd.text) { parseMotdPreview(motd.text) }
+                            Text(text = if (parsed.text.isEmpty()) buildAnnotatedString { withStyle(SpanStyle(color = Color(0xFFAAAAAA))) { append("MOTD preview will appear here") } } else parsed, fontSize = 15.sp, lineHeight = 22.sp)
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
+                        if (files.isNotEmpty()) iconPath = files[0].absolutePath
+                    }
+                }) {
+                    Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (iconPath != null) "Change Icon" else "Set Server Icon", style = MaterialTheme.typography.labelSmall)
+                }
+                if (iconPath != null) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("Icon: $iconPath", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
     }
 
     @Composable
@@ -683,146 +831,6 @@ fun CreateServerScreen(
                 Text("Allocated: ${"%.1f".format(minRam)} GB – ${"%.1f".format(maxRam)} GB",
                     style = MaterialTheme.typography.bodyMedium)
             }
-        }
-    }
-
-    @Composable
-    fun StepProperties() {
-        Text("Server Properties", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Configure basic server settings", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
-
-        OutlinedTextField(
-            value = port,
-            onValueChange = { port = it.filter { c -> c.isDigit() }.take(5) },
-            label = { Text("Port") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.Default.Lan, contentDescription = null) }
-        )
-
-        Spacer(Modifier.height(12.dp))
-        Text("Gamemode", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        var gamemodeExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(expanded = gamemodeExpanded, onExpandedChange = { gamemodeExpanded = it }) {
-            OutlinedTextField(
-                value = gamemode.replaceFirstChar { it.uppercase() },
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = gamemodeExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
-            )
-            ExposedDropdownMenu(expanded = gamemodeExpanded, onDismissRequest = { gamemodeExpanded = false }) {
-                gamemodes.forEach { gm ->
-                    DropdownMenuItem(
-                        text = { Text(gm.replaceFirstChar { it.uppercase() }) },
-                        onClick = { gamemode = gm; gamemodeExpanded = false }
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        Text("Difficulty", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        var difficultyExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(expanded = difficultyExpanded, onExpandedChange = { difficultyExpanded = it }) {
-            OutlinedTextField(
-                value = difficulty.replaceFirstChar { it.uppercase() },
-                onValueChange = {},
-                readOnly = true,
-                singleLine = true,
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = difficultyExpanded) },
-                modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
-            )
-            ExposedDropdownMenu(expanded = difficultyExpanded, onDismissRequest = { difficultyExpanded = false }) {
-                difficulties.forEach { diff ->
-                    DropdownMenuItem(
-                        text = { Text(diff.replaceFirstChar { it.uppercase() }) },
-                        onClick = { difficulty = diff; difficultyExpanded = false }
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        var showMotdColors by remember { mutableStateOf(false) }
-        OutlinedTextField(
-            value = motd,
-            onValueChange = { motd = if (it.text.length <= 60) it else it.copy(text = it.text.take(60)) },
-            label = { Text("MOTD (Message of the Day)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) }
-        )
-        TextButton(onClick = { showMotdColors = !showMotdColors }) {
-            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(if (showMotdColors) "Hide Codes" else "Color Codes", style = MaterialTheme.typography.labelSmall)
-        }
-        if (showMotdColors) {
-            val insertCode: (String) -> Unit = { code ->
-                val cursor = motd.selection.start
-                val text = motd.text
-                motd = TextFieldValue(
-                    text = text.substring(0, cursor) + code + text.substring(cursor),
-                    selection = TextRange(cursor + code.length)
-                )
-            }
-            val mcColors = listOf(
-                '0' to Color(0xFF000000), '1' to Color(0xFF0000AA), '2' to Color(0xFF00AA00), '3' to Color(0xFF00AAAA),
-                '4' to Color(0xFFAA0000), '5' to Color(0xFFAA00AA), '6' to Color(0xFFFFAA00), '7' to Color(0xFFAAAAAA),
-                '8' to Color(0xFF555555), '9' to Color(0xFF5555FF), 'a' to Color(0xFF55FF55), 'b' to Color(0xFF55FFFF),
-                'c' to Color(0xFFFF5555), 'd' to Color(0xFFFF55FF), 'e' to Color(0xFFFFFF55), 'f' to Color(0xFFFFFFFF),
-            )
-            Text("Colors", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                mcColors.forEach { (code, color) ->
-                    val borderColor = if (code == 'f') Color(0xFF888888) else Color.Transparent
-                    Box(modifier = Modifier.size(24.dp).clip(RoundedCornerShape(12.dp)).background(color).border(0.5.dp, borderColor, RoundedCornerShape(12.dp)).clickable { insertCode("§$code") }, contentAlignment = Alignment.Center) {
-                        Text(code.toString(), fontSize = 10.sp, color = if (code in listOf('0', '8', '4')) Color.White else Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text("Formatting", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                val formatCodes = listOf("Bold" to "§l", "Italic" to "§o", "Underline" to "§n", "Strike" to "§m", "Obfuscated" to "§k", "Reset" to "§r")
-                formatCodes.forEach { (label, code) ->
-                    SuggestionChip(onClick = { insertCode(code) }, label = { Text(label, fontSize = 11.sp) })
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text("Preview", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B))) {
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    val parsed = remember(motd.text) { parseMotdPreview(motd.text) }
-                    Text(text = if (parsed.text.isEmpty()) buildAnnotatedString { withStyle(SpanStyle(color = Color(0xFFAAAAAA))) { append("MOTD preview will appear here") } } else parsed, fontSize = 15.sp, lineHeight = 22.sp)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(onClick = {
-            scope.launch {
-                val files = pickFile("Select Server Icon", "Images" to listOf("png", "jpg", "jpeg"))
-                if (files.isNotEmpty()) iconPath = files[0].absolutePath
-            }
-        }) {
-            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(if (iconPath != null) "Change Icon" else "Set Server Icon", style = MaterialTheme.typography.labelSmall)
-        }
-        if (iconPath != null) {
-            Spacer(Modifier.height(4.dp))
-            Text("Icon: $iconPath", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 
@@ -927,11 +935,10 @@ fun CreateServerScreen(
                 ) {
                     when (currentStep) {
                         0 -> StepChooseSource()
-                        1 -> StepServerName()
+                        1 -> StepNameAndProperties()
                         2 -> StepRamConfig()
-                        3 -> StepProperties()
-                        4 -> StepStorageCheck()
-                        5 -> StepEula()
+                        3 -> StepStorageCheck()
+                        4 -> StepEula()
                     }
 
                     if (creating) {
@@ -1015,7 +1022,7 @@ fun CreateServerScreen(
                                         
                                         // Auto-skip to EULA if importing folder with valid server
                                         if (importReadyToCreate) {
-                                            currentStep = 5  // Jump to EULA step (step 5)
+                                            currentStep = 4  // Jump to EULA step (step 4)
                                         } else {
                                             currentStep++
                                         }
@@ -1026,7 +1033,7 @@ fun CreateServerScreen(
                             },
                             enabled = when (currentStep) {
                                 1 -> serverName.isNotBlank()
-                                4 -> availableBytes >= requiredBytes
+                                3 -> availableBytes >= requiredBytes
                                 else -> true
                             },
                             modifier = Modifier.weight(1f)

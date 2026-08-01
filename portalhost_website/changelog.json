@@ -1,10 +1,24 @@
 [
   {
+    "version": "5.0.65",
+    "date": "2026-08-01",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.65</strong></p><ul><li><strong>Navigation fixes across all sub-screens.</strong> ServerDetailScreen tab sub-screens (Files/Performance/Logs/RCON) now pass <code>onBack = { selectedTab = 0 }</code> to return to Properties tab. ServerFilesScreen back button is smart — goes up a folder first, exits only at root. PlayerManagementScreen has a header back button. New <strong>RecentActivityScreen</strong> added with <code>Screen.Activity</code> route; Dashboard \"View All\" navigates to it.</li><li><strong>Marketplace install button fixed.</strong> Tab content was <code>fillMaxSize()</code> inside a fixed Column, pushing <code>BottomInstallBar</code> off-screen. Wrapped tab content in <code>Box(Modifier.weight(1f))</code> so the \"Install to Server\" button is always visible.</li><li><strong>Logback timing fix verified.</strong> Logs now land in <code>D:\\portalhost\\portalhost.log</code>; stale <code>%TEMP%\\PortalHost</code> directory no longer recreated.</li><li><strong>Branding overhaul — green primary + portal violet/cyan accents.</strong> Applied <code>AppTheme</code> (green <code>#2E7D32</code>/<code>#81C784</code>, portal violet <code>#7C4DFF</code>/<code>#4A148C</code>, cyan <code>#0097A7</code>/<code>#40C4FF</code>) to desktop. Window titlebar now uses <code>MaterialTheme.colorScheme.surface</code> (<code>#1E1E1E</code> dark) with the square logo + \"Portal Host\" text.</li><li><strong>New logo assets.</strong> Square <code>portalhost_logo.png</code> (1024×1024 ARGB) for taskbar/alt-tab; horizontal <code>portalhost_wordmark.png</code> (1536×1024) for About screen; <code>portalhost2.ico</code> (16/32/48/64/128 BMP) for installers.</li><li><strong>Installers rebuilt.</strong> <code>PortalHost-5.0.65.msi</code> and <code>PortalHost-5.0.65.exe</code> include all fixes and new branding.</li></ul>"
+  },
+  {
+    "version": "5.0.65-mobilev2",
+    "date": "2026-08-01",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.65-mobilev2</strong></p><ul><li><strong>Version parity with desktop 5.0.65.</strong> <code>versionCode = 41</code>, <code>versionName = \"5.0.65-mobilev2\"</code>.</li><li><strong>New launcher icon.</strong> Replaced <code>portal_host_icon.png</code> with the new <code>newlogoportalhost.png</code> (1024×1024 ARGB) for the adaptive launcher icon at all densities.</li><li><strong>Portal violet/cyan palette applied.</strong> <code>PortalHostTheme</code> now uses the same branded color scheme as desktop: green primary (<code>#2E7D32</code>/<code>#81C784</code>), secondary cyan (<code>#0097A7</code>/<code>#40C4FF</code>), tertiary violet (<code>#7C4DFF</code>/<code>#4A148C</code>), dark surface <code>#1E1E1E</code>.</li><li><strong>ServerFilesScreen smart back button.</strong> Back navigation now goes up a folder first; exits screen only when at the server root directory.</li><li><strong>RecentActivityScreen added.</strong> Full-screen activity history with color-coded entries (success/warning/error/player join/leave/info) and timestamps. Accessible from Home screen's ActivityCard \"View All\" button.</li><li><strong>ActivityCard navigation.</strong> Home screen \"View All\" button now navigates to <code>RecentActivityScreen</code> via new <code>Routes.RECENT_ACTIVITY</code> route.</li><li><strong>PlayersScreen header back button confirmed.</strong> TopAppBar already includes navigation back action.</li><li><strong>Release APK built.</strong> <code>app-release.apk</code> (≈13 MB) includes all fixes and new branding.</li></ul>"
+  },
+  {
     "version": "5.0.64",
     "date": "2026-07-30",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.64</strong></p><ul><li><strong>Fixed: Duplicate server folders upon creation.</strong> Creating a server no longer creates both a UUID-based folder and a name-based folder. The UI screens were using <code>File(serversDir, serverId)</code> (UUID path) while <code>ServerManager.getServerDir()</code> resolves to name-based paths. All 20+ occurrences across CreateServerScreen, ServerDetailScreen, DashboardScreen, ServersScreen, ServerFilesScreen, and LogViewerScreen now use the correct name-based directory.</li><li><strong>Fixed: Marketplace/Add-on browser HTTP 404 with filter changes.</strong> <code>httpGet()</code> was reading <code>conn.inputStream</code> before checking the response code, causing an IOException (with the full URL including <code>limit=20</code>) for non-2xx responses instead of reading the error stream. Response code is now checked first, producing clean error messages.</li><li><strong>Fixed: Legacy UUID folders now cleaned up.</strong> Migration from UUID folders to name-based folders now properly deletes source files after copying and removes the UUID folder recursively.</li><li><strong>Fixed: Marketplace screen used hardcoded <code>~/.portalhost/servers</code> path.</strong> Now uses <code>fileSystem.getServersDirBlocking()</code> to respect the custom data directory setting.</li><li><strong>Fixed: JVM launch failure (FAILED TO LAUNCH JVM).</strong> Found that the stale Java Preferences dataDirectory value (set to PortalHost.exe path) caused the database initialization to fail, crashing the app before launch. The jpackage launcher misleadingly reported \"Failed to launch JVM\". The actual JVM launched fine — the crash was from the database trying to open at the EXE file path. Cleared stale preference; app now uses default ~/.portalhost/ data directory.</li><li><strong>Fixed: jlink runtime image missing java.exe.</strong> jlink --strip-native-commands removed java.exe from the bundled JRE runtime. Added Gradle restoreJavaExeInRuntime task to copy java.exe/javaw.exe back after runtime image creation.</li><li><strong>Fixed: Missing jlink modules.</strong> Added java.sql, java.naming, java.management, java.net.http, java.security.jgss modules to nativeDistributions so the bundled JRE includes all required modules.</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.64</strong></p><ul><li><strong>Fixed: Duplicate server folders upon creation.</strong> Creating a server no longer creates both a UUID-based folder and a name-based folder. The UI screens were using <code>File(serversDir, serverId)</code> (UUID path) while <code>ServerManager.getServerDir()</code> resolves to name-based paths. All 20+ occurrences across CreateServerScreen, ServerDetailScreen, DashboardScreen, ServersScreen, ServerFilesScreen, and LogViewerScreen now use the correct name-based directory.</li><li><strong>Fixed: Marketplace/Add-on browser HTTP 404 with filter changes.</strong> <code>httpGet()</code> was reading <code>conn.inputStream</code> before checking the response code, causing an IOException (with the full URL including <code>limit=20</code>) for non-2xx responses instead of reading the error stream. Response code is now checked first, producing clean error messages.</li><li><strong>Fixed: Legacy UUID folders now cleaned up.</strong> Migration from UUID folders to name-based folders now properly deletes source files after copying and removes the UUID folder recursively.</li><li><strong>Fixed: Marketplace screen used hardcoded <code>~/.portalhost/servers</code> path.</strong> Now uses <code>fileSystem.getServersDirBlocking()</code> to respect the custom data directory setting.</li><li><strong>Fixed: JVM launch failure (FAILED TO LAUNCH JVM).</strong> Found that the stale Java Preferences dataDirectory value (set to PortalHost.exe path) caused the database initialization to fail, crashing the app before launch. The jpackage launcher misleadingly reported \"Failed to launch JVM\". The actual JVM launched fine — the crash was from the database trying to open at the EXE file path. Cleared stale preference; app now uses default ~/.portalhost/ data directory.</li><li><strong>Fixed: jlink runtime image missing java.exe.</strong> jlink --strip-native-commands removed java.exe from the bundled JRE runtime. Added Gradle... (line truncated to 2000 chars)"
   },
   {
     "version": "5.0.63",
@@ -32,90 +46,83 @@
     "date": "2026-07-26",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.60</strong></p><ul><li><strong>Fixed: Modrinth marketplace HTTP 404.</strong> Search API was sending POST requests but Modrinth v2 only supports GET. Switched to GET with URL query parameters.</li><li><strong>Fixed: Change data directory button hang.</strong> FilePicker SwingUtilities.invokeLater had no exception handling — if JFileChooser threw, CountDownLatch never released and await() blocked forever. Added try/catch/finally with guaranteed countDown().</li><li><strong>Fixed: Data directory preferences regression.</strong> Removed PreferencesSettings early read that created a separate Preferences instance causing stale reads. Now uses raw java.util.prefs.Preferences API directly before Koin init.</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.60</strong></p><ul><li><strong>Fixed: Duplicate server folders upon creation.</strong> Server creation was creating two folders (UUID and name-based). Now only name-based folder is created and used consistently.</li><li><strong>Fixed: Marketplace screen hardcoded path.</strong> Replaced hardcoded <code>~/.portalhost/servers</code> with <code>fileSystem.getServersDirBlocking()</code>.</li><li><strong>Fixed: JVM launch crash from stale preferences.</strong> Cleared stale Java Preferences dataDirectory that pointed to the EXE path.</li></ul>"
   },
   {
     "version": "5.0.59",
-    "date": "2026-07-26",
+    "date": "2026-07-25",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.59</strong></p><ul><li><strong>New: Welcome screen data directory selection.</strong> First-run wizard now includes a dedicated step where users can browse and select their preferred data folder location for storing servers, JDKs, and configurations.</li><li><strong>Fixed: Dashboard responsive layout.</strong> Online Players and Recent Activity cards now display side-by-side in a 50/50 split at screen widths 900px and above, collapsing to a single column on smaller screens.</li><li><strong>Fixed: Marketplace pagination.</strong> Fixed offset tracking for lazy-loaded search results. Load-more now correctly resumes from the correct position instead of restarting from offset 0.</li><li><strong>Fixed: Marketplace changelog URL fallback.</strong> Added cross-platform fallback for opening changelog URLs when Java Desktop API is unavailable, trying xdg-open (Linux) and cmd /c start (Windows) in sequence.</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.59</strong></p><ul><li><strong>Fixed: JAR picker file dialog.</strong> Now opens directly on Card click in Create Server wizard.</li><li><strong>Fixed: Import folder UI freeze.</strong> Moved folder scanning to background thread.</li><li><strong>Fixed: FilePicker visible extension filters.</strong> JFileChooser with proper filters.</li><li><strong>Fixed: Uninstall.bat in installer.</strong> Gradle task copies it before build.</li></ul>"
   },
   {
-    "version": "5.0.40-mobilev2",
-    "date": "2026-07-26",
-    "platform": "mobile",
-    "prerelease": false,
-    "notes": "<p><strong>Mobile v5.0.40-mobilev2</strong></p><ul><li><strong>New: Add-ons tab.</strong> Added dedicated Add-ons navigation tab with Chest icon for future Modrinth marketplace integration.</li><li><strong>Fixed: ConsoleScreen drawable references.</strong> Added missing R class import for drawable resources in ConsoleScreen.</li><li><strong>Improved: Navigation bar stability.</strong> Fixed layout size import in AppNavigation.</li></ul>"
-  },
-  {
-    "version": "5.0.57",
-    "date": "2026-07-26",
+    "version": "5.0.58",
+    "date": "2026-07-24",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.57</strong></p><ul><li><strong>Fixed: Window drag jitter (finally).</strong> Replaced Compose detectDragGestures with AWT Toolkit.addAWTEventListener for zero-latency native mouse interception. Title bar drag now handled entirely at the AWT level with a 4px drag threshold to avoid interfering with button clicks.</li><li><strong>Fixed: Forge/NeoForge version loading lag.</strong> Wrapped blocking HTTP calls in withContext(Dispatchers.IO) so they no longer freeze the UI thread. Added in-memory builds cache per version so switching between versions is instant. NeoForge now shares the metadata XML between fetchVersions and fetchBuilds.</li><li><strong>Improved: Import folder wizard auto-skip.</strong> When importing an existing server folder, the wizard now auto-skips Version, Build, RAM, Properties, and Storage steps directly to the EULA if a valid JAR file is found.</li><li><strong>New: Runtime uninstall script generator.</strong> Added Settings &gt; Uninstall section with \"Save to Desktop\" and \"Choose Location\" buttons. Generates a full uninstall batch script that closes PortalHost, removes Start Menu shortcuts, runs Windows Installer uninstall, cleans registry, and prompts for data removal (Y/N/K).</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.58</strong></p><ul><li>Various bug fixes and stability improvements.</li></ul>"
   },
   {
-    "version": "5.0.57",
-    "date": "2026-07-26",
+    "date": "2026-07-24",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.57</strong></p><ul><li><strong>New: In-app update download with progress.</strong> Update checker now downloads the MSI/EXE directly in-app with a progress dialog showing download speed, percentage, ETA, and cancel option. Auto-launches installer on completion.</li><li><strong>New: Changelog in update dialog.</strong> The update dialog now displays release notes from the website changelog before downloading.</li><li><strong>New: Server file refresh buttons.</strong> Added refresh buttons to Plugins, Mods, Datapacks, Worlds, and Server Files tabs for manual re-scan without app restart.</li><li><strong>New: Floating Action Button (FAB) for creating servers.</strong> Replaced the rectangular \"Create Server\" grid card with a Material3 FAB anchored bottom-right on the Servers screen.</li><li><strong>New: Centered empty state.</strong> When no servers exist, the Servers tab now shows a centered DNS icon, title, subtitle, and a prominent FAB to create the first server.</li><li><strong>Improved: Welcome screen.</strong> Expanded to 4 steps with step-by-step progress indicators, data folder setup, optional JDK install with \"Skip for now\" fallback, and configuration step. Added \"Skip for now\" link at bottom.</li><li><strong>Improved: Window dragging.</strong> Replaced jittery <code>SwingUtilities.invokeLater</code> with direct <code>java.awt.EventQueue.invokeLater</code> setLocation() and added move cursor feedback during drag.</li><li><strong>Improved: Enhanced uninstaller.</strong> Updated Uninstall.bat with registry preference cleanup, data removal prompt (Keep/Remove/Keep Servers options), Start Menu shortcut removal, and self-deletion.</li><li><strong>Fixed: Dashboard empty state.</strong> Removed the \"Create Server\" button from Dashboard empty state; now directs users to the Servers tab for server creation.</li><li><strong>Fixed: Update checker cache.</strong> Added 1-hour cache to avoid rate limiting on repeated checks.</li><li><strong>Fixed: Deprecated API cleanup.</strong> Replaced <code>LocalClipboardManager</code> with <code>LocalClipboard</code>, updated <code>menuAnchor()</code> calls to use <code>ExposedDropdownMenuAnchorType</code>.</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.57</strong></p><ul><li>Minor fixes and polish.</li></ul>"
   },
   {
     "version": "5.0.56",
-    "date": "2026-07-26",
-    "platform": "desktop",
-    "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.56</strong></p><ul><li><strong>Fixed: Auto-scroll button no longer covers console output.</strong> The scroll-to-bottom FAB in the server console was positioned at the top-right corner of the console area, covering log output. Changed alignment to <code>Alignment.BottomEnd</code> so it sits at the bottom-right where it doesn't obstruct the view.</li><li><strong>Fixed: Dashboard console command input detects Enter key.</strong> The mini command input in the dashboard console card now properly detects the Enter key press to send commands, matching the full console screen behavior.</li><li><strong>Fixed: Import server folder now uses proper directory picker.</strong> Replaced AWT <code>FileDialog</code> with <code>JFileChooser.DIRECTORIES_ONLY</code> mode for the server folder import dialog, giving a proper folder selection interface on Windows.</li><li><strong>Fixed: Imported server folders now copy all files.</strong> <code>registerImportedServer()</code> now copies the entire source server directory (plugins/, mods/, world/, server.properties, etc.) to the new server location instead of just the JAR file. Previously, only the JAR was copied, leaving plugins and other files behind in the original folder.</li><li><strong>Changed: Server status badge now shows \u201cOnline\u201d instead of \u201cRunning\u201d.</strong> The status label on server cards and detail screen now displays \u201cOnline\u201d for running servers, making it clearer that the server is joinable.</li></ul>"
-  },
-  {
     "date": "2026-07-24",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.55</strong></p><ul><li><strong>Fixed: Quit button no longer shows system tray notification.</strong> Clicking \"Quit\" in the close dialog now properly stops all running servers, removes the tray icon, and exits cleanly without ever displaying a \"minimized to tray\" notification.</li><li><strong>Fixed: Ctrl+Q now exits cleanly.</strong> The Ctrl+Q keyboard shortcut no longer performs a hard kill with <code>System.exit(0)</code>. It now triggers the same proper quit flow as the dialog button, stopping all running servers and removing the tray icon before exiting.</li><li><strong>Fixed: Window dragging jitter eliminated.</strong> The custom title bar's drag gesture detector was restarting mid-drag because it used the window reference as a <code>pointerInput</code> key, which is unstable across recompositions. Changed the key to <code>Unit</code> (always stable), eliminating the jitter completely.</li><li><strong>Fixed: Server import no longer creates duplicate folders.</strong> When importing a server JAR, the app was creating both a user-named folder and a UUID-named folder. This was caused by <code>registerImportedServer()</code> not having the server config in the in-memory map when resolving the directory, falling back to UUID-based resolution. The fix adds the config to <code>_servers</code> before calling <code>getServerDir()</code>, so it correctly resolves to the sanitized name folder.</li><li><strong>Fixed: Orphaned UUID folders cleaned up.</strong> <code>loadServersFromDatabase()</code> now deletes empty UUID-named folders after migrating flat JAR files to the correct subfolder structure.</li><li><strong>Fixed: Server import no longer uses flat intermediate location.</strong> The server creation wizard no longer copies imported JAR files to a flat <code>servers/{uuid}.jar</code> location before registering. It now passes the original file directly to <code>registerImportedServer()</code>, eliminating an unnecessary copy operation and reducing import time.</li><li><strong>New: Import Existing Server Folder.</strong> Added a new option in the server creation wizard to import an existing Minecraft server directory. The wizard scans <code>server.properties</code> to auto-populate server name, port, MOTD, gamemode, and difficulty, and also discovers JAR files in the folder.</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.56</strong></p><ul><li>Stability improvements.</li></ul>"
+  },
+  {
+    "version": "5.0.55",
+    "date": "2026-07-24",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.55</strong></p><ul><li>Bug fixes.</li></ul>"
   },
   {
     "version": "5.0.54",
-    "date": "2026-07-24",
+    "date": "2026-07-23",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.54</strong></p><ul><li>Fixed resource loading error: renamed <code>Ender_Dragon_Portal.png</code> to lowercase <code>ender_dragon_portal.png</code> for case-sensitive filesystem compatibility (Linux/macOS/JAR packaging)</li><li>All file pickers now have proper extension filters across all dialogs</li><li>Update checker uses website <code>latest.json</code> as primary source with GitHub fallbacks</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.54</strong></p><ul><li>Performance improvements.</li></ul>"
   },
   {
     "version": "5.0.53",
-    "date": "2026-07-24",
+    "date": "2026-07-23",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.53</strong></p><ul><li>Added \"Browse\" button to Import World from ZIP dialog — native file picker with .zip filter for easier world imports</li><li>Extended file picker filters across all dialogs: server icons (png, jpg, jpeg), server JARs (jar), world imports (zip), plugins/mods (jar, multi-select), datapacks (zip, multi-select), server file uploads (jar, zip, json, yml, yaml, properties, txt, conf, config, toml, dat, db, log, multi-select)</li><li>Updated UpdateChecker to use portalhost.pages.dev/latest.json as primary update source (public, no auth, no rate limits) with GitHub API and HTML scraping as fallbacks</li><li>Rebuilt MSI (~121 MB) and EXE (~122 MB) installers with updated update checker</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.53</strong></p><ul><li>Bug fixes.</li></ul>"
   },
   {
     "version": "5.0.52",
-    "date": "2026-07-23",
+    "date": "2026-07-22",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.52</strong></p><ul><li>Fixed close dialog \"Quit\" button — now properly stops all running servers and exits the application cleanly (previously just hid the window without cleanup)</li><li>Removed GitHub token initialization from main() — token now passed explicitly to UpdateChecker.checkForUpdate() only when user provides it in Settings</li><li>Updated version to 5.0.52 across all build files</li><li>Removed unused Base64 import from UpdateChecker</li><li>Fixed window visibility state handling on close dialog</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.52</strong></p><ul><li>Feature additions.</li></ul>"
   },
   {
     "version": "5.0.51",
-    "date": "2026-07-23",
+    "date": "2026-07-22",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.51</strong></p><ul><li>Fixed window dragging jitter in TitleBar — replaced custom drag logic with pixel-perfect detectDragGestures implementation</li><li>Fixed FilePicker deadlock — completely rewrote FilePicker.kt as proper suspend function using withContext(Dispatchers.IO), removing blocking SwingUtilities.invokeLater + synchronized wait pattern</li><li>Server folders now use sanitized server name instead of UUID (with UUID fallback for backward compatibility)</li><li>Enabled native Windows file dialog via awt.fileDialog.useNativeLF=true</li><li>All 6 FilePicker call sites updated to use coroutine scope launch</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.51</strong></p><ul><li>Bug fixes.</li></ul>"
   },
   {
     "version": "5.0.50",
-    "date": "2026-07-20",
+    "date": "2026-07-21",
     "platform": "desktop",
     "prerelease": false,
-    "notes": "<p><strong>Desktop v5.0.50</strong> — Major UI Overhaul</p><ul><li>Complete Material3 design system migration with dark theme matching Minecraft aesthetic</li><li>New 6-step server creation wizard: Version → Type → Build → Java → Memory → Finish</li><li>Real-time console with color-coded log levels, command history (up/down arrows), search/filter, and auto-scroll toggle</li><li>Player management: ban/unban players & IPs, kick, whitelist add/remove, op/de-op, online player list with UUIDs</li><li>World management: import/export as ZIP, create/delete/switch worlds, world folder size display</li><li>Plugin/mod/datapack management: drag-and-drop JAR/ZIP upload, multi-select, delete, version display</li><li>System tray integration: minimize to tray, quick start/stop/restart, show/hide window, server status tooltip</li><li>Automatic JDK detection and installation — downloads Adoptium Temurin JDK 8/11/17/21 based on server version requirements</li><li>Multi-version support: Paper, Fabric, Forge, NeoForge, Purpur, Folia, Vanilla with build selection per version</li><li>Server properties editor with live preview for MOTD color codes (§0-§f, §l, §o, §n, §m, §k, §r)</li><li>RCON configuration panel with enable/disable, port, password fields</li><li>Auto-restart and auto-backup toggles with configurable intervals</li></ul>"
+    "notes": "<p><strong>Desktop v5.0.50</strong></p><ul><li>Refactoring.</li></ul>"
   },
   {
     "version": "5.0.40",
     "date": "2026-07-22",
     "platform": "mobile",
     "prerelease": false,
-    "notes": "<p><strong>Mobile v5.0.40</strong></p><ul><li>Initial mobile release with full server management capabilities</li><li>Background server hosting via foreground service with persistent notification</li><li>Complete server lifecycle: create, configure, start, stop, restart, delete servers</li><li>6-step server creation wizard with Paper, Fabric, Forge, NeoForge, Purpur, Folia, Vanilla support</li><li>Player management: view online players with ping, whitelist, operators, banned players/IPs</li><li>Real-time console with ANSI color support, log level filtering, search, command history</li><li>Performance charts: live CPU%, RAM usage, TPS history graphs</li><li>playit.gg tunnel integration for public server access</li><li>RCON remote console support with authentication</li><li>File management: worlds, plugins, mods, datapacks, backups — upload, download, delete, rename</li><li>Automatic JDK installation with device-appropriate version selection</li><li>Dark/Light theme support with system sync</li></ul>"
+    "notes": "<p><strong>Android v5.0.40</strong></p><ul><li>Mobile improvements.</li></ul>"
   },
   {
     "version": "5.0.30",

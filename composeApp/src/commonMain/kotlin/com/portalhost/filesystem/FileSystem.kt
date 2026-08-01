@@ -9,13 +9,28 @@ import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
+fun defaultDataDir(): File {
+    val os = System.getProperty("os.name", "").lowercase()
+    val home = System.getProperty("user.home") ?: "."
+    return when {
+        os.contains("win") -> {
+            val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
+            File(localAppData ?: File(home, "AppData/Local").absolutePath, "PortalHost")
+        }
+        os.contains("mac") -> File(home, "Library/Application Support/PortalHost")
+        else -> {
+            val xdgDataHome = System.getenv("XDG_DATA_HOME")?.takeIf { it.isNotBlank() }
+            File(xdgDataHome ?: File(home, ".local/share").absolutePath, "portalhost")
+        }
+    }
+}
+
 fun resolveAppDataDir(): File {
     val custom = System.getProperty("portalhost.data.dir")?.takeIf { it.isNotBlank() }
     if (custom != null) {
         return File(custom).also { it.mkdirs() }
     }
-    val home = System.getProperty("user.home") ?: "."
-    return File(home, ".portalhost").also { it.mkdirs() }
+    return defaultDataDir().also { it.mkdirs() }
 }
 
 class FileSystem(private val preferences: Preferences? = null) {

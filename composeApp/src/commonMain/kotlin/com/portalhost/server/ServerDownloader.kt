@@ -7,15 +7,15 @@ import com.portalhost.filesystem.FileSystem
 import com.portalhost.server.providers.ServerProvider
 import com.portalhost.server.providers.ServerProviderRegistry
 import com.portalhost.server.providers.ServerProviderRegistryInstance
+import com.portalhost.server.providers.downloadToFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import java.io.File
-import java.io.FileOutputStream
+import java.io.IOException
 import java.net.URL
-import java.security.MessageDigest
 import kotlin.Result
 
 private val logger = KotlinLogging.logger {}
@@ -32,6 +32,7 @@ class ServerDownloader(
     val currentStatus: StateFlow<String> = _currentStatus
 
     suspend fun downloadServer(config: ServerConfig): Result<File> = withContext(Dispatchers.IO) {
+        _downloadProgress.value = 0.0
         _currentStatus.value = "Finding provider for ${config.serverType}"
         
         val provider = registry.getProvidersForType(config.serverType)
@@ -49,11 +50,13 @@ class ServerDownloader(
                 }
             } ?: return@withContext Result.failure(Exception("No provider found for ${config.source}"))
 
+        _downloadProgress.value = 0.02
         _currentStatus.value = "Fetching builds for ${config.version}"
         val buildsResult = provider.fetchBuilds(config.version)
         
         return@withContext buildsResult.fold(
             onSuccess = { builds ->
+                _downloadProgress.value = 0.06
                 if (builds.isEmpty()) {
                     Result.failure(Exception("No builds found for version ${config.version}"))
                 } else {
@@ -74,41 +77,71 @@ class ServerDownloader(
         build: ServerBuild,
         config: ServerConfig,
     ): Result<File> = withContext(Dispatchers.IO) {
-        val serverFile = File(fileSystem.getServersDirBlocking(), "${config.id}.jar")
-        _currentStatus.value = "Downloading ${build.id}..."
-        _downloadProgress.value = 0.0
-        
-        val result = provider.downloadBuild(build, serverFile)
-        
-        if (result.isSuccess) {
-            _downloadProgress.value = 0.8
-            _currentStatus.value = "Download complete"
+        val isForge = config.source == com.portalhost.model.ServerSource.FORGE ||
+            config.source == com.portalhost.model.ServerSource.NEOFORGE
+        val serverDir = if (isForge) {
+            File(fileSystem.getServersDirBlocking(), sanitizeFolderName(config.name)).apply { mkdirs() }
+        } else {
+            fileSystem.getServersDirBlocking()
+        }
+        val serverFile = File(serverDir, "${config.id}.jar")
 
-            if (config.source == com.portalhost.model.ServerSource.FORGE ||
-                config.source == com.portalhost.model.ServerSource.NEOFORGE) {
-                _currentStatus.value = "Running installer..."
-                val installResult = runForgeInstaller(serverFile, config)
-                if (installResult.isFailure) {
-                    return@withContext Result.failure(installResult.exceptionOrNull()!!)
-                }
+        var lastError: Throwable? = null
+        repeat(2) { attempt ->
+            _downloadProgress.value = 0.1
+            if (attempt > 0) {
+                _currentStatus.value = "Download failed, retrying... (attempt ${attempt + 1}/2)"
+            } else {
+                _currentStatus.value = "Downloading ${build.id}..."
             }
 
-            _downloadProgress.value = 1.0
-            _currentStatus.value = "Ready"
-        } else {
-            _currentStatus.value = "Download failed: ${result.exceptionOrNull()?.message}"
+            val result = provider.downloadBuild(build, serverFile) { downloaded, total ->
+                val fraction = if (total > 0) downloaded.toDouble() / total else 0.0
+                _downloadProgress.value = 0.1 + 0.6 * fraction
+                _currentStatus.value = "Downloading ${formatBytes(downloaded)} / ${formatBytes(total)}"
+            }
+
+            if (result.isSuccess) {
+                _downloadProgress.value = 0.7
+                _currentStatus.value = "Download complete"
+
+                if (isForge) {
+                    _downloadProgress.value = 0.75
+                    _currentStatus.value = "Running installer..."
+                    val installResult = runForgeInstaller(serverFile, config.javaVersion)
+                    if (installResult.isFailure) {
+                        lastError = installResult.exceptionOrNull()
+                        return@withContext Result.failure(installResult.exceptionOrNull()!!)
+                    }
+                    val installedJar = installResult.getOrThrow()
+                    _downloadProgress.value = 1.0
+                    _currentStatus.value = "Ready"
+                    return@withContext Result.success(installedJar)
+                }
+
+                _downloadProgress.value = 1.0
+                _currentStatus.value = "Ready"
+                return@withContext Result.success(serverFile)
+            }
+
+            lastError = result.exceptionOrNull()
+            if (lastError is IOException && attempt == 0) {
+                _currentStatus.value = "Download failed: ${lastError.message}. Retrying..."
+            }
         }
-        
-        result
+
+        _downloadProgress.value = 0.0
+        _currentStatus.value = "Download failed: ${lastError?.message}"
+        Result.failure(lastError ?: Exception("Download failed"))
     }
 
-    private fun runForgeInstaller(installerJar: File, config: ServerConfig): Result<File> {
+    private fun runForgeInstaller(installerJar: File, javaVersion: Int): Result<File> {
         val serverDir = installerJar.parentFile ?: return Result.failure(Exception("Invalid server directory"))
         return try {
             val jdkManager = com.portalhost.java.JdkManager()
-            val javaExe = jdkManager.getJavaExecutable(config.javaVersion)
-                ?: jdkManager.checkSystemJava(config.javaVersion)
-                ?: return Result.failure(Exception("Java ${config.javaVersion} not found for Forge installer"))
+            val javaExe = jdkManager.getJavaExecutable(javaVersion)
+                ?: jdkManager.checkSystemJava(javaVersion)
+                ?: return Result.failure(Exception("Java $javaVersion not found for Forge installer"))
 
             logger.info { "Running Forge/NeoForge installer: ${installerJar.name}" }
             val process = ProcessBuilder(
@@ -129,14 +162,27 @@ class ServerDownloader(
             logger.info { "Forge installer completed successfully" }
 
             val serverJar = findServerJar(serverDir)
+            val resultJar = serverJar ?: installerJar
             if (serverJar != null && serverJar.absolutePath != installerJar.absolutePath) {
                 installerJar.delete()
             }
-            Result.success(installerJar)
+            Result.success(resultJar)
         } catch (e: Exception) {
             logger.error(e) { "Forge installer error" }
             Result.failure(e)
         }
+    }
+
+    private fun sanitizeFolderName(name: String): String {
+        val sanitized = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+        return sanitized.ifBlank { "Server" }
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024) return "$bytes B"
+        val kb = bytes / 1024.0
+        if (kb < 1024) return String.format("%.1f KB", kb)
+        return String.format("%.1f MB", kb / 1024.0)
     }
 
     private fun findServerJar(dir: File): File? {
@@ -149,30 +195,11 @@ class ServerDownloader(
     // Download with progress tracking
     suspend fun downloadWithProgress(url: String, destination: File): Result<File> = withContext(Dispatchers.IO) {
         try {
-            destination.parentFile?.mkdirs()
-            val connection = URL(url).openConnection().apply {
-                connectTimeout = 30000
-                readTimeout = 300000
-            } as java.net.HttpURLConnection
-            
-            val contentLength = connection.contentLengthLong
-            var downloaded = 0L
-            
-            connection.inputStream.use { input ->
-                FileOutputStream(destination).use { output ->
-                    val buffer = ByteArray(8192)
-                    var bytesRead = input.read(buffer)
-                    while (bytesRead != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        downloaded += bytesRead
-                        if (contentLength > 0) {
-                            _downloadProgress.value = downloaded.toDouble() / contentLength
-                        }
-                        bytesRead = input.read(buffer)
-                    }
+            URL(url).downloadToFile(destination = destination) { downloaded, total ->
+                if (total > 0) {
+                    _downloadProgress.value = downloaded.toDouble() / total
                 }
             }
-            
             Result.success(destination)
         } catch (e: Exception) {
             destination.delete()

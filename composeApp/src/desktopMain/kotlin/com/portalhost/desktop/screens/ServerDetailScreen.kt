@@ -175,7 +175,7 @@ fun ServerDetailScreen(
         config?.let {
             val jarFile = serverManager.getServerJar(serverId)
             val serverDir = jarFile.parentFile ?: jarFile.absoluteFile.parentFile ?: File(".")
-            BackupManager(File(serverDir, serverId), serverId, database)
+            BackupManager(serverDir, serverId, database)
         }
     }
     val backupEntries by backupManager?.backups?.collectAsState() ?: remember { mutableStateOf(emptyList()) }
@@ -286,15 +286,15 @@ fun ServerDetailScreen(
 
         when (selectedTab) {
             0 -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
-            1 -> ServerFilesScreen(serverId = serverId)
+            1 -> ServerFilesScreen(serverId = serverId, onBack = { selectedTab = 0 })
             2 -> WorldsTab(serverId = serverId)
             3 -> PluginsTab(serverId = serverId)
             4 -> ModsTab(serverId = serverId)
             5 -> DatapacksTab(serverId = serverId)
             6 -> BackupsTab(serverId = serverId, backupManager = backupManager)
-            7 -> PerformanceScreen(serverId = serverId)
-            8 -> LogViewerScreen(serverId = serverId)
-            9 -> RconScreen(serverId = serverId)
+            7 -> PerformanceScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            8 -> LogViewerScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            9 -> RconScreen(serverId = serverId, onBack = { selectedTab = 0 })
         }
     }
 }

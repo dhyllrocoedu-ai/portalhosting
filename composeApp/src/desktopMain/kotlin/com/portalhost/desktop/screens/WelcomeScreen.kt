@@ -53,10 +53,10 @@ import com.portalhost.java.JdkManager
 import com.portalhost.native.NativeFilePicker
 import com.portalhost.native.PickConfig
 import com.portalhost.preferences.Preferences
+import com.portalhost.filesystem.defaultDataDir
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import java.io.File
 
 @Composable
 fun WelcomeScreen(
@@ -82,8 +82,7 @@ fun WelcomeScreen(
 
     LaunchedEffect(Unit) {
         selectedDataDir = preferences.dataDirectory.value.ifBlank {
-            System.getProperty("user.home")?.let { File(it, ".portalhost").absolutePath }
-                ?: ".portalhost"
+            defaultDataDir().absolutePath
         }
     }
 

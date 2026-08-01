@@ -1,101 +1,42 @@
 package com.portalhost.desktop.util
 
-import java.io.File
-
 object UninstallHelper {
-    fun generateUninstallScript(): String = buildString {
-        appendLine("@echo off")
-        appendLine("setlocal enabledelayedexpansion")
-        appendLine()
-        appendLine("set \"INSTALL_DIR=%~dp0\"")
-        appendLine("if \"%INSTALL_DIR:~-1%\"==\"\\\" set \"INSTALL_DIR=%INSTALL_DIR:~0,-1%\"")
-        appendLine()
-        appendLine("echo ============================================")
-        appendLine("echo PortalHost Uninstaller")
-        appendLine("echo ============================================")
-        appendLine("echo.")
-        appendLine("echo Install folder: %INSTALL_DIR%")
-        appendLine("echo.")
-        appendLine()
-        appendLine("echo [1/5] Closing PortalHost...")
-        appendLine("taskkill /F /IM PortalHost.exe /T >nul 2>&1")
-        appendLine("timeout /t 2 /nobreak >nul")
-        appendLine()
-        appendLine("echo [2/5] Removing Start Menu shortcuts...")
-        appendLine("set \"START_MENU=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\"")
-        appendLine("if exist \"%START_MENU%\\PortalHost\" rmdir /s /q \"%START_MENU%\\PortalHost\" 2>nul")
-        appendLine("if exist \"%START_MENU%\\PortalHost.lnk\" del /q \"%START_MENU%\\PortalHost.lnk\" 2>nul")
-        appendLine()
-        appendLine("echo [3/5] Running Windows Installer uninstall...")
-        appendLine("for /f \"tokens=2*\" %%a in ('reg query \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\" /s /f \"PortalHost\" 2^>nul ^| findstr \"UninstallString\"') do (")
-        appendLine("    set \"UNINSTALL_STRING=%%b\"")
-        appendLine(")")
-        appendLine("if not defined UNINSTALL_STRING (")
-        appendLine("    for /f \"tokens=2*\" %%a in ('reg query \"HKLM\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\" /s /f \"PortalHost\" 2^>nul ^| findstr \"UninstallString\"') do (")
-        appendLine("        set \"UNINSTALL_STRING=%%b\"")
-        appendLine("    )")
-        appendLine(")")
-        appendLine("if not defined UNINSTALL_STRING (")
-        appendLine("    for /f \"tokens=2*\" %%a in ('reg query \"HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\" /s /f \"PortalHost\" 2^>nul ^| findstr \"UninstallString\"') do (")
-        appendLine("        set \"UNINSTALL_STRING=%%b\"")
-        appendLine("    )")
-        appendLine(")")
-        appendLine("if defined UNINSTALL_STRING (")
-        appendLine("    echo Running: !UNINSTALL_STRING!")
-        appendLine("    start /wait cmd /c \"!UNINSTALL_STRING!\"")
-        appendLine(") else (")
-        appendLine("    echo PortalHost not found in registry. Removing folder manually...")
-        appendLine(")")
-        appendLine()
-        appendLine("echo [4/5] Cleaning registry...")
-        appendLine("reg delete \"HKCU\\Software\\JavaSoft\\Prefs\\com\\portalhost\" /f >nul 2>&1")
-        appendLine()
-        appendLine("echo.")
-        appendLine("echo ============================================")
-        appendLine("echo Data Folder Cleanup")
-        appendLine("echo ============================================")
-        appendLine("echo.")
-        appendLine("echo PortalHost data: %USERPROFILE%\\.portalhost")
-        appendLine("echo.")
-        appendLine("echo   [Y] Remove ALL data (servers, configs, JDKs)")
-        appendLine("echo   [N] Keep all data")
-        appendLine("echo   [K] Keep servers, remove JDKs and configs")
-        appendLine("echo.")
-        appendLine("set /p \"CHOICE=Enter choice (Y/N/K): \"")
-        appendLine()
-        appendLine("if /i \"%CHOICE%\"==\"Y\" (")
-        appendLine("    echo Removing all data...")
-        appendLine("    rmdir /s /q \"%USERPROFILE%\\.portalhost\" 2>nul")
-        appendLine(") else if /i \"%CHOICE%\"==\"K\" (")
-        appendLine("    echo Keeping servers, removing JDKs and configs...")
-        appendLine("    for /d %%d in (\"%USERPROFILE%\\.portalhost\\*\") do (")
-        appendLine("        set \"name=%%~nxd\"")
-        appendLine("        if /i not \"!name!\"==\"servers\" rmdir /s /q \"%%d\" 2>nul")
-        appendLine("    )")
-        appendLine("    for %%f in (\"%USERPROFILE%\\.portalhost\\*\") do del /q \"%%f\" 2>nul")
-        appendLine(") else (")
-        appendLine("    echo Keeping all data.")
-        appendLine(")")
-        appendLine()
-        appendLine("echo.")
-        appendLine("echo ============================================")
-        appendLine("echo Uninstall complete!")
-        appendLine("echo ============================================")
-        appendLine("echo.")
-        appendLine("timeout /t 3 /nobreak >nul")
-        appendLine("del /q \"%~f0\" 2>nul")
+    private const val DISPLAY_NAME = "PortalHost"
+
+    fun findProductCode(): String? {
+        val paths = listOf(
+            "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+            "HKLM\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+        )
+        for (path in paths) {
+            try {
+                val proc = ProcessBuilder(
+                    "reg", "query", path, "/s", "/f", DISPLAY_NAME
+                ).redirectErrorStream(true).start()
+                val out = proc.inputStream.bufferedReader().readText()
+                proc.waitFor()
+                if (proc.exitValue() != 0) continue
+                var currentKey: String? = null
+                for (line in out.lines()) {
+                    val t = line.trim()
+                    if (t.startsWith("HKEY_")) {
+                        currentKey = t
+                    } else if (t.startsWith("DisplayName") && t.contains(DISPLAY_NAME)) {
+                        if (currentKey != null) {
+                            val guid = currentKey.substringAfterLast("\\")
+                            if (guid.startsWith("{") && guid.endsWith("}")) {
+                                return guid
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) { }
+        }
+        return null
     }
 
-    fun saveToDesktop(): Result<File> = runCatching {
-        val desktop = File(System.getProperty("user.home"), "Desktop")
-        val file = File(desktop, "Uninstall PortalHost.bat")
-        file.writeText(generateUninstallScript())
-        file
-    }
-
-    fun saveTo(location: File): Result<File> = runCatching {
-        location.parentFile?.mkdirs()
-        location.writeText(generateUninstallScript())
-        location
+    fun uninstall(productCode: String) {
+        val psCommand = "Start-Process msiexec -ArgumentList '/x $productCode /qb' -Verb RunAs"
+        Runtime.getRuntime().exec(arrayOf("powershell", "-Command", psCommand))
     }
 }

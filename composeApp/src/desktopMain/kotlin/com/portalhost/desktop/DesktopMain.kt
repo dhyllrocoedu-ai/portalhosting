@@ -17,8 +17,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,10 +34,12 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.portalhost.uinotify.ToastManager
+import com.portalhost.theme.AppTheme
 import com.portalhost.desktop.screens.WelcomeScreen
 import com.portalhost.desktop.window.PortalHostWindow
 import com.portalhost.desktop.window.Screen
 import com.portalhost.desktop.window.TitleBar
+import com.portalhost.filesystem.defaultDataDir
 import com.portalhost.di.desktopModule
 import com.portalhost.di.initKoin
 import com.portalhost.log.setupLogging
@@ -54,7 +54,18 @@ import org.koin.compose.koinInject
 import org.jetbrains.skia.Image
 import java.awt.Frame
 
-private val logger = KotlinLogging.logger {}
+private val resolvedDataDir: String = try {
+    val early = java.util.prefs.Preferences.userRoot().node("com/portalhost").get("dataDirectory", "")
+    val dir = early.ifBlank { defaultDataDir().absolutePath }
+    System.setProperty("portalhost.data.dir", dir)
+    dir
+} catch (_: Throwable) {
+    val fallback = defaultDataDir().absolutePath
+    System.setProperty("portalhost.data.dir", fallback)
+    fallback
+}
+
+private val logger by lazy { KotlinLogging.logger {} }
 
 @Composable
 fun DesktopApp(
@@ -144,10 +155,7 @@ fun DesktopApp(
 
 fun main() {
     try {
-        val earlyDataDir = java.util.prefs.Preferences.userRoot().node("com/portalhost").get("dataDirectory", "")
-        if (earlyDataDir.isNotBlank()) {
-            System.setProperty("portalhost.data.dir", earlyDataDir)
-        }
+        System.setProperty("portalhost.data.dir", resolvedDataDir)
 
         initKoin(desktopModule())
 
@@ -222,7 +230,6 @@ fun main() {
             "light" -> false
             else -> isSystemInDarkTheme()
         }
-        val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
 
         Window(
             onCloseRequest = { showCloseDialog = true },
@@ -242,7 +249,7 @@ fun main() {
                 onDispose { handler.uninstall() }
             }
 
-            MaterialTheme(colorScheme = colorScheme) {
+            AppTheme.AppTheme(darkTheme = isDark) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     DesktopApp(
                         iconPainter = iconPainter,

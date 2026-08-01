@@ -134,7 +134,13 @@ fun ServerFilesScreen(serverId: String, onBack: () -> Unit = {}) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        if (currentDir != rootDir) {
+                            currentDir = currentDir.parentFile ?: rootDir
+                        } else {
+                            onBack()
+                        }
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(8.dp))

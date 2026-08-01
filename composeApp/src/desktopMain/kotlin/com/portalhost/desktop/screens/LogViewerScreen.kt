@@ -44,7 +44,10 @@ import com.portalhost.theme.ThemeColors
 import com.portalhost.server.ServerManager
 import org.koin.compose.koinInject
 import java.io.File
+import java.io.RandomAccessFile
 import java.util.zip.GZIPInputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -74,17 +77,13 @@ fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
         val latestLog = java.io.File(serverManager.getServerDir(serverId), "logs/latest.log")
         if (latestLog.exists()) {
             selectedLog = latestLog
-            logContent = latestLog.readLines().takeLast(500)
+            logContent = withContext(Dispatchers.IO) { readLogTail(latestLog) }
         }
     }
 
     LaunchedEffect(selectedLog) {
         val file = selectedLog ?: return@LaunchedEffect
-        logContent = if (file.name.endsWith(".gz")) {
-            GZIPInputStream(file.inputStream()).bufferedReader().use { it.readLines() }
-        } else {
-            file.readLines().takeLast(500)
-        }
+        logContent = withContext(Dispatchers.IO) { readLogTail(file) }
     }
 
     LaunchedEffect(logContent.size) {
@@ -174,6 +173,25 @@ fun LogViewerScreen(serverId: String, onBack: () -> Unit = {}) {
                 }
             }
         }
+    }
+}
+
+private const val MAX_LOG_TAIL_BYTES = 1L * 1024 * 1024
+
+private fun readLogTail(file: File, maxLines: Int = 2000): List<String> {
+    if (!file.exists()) return emptyList()
+    if (file.name.endsWith(".gz")) {
+        return GZIPInputStream(file.inputStream()).bufferedReader().use { it.readLines() }.takeLast(maxLines)
+    }
+    if (file.length() <= MAX_LOG_TAIL_BYTES) {
+        return file.readLines().takeLast(maxLines)
+    }
+    return RandomAccessFile(file, "r").use { raf ->
+        raf.seek(raf.length() - MAX_LOG_TAIL_BYTES)
+        val bytes = ByteArray(MAX_LOG_TAIL_BYTES.toInt())
+        raf.readFully(bytes)
+        val text = String(bytes).dropWhile { it != '\n' }
+        text.lines().filter { it.isNotBlank() }.takeLast(maxLines)
     }
 }
 

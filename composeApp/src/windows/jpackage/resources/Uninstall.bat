@@ -20,13 +20,13 @@ if %errorLevel% neq 0 (
 )
 
 :: Kill any running PortalHost processes
-echo [1/5] Closing PortalHost...
+echo [1/4] Closing PortalHost...
 taskkill /F /IM PortalHost.exe /T >nul 2>&1
 timeout /t 1 /nobreak >nul 2>nul
 echo   Done.
 
 :: Find and uninstall PortalHost from Windows (MSI)
-echo [2/5] Uninstalling via Windows Installer...
+echo [2/4] Uninstalling via Windows Installer...
 set "UNINSTALL_STRING="
 for /f "tokens=2*" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" /s /f "PortalHost" 2^>nul ^| findstr /i "UninstallString"') do (
     set "line=%%a %%b"
@@ -56,33 +56,11 @@ if defined UNINSTALL_STRING (
     echo   PortalHost not found in registry (or already uninstalled).
 )
 
-:: Clean app data (keep servers and playit folders)
-echo [3/5] Cleaning app data...
-set "APPDATA_PATH=%USERPROFILE%\.portalhost"
-if exist "%APPDATA_PATH%" (
-    for /d %%d in ("%APPDATA_PATH%\*") do (
-        set "folderName=%%~nxd"
-        if /i "!folderName!"=="servers" (
-            echo   Keeping: !folderName!
-        ) else if /i "!folderName!"=="playit" (
-            echo   Keeping: !folderName!
-        ) else (
-            echo   Removing: !folderName!
-            rmdir /s /q "%APPDATA_PATH%\!folderName!" 2>nul
-        )
-    )
-    for %%f in ("%APPDATA_PATH%\*") do (
-        set "fileName=%%~nxf"
-        echo   Removing file: !fileName!
-        del /q "%%f" 2>nul
-    )
-    echo   App data cleaned.
-) else (
-    echo   No app data folder found.
-)
+:: NOTE: Your data folder (servers, configs, JDKs, database) is NEVER deleted.
+:: It stays wherever it was configured so you can reinstall without losing anything.
 
 :: Remove Start Menu shortcuts
-echo [4/5] Removing Start Menu shortcuts...
+echo [3/4] Removing Start Menu shortcuts...
 set "START_MENU=%APPDATA%\Microsoft\Windows\Start Menu\Programs"
 if exist "%START_MENU%\PortalHost" (
     rmdir /s /q "%START_MENU%\PortalHost" 2>nul
@@ -94,7 +72,7 @@ if exist "%START_MENU%\PortalHost.lnk" (
 )
 
 :: Remove installation folder
-echo [5/5] Cleaning up installation folder...
+echo [4/4] Cleaning up installation folder...
 if exist "%INSTALL_DIR%" (
     :: First delete all files recursively
     for /r "%INSTALL_DIR%" %%f in (*) do (
@@ -116,15 +94,13 @@ if exist "%INSTALL_DIR%" (
 :: Clean registry
 echo.
 echo [Extra] Cleaning registry...
-reg delete "HKCU\Software\PortalHost" /f 2>nul
-reg delete "HKLM\SOFTWARE\PortalHost" /f 2>nul
+reg delete "HKCU\Software\JavaSoft\Prefs\com\portalhost" /f 2>nul
 echo   Registry cleaned.
 
 echo.
 echo ============================================
 echo Uninstall complete!
 echo.
-echo NOTE: The 'servers' and 'playit' folders in %USERPROFILE%\.portalhost
-echo have been preserved. You can delete them manually if needed.
+echo Your servers, data and Java runtimes have been preserved.
 echo.
 pause

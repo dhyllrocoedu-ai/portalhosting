@@ -51,6 +51,7 @@ fun HomeScreen(
     onOpenPlayers: () -> Unit,
     onOpenLogs: () -> Unit = {},
     onOpenPerformance: () -> Unit = {},
+    onViewActivity: () -> Unit = {},
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
     onDeleteServer: (ServerConfig) -> Unit,
@@ -218,7 +219,7 @@ fun HomeScreen(
                 )
 
                 // Activity
-                ActivityCard(activityLog = activityLog)
+                ActivityCard(activityLog = activityLog, onViewAll = onViewActivity)
 
                 Spacer(Modifier.height(8.dp))
             }

@@ -23,7 +23,9 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Maximize
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Minimize
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
@@ -50,9 +53,11 @@ import androidx.compose.ui.unit.Density
 import com.portalhost.desktop.util.rememberResourcePainter
 import com.portalhost.desktop.screens.CreateServerScreen
 import com.portalhost.desktop.screens.DashboardScreen
+import com.portalhost.desktop.screens.AboutScreen
 import com.portalhost.desktop.screens.MarketplaceDetailScreen
 import com.portalhost.desktop.screens.MarketplaceScreen
 import com.portalhost.desktop.screens.PlayerManagementScreen
+import com.portalhost.desktop.screens.RecentActivityScreen
 import com.portalhost.desktop.screens.ServerConsoleScreen
 import com.portalhost.desktop.screens.ServerDetailScreen
 import com.portalhost.desktop.screens.ServersScreen
@@ -75,6 +80,8 @@ sealed class Screen {
     data class Players(val serverId: String) : Screen()
     object Marketplace : Screen()
     data class MarketplaceDetail(val projectId: String) : Screen()
+    object About : Screen()
+    object Activity : Screen()
 }
 
 @Composable
@@ -85,13 +92,11 @@ fun TitleBar(
     onMaximizeRestore: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
-    val isDark = (MaterialTheme.colorScheme.surface.red * 0.299 + MaterialTheme.colorScheme.surface.green * 0.587 + MaterialTheme.colorScheme.surface.blue * 0.114) < 128
-
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .height(40.dp),
-        color = if (isDark) Color(0xFF1E1E2E) else Color.White
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -111,7 +116,7 @@ fun TitleBar(
                     Image(
                         painter = iconPainter,
                         contentDescription = "Portal Host",
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                 }
@@ -230,6 +235,15 @@ fun NavSidebar(
                 )
             }
 
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+            NavItem(
+                label = "About",
+                iconPainter = rememberVectorPainter(Icons.Default.Info),
+                selected = currentScreen is Screen.About,
+                expanded = expanded,
+                onClick = { onScreenChange(Screen.About) }
+            )
         }
     }
 }
@@ -290,7 +304,8 @@ fun ScreenContent(
         onNavigateToConsole = { serverId -> onNavigate(Screen.Console(serverId)) },
         onNavigateToServer = { serverId -> onNavigate(Screen.ServerDetail(serverId)) },
         onNavigateToCreate = { onNavigate(Screen.Create) },
-        onNavigateToPlayers = { serverId -> onNavigate(Screen.Players(serverId)) }
+        onNavigateToPlayers = { serverId -> onNavigate(Screen.Players(serverId)) },
+        onNavigateToActivity = { onNavigate(Screen.Activity) }
     )
     Screen.Servers -> ServersScreen(
         onNavigateToDetail = { serverId -> onNavigate(Screen.ServerDetail(serverId)) },
@@ -319,6 +334,12 @@ fun ScreenContent(
     is Screen.MarketplaceDetail -> MarketplaceDetailScreen(
         projectId = (screen as Screen.MarketplaceDetail).projectId,
         onBack = { onNavigate(Screen.Marketplace) }
+    )
+    Screen.About -> AboutScreen(
+        onBack = { onNavigate(Screen.Home) }
+    )
+    Screen.Activity -> RecentActivityScreen(
+        onBack = { onNavigate(Screen.Home) }
     )
 }
 

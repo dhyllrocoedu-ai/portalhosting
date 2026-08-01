@@ -177,7 +177,13 @@ fun ServerFilesScreen(
             } else {
                 TopAppBar(
                     title = { Text(serverName) },
-                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
+                    navigationIcon = { IconButton(onClick = {
+                        if (currentDir != serverDir) {
+                            currentDir = currentDir.parentFile ?: serverDir
+                        } else {
+                            onBack()
+                        }
+                    }) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                 )
             }

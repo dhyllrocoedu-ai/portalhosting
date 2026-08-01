@@ -44,7 +44,7 @@ fun MarketplaceCard(
 ) {
     val enchantmentBg = rememberResourcePainter("/icons/Enchantment.png")
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerLowest
-    val accentColor = project.color?.let { Color(it) }
+    val accentColor = project.color?.let { Color(it or 0xFF000000.toInt()) }
 
     Card(
         modifier = modifier

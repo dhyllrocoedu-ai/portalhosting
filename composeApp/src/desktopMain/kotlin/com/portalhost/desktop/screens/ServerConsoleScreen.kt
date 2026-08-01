@@ -83,7 +83,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import java.io.File
+import com.portalhost.util.pickSaveFile
 
 @Suppress("DEPRECATION")
 @Composable
@@ -173,8 +173,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
             .fillMaxSize()
             .onKeyEvent { keyEvent ->
                 if (keyEvent.isCtrlPressed && keyEvent.key == Key.L) {
-                    val map = serverManager.consoleOutputs.value.toMutableMap()
-                    map[serverId] = emptyList()
+                    serverManager.clearConsole(serverId)
                     true
                 } else {
                     false
@@ -222,15 +221,17 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                             }
                             IconButton(onClick = {
                                 val lines = displayLines.joinToString("\n")
-                                val tempFile = File.createTempFile("console_${serverId}_", ".log")
-                                tempFile.writeText(lines)
+                                scope.launch {
+                                    pickSaveFile(
+                                        title = "Save Console Log",
+                                        extensionFilter = "Log file" to listOf("log", "txt"),
+                                        defaultName = "console_${serverId}_${System.currentTimeMillis()}.log"
+                                    )?.writeText(lines)
+                                }
                             }) {
                                 Icon(Icons.Filled.SaveAlt, contentDescription = "Save", modifier = Modifier.size(20.dp))
                             }
-                            IconButton(onClick = {
-                                val map = serverManager.consoleOutputs.value.toMutableMap()
-                                map[serverId] = emptyList()
-                            }) {
+                            IconButton(onClick = { serverManager.clearConsole(serverId) }) {
                                 Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(20.dp))
                             }
                         }

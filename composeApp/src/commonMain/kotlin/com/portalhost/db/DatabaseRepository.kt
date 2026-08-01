@@ -122,6 +122,15 @@ class DatabaseRepository(
         return results
     }
 
+    fun deleteConsoleLogs(serverId: String) {
+        val stmt = connection.prepareStatement(
+            "DELETE FROM console_logs WHERE server_id = ?"
+        )
+        stmt.setString(1, serverId)
+        stmt.executeUpdate()
+        stmt.close()
+    }
+
     // Backup CRUD
     fun insertBackup(backup: BackupEntry) {
         val stmt = connection.prepareStatement(

@@ -131,7 +131,7 @@ val copyUninstallForWix by tasks.registering {
 }
 
 tasks.whenTaskAdded {
-    if (name == "packageMsi" || name == "packageExe") {
+    if (name == "packageMsi" || name == "packageExe" || name.endsWith("Msi") || name.endsWith("Exe")) {
         dependsOn(copyUninstallForWix)
         dependsOn(restoreJavaExeInRuntime)
     }

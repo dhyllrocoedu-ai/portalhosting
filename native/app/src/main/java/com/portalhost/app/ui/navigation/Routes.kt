@@ -25,4 +25,5 @@ object Routes {
     const val PLAYER_MANAGEMENT = "player_management"
     const val LOGS_VIEWER = "logs_viewer"
     const val PERFORMANCE_CHARTS = "performance_charts"
+    const val RECENT_ACTIVITY = "recent_activity"
 }

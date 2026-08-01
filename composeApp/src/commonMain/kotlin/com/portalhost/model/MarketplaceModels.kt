@@ -98,7 +98,18 @@ data class ModrinthProject(
     @SerialName("source_url") val sourceUrl: String? = null,
     @SerialName("wiki_url") val wikiUrl: String? = null,
     @SerialName("discord_url") val discordUrl: String? = null,
-    @SerialName("status") val status: String? = null
+    @SerialName("status") val status: String? = null,
+    @SerialName("gallery") val gallery: List<ModrinthGalleryItem> = emptyList()
+)
+
+@Serializable
+data class ModrinthGalleryItem(
+    @SerialName("url") val url: String,
+    @SerialName("featured") val featured: Boolean = false,
+    @SerialName("title") val title: String? = null,
+    @SerialName("description") val description: String? = null,
+    @SerialName("created") val created: String? = null,
+    @SerialName("ordering") val ordering: Int? = null
 )
 
 @Serializable
@@ -126,6 +137,7 @@ data class ModrinthFile(
     @SerialName("sha1") val sha1: String? = null,
     @SerialName("sha512") val sha512: String? = null,
     @SerialName("release_type") val releaseType: String? = null,
+    @SerialName("primary") val primary: Boolean = false,
     @SerialName("game_versions") val gameVersions: List<String> = emptyList()
 )
 

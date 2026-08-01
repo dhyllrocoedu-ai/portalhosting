@@ -93,7 +93,7 @@ class ModrinthApi {
         val facetList = mutableListOf<JsonArray>()
 
         projectType?.let {
-            facetList.add(buildJsonArray { add(buildJsonArray { add("project_type:$it") }) })
+            facetList.add(buildJsonArray { add("project_type:$it") })
         }
 
         loader?.let {
@@ -109,21 +109,17 @@ class ModrinthApi {
                 else -> listOf(normalized)
             }
             facetList.add(buildJsonArray {
-                add(buildJsonArray {
-                    loaderFacets.forEach { add("categories:$it") }
-                })
+                loaderFacets.forEach { add("categories:$it") }
             })
         }
 
         version?.let {
-            facetList.add(buildJsonArray { add(buildJsonArray { add("versions:$it") }) })
+            facetList.add(buildJsonArray { add("versions:$it") })
         }
 
         if (categories.isNotEmpty()) {
             facetList.add(buildJsonArray {
-                add(buildJsonArray {
-                    categories.forEach { add("categories:$it") }
-                })
+                categories.forEach { add("categories:$it") }
             })
         }
 

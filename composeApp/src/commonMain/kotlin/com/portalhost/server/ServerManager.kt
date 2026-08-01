@@ -60,6 +60,11 @@ class ServerManager(
         loadServersFromDatabase()
     }
 
+    fun clearConsole(serverId: String) {
+        database.deleteConsoleLogs(serverId)
+        _consoleOutputs.update { it + (serverId to emptyList()) }
+    }
+
     private fun getLock(serverId: String): Mutex {
         return serverLocks.getOrPut(serverId) { Mutex() }
     }

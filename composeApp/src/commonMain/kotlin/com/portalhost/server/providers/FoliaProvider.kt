@@ -9,8 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.Result
@@ -98,26 +96,17 @@ class FoliaProvider : ServerProvider {
         }
     }
 
-    override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = withContext(Dispatchers.IO) {
+    override suspend fun downloadBuild(
+        build: ServerBuild,
+        destination: File,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)?
+    ): Result<File> = withContext(Dispatchers.IO) {
         try {
-            destination.parentFile?.mkdirs()
-            val url = URL(build.url)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.setRequestProperty("User-Agent", USER_AGENT)
-            connection.connectTimeout = 30000
-            connection.readTimeout = 300000
-
-            if (connection.responseCode != java.net.HttpURLConnection.HTTP_OK) {
-                return@withContext Result.failure(Exception("Download failed: ${connection.responseCode}"))
-            }
-
-            connection.inputStream.use { input ->
-                FileOutputStream(destination).use { output ->
-                    input.copyTo(output)
-                }
-            }
-            connection.disconnect()
-
+            URL(build.url).downloadToFile(
+                destination = destination,
+                headers = mapOf("User-Agent" to USER_AGENT),
+                onProgress = onProgress
+            )
             build.sha256?.let { expectedSha ->
                 val actualSha = calculateSha256(destination)
                 if (actualSha != expectedSha) {
@@ -125,7 +114,6 @@ class FoliaProvider : ServerProvider {
                     return@withContext Result.failure(Exception("SHA256 mismatch: expected $expectedSha, got $actualSha"))
                 }
             }
-
             Result.success(destination)
         } catch (e: Exception) {
             destination.delete()

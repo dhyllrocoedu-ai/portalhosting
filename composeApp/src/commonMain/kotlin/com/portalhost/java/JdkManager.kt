@@ -90,7 +90,6 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             "C:\\Program Files\\Amazon Corretto",
             "$userHome/.sdkman/candidates/java",
             appJdkDir,
-            "$userHome/.portalhost/jdks",
         )
         
         for (basePath in searchPaths) {

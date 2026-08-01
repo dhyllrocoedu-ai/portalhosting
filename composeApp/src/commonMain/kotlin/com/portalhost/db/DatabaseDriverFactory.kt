@@ -2,6 +2,7 @@ package com.portalhost.db
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.portalhost.filesystem.defaultDataDir
 import mu.KotlinLogging
 import java.io.File
 import java.sql.Connection
@@ -17,8 +18,8 @@ class DatabaseDriverFactory(private val customDataDir: String? = null) {
             val dataDir = if (!customDataDir.isNullOrBlank()) {
                 File(customDataDir)
             } else {
-                val home = System.getProperty("user.home") ?: "."
-                File(home, ".portalhost")
+                System.getProperty("portalhost.data.dir")?.takeIf { it.isNotBlank() }?.let { File(it) }
+                    ?: defaultDataDir()
             }
             dataDir.mkdirs()
             val dbFile = File(dataDir, "portalhost.db")

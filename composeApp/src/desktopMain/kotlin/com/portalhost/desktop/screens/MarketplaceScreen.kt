@@ -62,6 +62,7 @@ fun MarketplaceScreen(
     var uiState by remember { mutableStateOf<MarketplaceUiState>(MarketplaceUiState.Initial) }
     var filters by remember { mutableStateOf(marketplacePreferences.loadFilters()) }
     var currentOffset by remember { mutableStateOf(0) }
+    var isLoadingMore by remember { mutableStateOf(false) }
 
     val listState = rememberLazyGridState()
 
@@ -77,9 +78,11 @@ fun MarketplaceScreen(
 
     LaunchedEffect(shouldLoadMore) {
         val success = uiState as? MarketplaceUiState.Success ?: return@LaunchedEffect
-        if (success.hasMore) {
+        if (success.hasMore && !isLoadingMore) {
+            isLoadingMore = true
             val nextOffset = success.projects.size
             loadMoreProjects(repository, filters, nextOffset, scope) { result ->
+                isLoadingMore = false
                 result.onSuccess { searchResult ->
                     uiState = MarketplaceUiState.Success(
                         projects = success.projects + searchResult.projects,
@@ -138,6 +141,7 @@ fun MarketplaceScreen(
                 onFilterChange = { newFilters ->
                     filters = newFilters
                     marketplacePreferences.updateFilters(newFilters)
+                    isLoadingMore = false
                     scope.launch {
                         searchProjects(repository, filters, scope) { result ->
                             result.onSuccess { searchResult ->
@@ -162,6 +166,7 @@ fun MarketplaceScreen(
                         return@MarketplaceFiltersBar
                     }
                     uiState = MarketplaceUiState.Loading
+                    isLoadingMore = false
                     scope.launch {
                         searchProjects(repository, filters, scope) { result ->
                             result.onSuccess { searchResult ->
@@ -189,6 +194,7 @@ fun MarketplaceScreen(
                 is MarketplaceUiState.Initial -> {
                     InitialContent(
                         onSearch = {
+                            isLoadingMore = false
                             scope.launch {
                                 searchProjects(repository, filters, scope) { result ->
                                     result.onSuccess { searchResult ->
@@ -281,6 +287,7 @@ fun MarketplaceScreen(
                     ErrorContent(
                         message = state.message,
                         onRetry = {
+                            isLoadingMore = false
                             scope.launch {
                                 searchProjects(repository, filters, scope) { result ->
                                     result.onSuccess { searchResult ->

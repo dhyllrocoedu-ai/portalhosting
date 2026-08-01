@@ -5,7 +5,6 @@ import com.portalhost.model.ServerVersion
 import com.portalhost.model.ServerBuild
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.FileOutputStream
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.Result
@@ -49,25 +48,16 @@ class ForgeProvider : ServerProvider {
             }
     }
 
-    override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = runCatching {
-        destination.parentFile?.mkdirs()
-        val url = URL(build.url)
-        val conn = url.openConnection()
-        conn.connectTimeout = 30000
-        conn.readTimeout = 300000
-        val contentLength = conn.contentLengthLong
-        var downloaded = 0L
-        conn.getInputStream().use { input ->
-            FileOutputStream(destination).use { output ->
-                val buffer = ByteArray(8192)
-                var bytesRead = input.read(buffer)
-                while (bytesRead != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    downloaded += bytesRead
-                    bytesRead = input.read(buffer)
-                }
-            }
-        }
+    override suspend fun downloadBuild(
+        build: ServerBuild,
+        destination: File,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)?
+    ): Result<File> = runCatching {
+        URL(build.url).downloadToFile(
+            destination = destination,
+            headers = mapOf("User-Agent" to USER_AGENT),
+            onProgress = onProgress
+        )
         destination
     }
     

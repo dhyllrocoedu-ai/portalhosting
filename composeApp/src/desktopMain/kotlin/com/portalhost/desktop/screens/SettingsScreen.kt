@@ -1,6 +1,6 @@
 package com.portalhost.desktop.screens
 
-import androidx.compose.foundation.clickable
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,9 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Info
+
+
+
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
@@ -67,6 +67,7 @@ import com.portalhost.desktop.util.UpdateChecker
 import com.portalhost.desktop.util.UpdateInfo
 import com.portalhost.desktop.util.UpdateResult
 import com.portalhost.desktop.util.UninstallHelper
+import com.portalhost.filesystem.defaultDataDir
 import com.portalhost.java.JdkManager
 import com.portalhost.preferences.Preferences
 import com.portalhost.server.TunnelManager
@@ -74,7 +75,6 @@ import com.portalhost.server.TunnelStatus
 import com.portalhost.util.pickDirectory
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -144,7 +144,7 @@ fun SettingsScreen() {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Data Directory", style = MaterialTheme.typography.bodyMedium)
                     val displayPath = preferences.dataDirectory.value.takeIf { it.isNotBlank() }
-                        ?: System.getProperty("user.home") + File.separator + ".portalhost"
+                        ?: defaultDataDir().absolutePath
                     Text(
                         displayPath,
                         style = MaterialTheme.typography.bodySmall,
@@ -512,83 +512,35 @@ SettingsSection("Updates") {
         Spacer(Modifier.height(20.dp))
 
         SettingsSection("Uninstall") {
-            Text("Create an uninstall script to remove PortalHost from your computer.",
+            Text("Remove PortalHost from your computer.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            var uninstallResult by remember { mutableStateOf<String?>(null) }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    onClick = {
-                        val result = UninstallHelper.saveToDesktop()
-                        uninstallResult = if (result.isSuccess) {
-                            "Saved to Desktop"
-                        } else {
-                            "Error: ${result.exceptionOrNull()?.message}"
-                        }
-                    },
-                ) {
-                    Text("Save to Desktop")
-                }
-                Button(
-                    onClick = {
-                        scope.launch {
-                            val dir = pickDirectory(title = "Choose Save Location")
-                            if (dir != null) {
-                                val file = java.io.File(dir, "Uninstall PortalHost.bat")
-                                val result = UninstallHelper.saveTo(file)
-                                uninstallResult = if (result.isSuccess) {
-                                    "Saved to: ${file.absolutePath}"
-                                } else {
-                                    "Error: ${result.exceptionOrNull()?.message}"
-                                }
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.outlinedButtonColors(),
-                ) {
-                    Text("Choose Location")
-                }
-            }
-            if (uninstallResult != null) {
-                Spacer(Modifier.height(8.dp))
-                Text(uninstallResult!!, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-            }
-        }
+            Spacer(Modifier.height(12.dp))
+            var showUninstallDialog by remember { mutableStateOf(false) }
 
-        Spacer(Modifier.height(20.dp))
-
-        var aboutExpanded by remember { mutableStateOf(false) }
-        SettingsSection("About") {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { aboutExpanded = !aboutExpanded },
-                verticalAlignment = Alignment.CenterVertically
+            Button(
+                onClick = { showUninstallDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
-                Text("Portal Host", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                Text(com.portalhost.BuildConfig.DISPLAY_NAME, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    if (aboutExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (aboutExpanded) "Collapse" else "Expand",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                Text("Uninstall PortalHost")
+            }
+
+            if (showUninstallDialog) {
+                UninstallDialog(
+                    onDismiss = { showUninstallDialog = false },
+                    onConfirm = {
+                        showUninstallDialog = false
+                        val productCode = UninstallHelper.findProductCode()
+                        if (productCode != null) {
+                            UninstallHelper.uninstall(productCode)
+                        }
+                        kotlin.system.exitProcess(0)
+                    }
                 )
-            }
-            if (aboutExpanded) {
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-                Text("Desktop Minecraft Server Manager", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(4.dp))
-                Text("Built with Compose Multiplatform", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Text("Portal Host is a cross-platform Minecraft server manager that allows you to create, configure, start, and stop Minecraft Java Edition servers from a modern desktop interface.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -639,4 +591,49 @@ private fun SettingToggle(label: String, value: Boolean, onChanged: (Boolean) ->
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Switch(checked = value, onCheckedChange = onChanged)
     }
+}
+
+@Composable
+private fun UninstallDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Filled.Stop, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+        title = { Text("Uninstall PortalHost?") },
+        text = {
+            Column {
+                Text("This will remove PortalHost from your computer.")
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "Your servers, data and Java runtimes will be kept.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Uninstall will start immediately after confirmation. App will close automatically.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                )
+            ) {
+                Text("Uninstall")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

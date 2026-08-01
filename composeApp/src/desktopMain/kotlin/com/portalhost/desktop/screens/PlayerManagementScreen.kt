@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -55,6 +56,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.portalhost.server.ServerManager
+import org.koin.compose.koinInject
 import java.io.File
 import kotlin.OptIn
 
@@ -74,8 +77,28 @@ data class BannedIpEntry(val ip: String, val created: String? = null, val source
 fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Online", "Whitelist", "Operators", "Banned Players", "Banned IPs")
+    val serverManager = koinInject<ServerManager>()
+    val serverDir = serverManager.getServerDir(serverId)
 
     Column(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            tonalElevation = 1.dp,
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp).fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("Player Management", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                Text(serverDir.name, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            }
+        }
         SecondaryTabRow(selectedTabIndex = selectedTab) {
             tabs.forEachIndexed { index, title ->
                 Tab(
@@ -87,18 +110,17 @@ fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
         }
 
         when (selectedTab) {
-            0 -> OnlinePlayersTab(serverId)
-            1 -> WhitelistTab(serverId)
-            2 -> OperatorsTab(serverId)
-            3 -> BannedPlayersTab(serverId)
-            4 -> BannedIpsTab(serverId)
+            0 -> OnlinePlayersTab(serverDir)
+            1 -> WhitelistTab(serverDir)
+            2 -> OperatorsTab(serverDir)
+            3 -> BannedPlayersTab(serverDir)
+            4 -> BannedIpsTab(serverDir)
         }
     }
 }
 
 @Composable
-private fun OnlinePlayersTab(serverId: String) {
-    val serverDir = File("servers/$serverId")
+private fun OnlinePlayersTab(serverDir: File) {
     val usercacheFile = File(serverDir, "usercache.json")
 
     var players by remember { mutableStateOf<List<WhitelistEntry>>(emptyList()) }
@@ -187,8 +209,8 @@ private fun OnlinePlayersTab(serverId: String) {
 }
 
 @Composable
-private fun WhitelistTab(serverId: String) {
-    val file = File("servers/$serverId/whitelist.json")
+private fun WhitelistTab(serverDir: File) {
+    val file = File(serverDir, "whitelist.json")
     var players by remember(file) { mutableStateOf<List<WhitelistEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
     var newUuid by remember { mutableStateOf("") }
@@ -314,8 +336,8 @@ private fun WhitelistTab(serverId: String) {
 }
 
 @Composable
-private fun OperatorsTab(serverId: String) {
-    val file = File("servers/$serverId/ops.json")
+private fun OperatorsTab(serverDir: File) {
+    val file = File(serverDir, "ops.json")
     var players by remember(file) { mutableStateOf<List<OpEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
     var newUuid by remember { mutableStateOf("") }
@@ -449,8 +471,8 @@ private fun OperatorsTab(serverId: String) {
 }
 
 @Composable
-private fun BannedPlayersTab(serverId: String) {
-    val file = File("servers/$serverId/banned-players.json")
+private fun BannedPlayersTab(serverDir: File) {
+    val file = File(serverDir, "banned-players.json")
     var players by remember(file) { mutableStateOf<List<BannedPlayerEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
     var newUuid by remember { mutableStateOf("") }
@@ -592,8 +614,8 @@ private fun BannedPlayersTab(serverId: String) {
 }
 
 @Composable
-private fun BannedIpsTab(serverId: String) {
-    val file = File("servers/$serverId/banned-ips.json")
+private fun BannedIpsTab(serverDir: File) {
+    val file = File(serverDir, "banned-ips.json")
     var entries by remember(file) { mutableStateOf<List<BannedIpEntry>>(emptyList()) }
     var newIp by remember { mutableStateOf("") }
     var reason by remember { mutableStateOf("") }

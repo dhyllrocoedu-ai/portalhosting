@@ -29,6 +29,7 @@ import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.screens.*
 import com.portalhost.app.ui.screens.create.CreateServerScreen
 import com.portalhost.app.ui.screens.server.ServerDetailScreen
+import com.portalhost.app.ui.screens.RecentActivityScreen
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import java.io.File
@@ -153,6 +154,7 @@ fun AppNavigation(
                     onOpenPerformance = {
                         navController.navigate(Routes.PERFORMANCE_CHARTS)
                     },
+                    onViewActivity = { navController.navigate(Routes.RECENT_ACTIVITY) },
 
                     onSelectServer = { id -> appState.selectServer(id) },
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
@@ -301,6 +303,13 @@ fun AppNavigation(
                 PerformanceChartsScreen(
                     currentStats = processStats,
                     history = appState.performanceHistory,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(Routes.RECENT_ACTIVITY) {
+                RecentActivityScreen(
+                    activityLog = appState.activityLog,
                     onBack = { navController.popBackStack() }
                 )
             }

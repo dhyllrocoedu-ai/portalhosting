@@ -152,6 +152,7 @@ fun DashboardScreen(
     onNavigateToServer: (String) -> Unit = {},
     onNavigateToCreate: () -> Unit = {},
     onNavigateToPlayers: (String) -> Unit = {},
+    onNavigateToActivity: () -> Unit = {},
 ) {
     val serverManager = koinInject<ServerManager>()
     val fileSystem = koinInject<com.portalhost.filesystem.FileSystem>()
@@ -412,7 +413,8 @@ fun DashboardScreen(
 
                             ActivityCard(
                                 modifier = Modifier.weight(1f),
-                                activities = activities
+                                activities = activities,
+                                onViewAll = onNavigateToActivity
                             )
                         }
                     } else {
@@ -424,7 +426,7 @@ fun DashboardScreen(
                                 onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
                             )
 
-                            ActivityCard(activities = activities)
+                            ActivityCard(activities = activities, onViewAll = onNavigateToActivity)
                         }
                     }
                 }
@@ -1310,7 +1312,8 @@ private fun ConsoleCard(
 @Composable
 private fun ActivityCard(
     modifier: Modifier = Modifier,
-    activities: List<ActivityEntry>
+    activities: List<ActivityEntry>,
+    onViewAll: () -> Unit
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -1324,7 +1327,7 @@ private fun ActivityCard(
             ) {
                 Text("Recent Activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = {}) {
+                TextButton(onClick = onViewAll) {
                     Text("View All", style = MaterialTheme.typography.labelSmall)
                 }
             }
@@ -1345,7 +1348,7 @@ private fun ActivityCard(
 }
 
 @Composable
-private fun activityIconAndColor(action: String, defaultTint: Color): Pair<ImageVector, Color> {
+internal fun activityIconAndColor(action: String, defaultTint: Color): Pair<ImageVector, Color> {
     val lower = action.lowercase()
     return when {
         lower.contains("start") || lower.contains("launch") || lower.contains("join") ->
@@ -1363,7 +1366,7 @@ private fun activityIconAndColor(action: String, defaultTint: Color): Pair<Image
 }
 
 @Composable
-private fun ActivityRow(entry: ActivityEntry) {
+internal fun ActivityRow(entry: ActivityEntry) {
     val (icon, color) = activityIconAndColor(entry.action, MaterialTheme.colorScheme.onSurfaceVariant)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),

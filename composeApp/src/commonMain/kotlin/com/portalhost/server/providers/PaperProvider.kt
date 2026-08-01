@@ -8,8 +8,6 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import kotlin.Result
@@ -55,18 +53,16 @@ class PaperProvider : ServerProvider {
             .sortedByDescending { it.id.toIntOrNull() ?: 0 }
     }
 
-    override suspend fun downloadBuild(build: ServerBuild, destination: File): Result<File> = coroutineContext.runCatching {
-        destination.parentFile?.mkdirs()
-        val url = URL(build.url)
-        val conn = url.openConnection() as HttpURLConnection
-        conn.setRequestProperty("User-Agent", USER_AGENT)
-        conn.connectTimeout = 30000
-        conn.readTimeout = 300000
-        conn.getInputStream().use { input ->
-            FileOutputStream(destination).use { output ->
-                input.copyTo(output)
-            }
-        }
+    override suspend fun downloadBuild(
+        build: ServerBuild,
+        destination: File,
+        onProgress: ((downloadedBytes: Long, totalBytes: Long) -> Unit)?
+    ): Result<File> = coroutineContext.runCatching {
+        URL(build.url).downloadToFile(
+            destination = destination,
+            headers = mapOf("User-Agent" to USER_AGENT),
+            onProgress = onProgress
+        )
         build.sha256?.let { expected ->
             val sha256 = calculateSha256(destination)
             if (sha256 != expected) {
