@@ -214,8 +214,10 @@ fun CreateServerScreen(
     val downloadProgress by serverDownloader.downloadProgress.collectAsState()
     val downloadStatus by serverDownloader.currentStatus.collectAsState()
     val jdkInstallations by jdkManager.knownInstallations.collectAsState()
-    val isJdkInstalling by jdkManager.isInstalling.collectAsState()
-    val jdkInstallProgress by jdkManager.installProgress.collectAsState()
+    val jdkProgress by jdkManager.progress.collectAsState()
+    val isJdkInstalling = jdkProgress.phase != JdkManager.InstallPhase.IDLE &&
+        jdkProgress.phase != JdkManager.InstallPhase.COMPLETE &&
+        jdkProgress.phase != JdkManager.InstallPhase.ERROR
 
     var currentStep by remember { mutableIntStateOf(0) }
     val totalSteps = 5
@@ -798,8 +800,8 @@ fun CreateServerScreen(
         }
         if (isJdkInstalling) {
             Spacer(Modifier.height(4.dp))
-            LinearProgressIndicator(progress = { jdkInstallProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
-            Text("Installing Java ${selectedJavaVersion}... ${(jdkInstallProgress * 100).toInt()}%",
+            LinearProgressIndicator(progress = { (jdkProgress.percentage / 100f).toFloat() }, modifier = Modifier.fillMaxWidth())
+            Text("Installing Java ${selectedJavaVersion}... ${jdkProgress.percentage.toInt()}%",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 

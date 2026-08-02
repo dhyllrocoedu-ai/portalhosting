@@ -88,8 +88,10 @@ fun WelcomeScreen(
 
     LaunchedEffect(jdkInstalling) {
         if (jdkInstalling) {
-            jdkManager.installProgress.collect { progress ->
-                jdkProgress = progress
+            jdkManager.progress.collect { p ->
+                jdkProgress = p.percentage / 100.0
+                if (p.phase == JdkManager.InstallPhase.COMPLETE) jdkProgress = 1.0
+                if (p.errorMessage != null) jdkError = p.errorMessage
             }
         }
     }

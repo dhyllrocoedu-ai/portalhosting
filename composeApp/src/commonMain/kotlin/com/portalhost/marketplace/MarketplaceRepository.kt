@@ -41,7 +41,14 @@ class MarketplaceRepository(
         if (cached != null && System.currentTimeMillis() - cached.timestamp < cacheTtlMs) {
             return@withLock Result.success(parseSearchResult(cached.data))
         }
-        val result = api.searchProjects(query, version, loader, projectType, categories, sort, offset, limit)
+        // Default to server-relevant project types when no explicit projectType filter
+        val effectiveProjectType = projectType
+        val effectiveCategories = categories
+        if (projectType == null && loader == null && categories.isEmpty()) {
+            // No explicit filter: auto-restrict to server-relevant types
+            // This is handled by passing a special marker to the API
+        }
+        val result = api.searchProjects(query, version, loader, projectType, categories, sort, offset, limit, serverAddonsOnly = (projectType == null && loader == null && categories.isEmpty()))
         result.onSuccess {
             searchCache[key] = CachedResult(serializeSearchResult(it), System.currentTimeMillis())
         }

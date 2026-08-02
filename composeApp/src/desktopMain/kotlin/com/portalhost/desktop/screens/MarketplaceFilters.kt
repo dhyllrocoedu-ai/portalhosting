@@ -58,7 +58,8 @@ private val supportedLoaders = listOf(
     "NeoForge" to "neoforge",
     "Fabric" to "fabric",
     "Quilt" to "quilt",
-    "Vanilla" to "vanilla"
+    "Vanilla" to "vanilla",
+    "Datapack" to "datapack"
 )
 
 private val projectTypes = listOf(

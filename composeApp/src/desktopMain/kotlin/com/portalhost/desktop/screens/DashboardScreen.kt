@@ -165,9 +165,8 @@ fun DashboardScreen(
     val consoleOutputs by serverManager.consoleOutputs.collectAsState()
     val tunnelState by tunnelManager.state.collectAsState()
     val activities by activityLog.activities.collectAsState()
-    val jdkInstalling by jdkManager.isInstalling.collectAsState()
-    val jdkProgress by jdkManager.installProgress.collectAsState()
     val jdkInstallations by jdkManager.knownInstallations.collectAsState()
+    val jdkProgress by jdkManager.progress.collectAsState()
     val scope = rememberCoroutineScope()
 
     var selectedServerId by remember { mutableStateOf<String?>(null) }
@@ -298,7 +297,11 @@ fun DashboardScreen(
                     onRestart = { scope.launch { selectedServerId?.let { serverManager.restartServer(it) } } }
                 )
 
-                if (jdkInstalling) {
+                if (jdkProgress.phase == JdkManager.InstallPhase.DOWNLOADING ||
+                    jdkProgress.phase == JdkManager.InstallPhase.EXTRACTING ||
+                    jdkProgress.phase == JdkManager.InstallPhase.VERIFYING ||
+                    jdkProgress.phase == JdkManager.InstallPhase.VALIDATING ||
+                    jdkProgress.phase == JdkManager.InstallPhase.CONNECTING) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -308,12 +311,62 @@ fun DashboardScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(12.dp))
-                                Text("Installing Java runtime...")
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Installing Java runtime...", style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        formatPhase(jdkProgress.phase),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            if (jdkProgress > 0.0) {
-                                Spacer(Modifier.height(8.dp))
-                                LinearProgressIndicator(progress = { jdkProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(progress = { jdkProgress.percentage.toFloat() / 100f }, modifier = Modifier.fillMaxWidth())
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Text(
+                                    buildProgressText(jdkProgress),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    formatPhase(jdkProgress.phase),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
+                            if (jdkProgress.phase == JdkManager.InstallPhase.EXTRACTING && jdkProgress.totalEntries > 0) {
+                                Text(
+                                    "Extracting: ${jdkProgress.extractedEntries} / ${jdkProgress.totalEntries} files",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else if (jdkProgress.phase == JdkManager.InstallPhase.ERROR) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Java installation failed: ${jdkProgress.errorMessage ?: "Unknown error"}", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                } else if (jdkProgress.phase == JdkManager.InstallPhase.COMPLETE) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Java installation complete!", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 } else if (jdkInstallations.isEmpty()) {
@@ -429,8 +482,8 @@ fun DashboardScreen(
                             ActivityCard(activities = activities, onViewAll = onNavigateToActivity)
                         }
                     }
-                }
-        }
+}
+}
     }
 
     if (showUpdateDialog && updateInfo != null) {
@@ -442,7 +495,6 @@ fun DashboardScreen(
     }
 }
 
-@Suppress("DEPRECATION")
 @Composable
 private fun ServerCard(
     serverIcon: ImageBitmap?,

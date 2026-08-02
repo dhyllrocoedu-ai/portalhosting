@@ -25,10 +25,11 @@ class ModrinthApi {
         categories: Set<String> = emptySet(),
         sort: MarketplaceSort = MarketplaceSort.Downloads,
         offset: Int = 0,
-        limit: Int = 20
+        limit: Int = 20,
+        serverAddonsOnly: Boolean = true
     ): Result<ModrinthSearchResult> = withContext(Dispatchers.IO) {
         try {
-            val facets = buildFacets(version, loader, projectType, categories)
+            val facets = buildFacets(version, loader, projectType, categories, serverAddonsOnly)
             val params = mutableListOf<String>()
             if (query.isNotBlank()) params.add("query=${encodeUrl(query)}")
             if (facets.isNotEmpty()) {
@@ -88,12 +89,23 @@ class ModrinthApi {
         version: String?,
         loader: String?,
         projectType: String?,
-        categories: Set<String>
+        categories: Set<String>,
+        serverAddonsOnly: Boolean = true
     ): JsonArray {
         val facetList = mutableListOf<JsonArray>()
 
-        projectType?.let {
-            facetList.add(buildJsonArray { add("project_type:$it") })
+        // Handle project_type facets
+        val projectTypeFacets = mutableListOf<String>()
+        if (serverAddonsOnly && projectType == null && loader == null && categories.isEmpty()) {
+            // No explicit filter: default to server-relevant project types
+            projectTypeFacets.addAll(listOf("project_type:plugin", "project_type:mod", "project_type:datapack"))
+        } else {
+            projectType?.let {
+                projectTypeFacets.add("project_type:$it")
+            }
+        }
+        if (projectTypeFacets.isNotEmpty()) {
+            facetList.add(buildJsonArray { projectTypeFacets.forEach { add(it) } })
         }
 
         loader?.let {
@@ -106,6 +118,7 @@ class ModrinthApi {
                 "fabric" -> listOf("fabric")
                 "quilt" -> listOf("quilt")
                 "vanilla" -> listOf("vanilla")
+                "datapack" -> listOf("datapack")
                 else -> listOf(normalized)
             }
             facetList.add(buildJsonArray {

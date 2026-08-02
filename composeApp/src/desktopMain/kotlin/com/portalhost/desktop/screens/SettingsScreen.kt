@@ -306,8 +306,7 @@ SettingsSection("Updates") {
         SettingsSection("Java / JDK") {
             val jdkManager = koinInject<JdkManager>()
             val installations by jdkManager.knownInstallations.collectAsState()
-            val isInstalling by jdkManager.isInstalling.collectAsState()
-            val installProgress by jdkManager.installProgress.collectAsState()
+            val progress by jdkManager.progress.collectAsState()
 
             LaunchedEffect(Unit) { jdkManager.refresh() }
 
@@ -336,7 +335,7 @@ SettingsSection("Updates") {
                 if (installations.isEmpty()) {
                     Button(
                         onClick = { scope.launch { jdkManager.installJdk(21) } },
-                        enabled = !isInstalling,
+                        enabled = progress.phase != JdkManager.InstallPhase.DOWNLOADING && progress.phase != JdkManager.InstallPhase.EXTRACTING,
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -345,7 +344,7 @@ SettingsSection("Updates") {
                 } else {
                     Button(
                         onClick = { scope.launch { jdkManager.installJdk(21) } },
-                        enabled = !isInstalling,
+                        enabled = progress.phase != JdkManager.InstallPhase.DOWNLOADING && progress.phase != JdkManager.InstallPhase.EXTRACTING,
                     ) {
                         Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -353,10 +352,53 @@ SettingsSection("Updates") {
                     }
                 }
             }
-            if (isInstalling) {
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(progress = { installProgress.toFloat() }, modifier = Modifier.fillMaxWidth())
-                Text("Installing JDK... ${(installProgress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            when (progress.phase) {
+                JdkManager.InstallPhase.CONNECTING,
+                JdkManager.InstallPhase.DOWNLOADING,
+                JdkManager.InstallPhase.VALIDATING,
+                JdkManager.InstallPhase.EXTRACTING,
+                JdkManager.InstallPhase.VERIFYING -> {
+                    Spacer(Modifier.height(8.dp))
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        LinearProgressIndicator(progress = { progress.percentage.toFloat() / 100f }, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                buildProgressText(progress),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                formatPhase(progress.phase),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (progress.phase == JdkManager.InstallPhase.EXTRACTING && progress.totalEntries > 0) {
+                            Text(
+                                "Extracting: ${progress.extractedEntries} / ${progress.totalEntries} files",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                JdkManager.InstallPhase.ERROR -> {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Error: ${progress.errorMessage ?: "Unknown error"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                JdkManager.InstallPhase.COMPLETE -> {
+                    Spacer(Modifier.height(8.dp))
+                    Text("Installation complete!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+                JdkManager.InstallPhase.IDLE -> { }
             }
         }
 
@@ -636,4 +678,56 @@ private fun UninstallDialog(
             }
         }
     )
+}
+
+internal fun formatPhase(phase: JdkManager.InstallPhase): String = when (phase) {
+    JdkManager.InstallPhase.CONNECTING -> "Connecting..."
+    JdkManager.InstallPhase.DOWNLOADING -> "Downloading"
+    JdkManager.InstallPhase.VALIDATING -> "Validating"
+    JdkManager.InstallPhase.EXTRACTING -> "Extracting"
+    JdkManager.InstallPhase.VERIFYING -> "Verifying"
+    JdkManager.InstallPhase.COMPLETE -> "Complete"
+    JdkManager.InstallPhase.ERROR -> "Error"
+    JdkManager.InstallPhase.IDLE -> "Idle"
+}
+
+internal fun buildProgressText(progress: JdkManager.DownloadProgress): String {
+    val sb = StringBuilder()
+    when (progress.phase) {
+        JdkManager.InstallPhase.DOWNLOADING -> {
+            if (progress.totalBytes > 0) {
+                sb.append(String.format("%.1f / %.1f MB", progress.downloadedMB, progress.totalMB))
+            } else {
+                sb.append(String.format("%.1f MB", progress.downloadedMB))
+            }
+            if (progress.speedBytesPerSec > 0) {
+                sb.append(String.format(" • %.1f MB/s", progress.speedMBps))
+            }
+            if (progress.etaMillis > 0) {
+                val etaSec = progress.etaMillis / 1000
+                val etaMin = etaSec / 60
+                val etaSecRem = etaSec % 60
+                sb.append(String.format(" • ETA: %d:%02d", etaMin, etaSecRem))
+            }
+            if (progress.totalChunks > 1) {
+                sb.append(String.format(" [chunk %d/%d]", progress.currentChunk, progress.totalChunks))
+            }
+        }
+        JdkManager.InstallPhase.EXTRACTING -> {
+            if (progress.totalEntries > 0) {
+                sb.append("${progress.extractedEntries} / ${progress.totalEntries} files")
+            }
+        }
+        JdkManager.InstallPhase.VERIFYING -> {
+            sb.append("Verifying installation...")
+        }
+        JdkManager.InstallPhase.VALIDATING -> {
+            sb.append("Validating archive...")
+        }
+        JdkManager.InstallPhase.CONNECTING -> {
+            sb.append("Connecting to mirror...")
+        }
+        else -> { }
+    }
+    return sb.toString()
 }
