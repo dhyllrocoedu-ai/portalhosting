@@ -576,6 +576,7 @@ SettingsSection("Updates") {
                     onDismiss = { showUninstallDialog = false },
                     onConfirm = {
                         showUninstallDialog = false
+                        UninstallHelper.preserveData(preferences)
                         val productCode = UninstallHelper.findProductCode()
                         if (productCode != null) {
                             UninstallHelper.uninstall(productCode)
