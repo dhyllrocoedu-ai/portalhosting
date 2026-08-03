@@ -78,6 +78,7 @@ import com.portalhost.marketplace.MarketplaceRepository
 import com.portalhost.marketplace.formatDownloads
 import com.portalhost.marketplace.getSuggestedFolder
 import com.portalhost.marketplace.isProjectCompatible
+import com.portalhost.marketplace.isVersionCompatible
 import com.portalhost.model.ModrinthGalleryItem
 import com.portalhost.model.ModrinthProject
 import com.portalhost.model.ModrinthVersion
@@ -441,7 +442,8 @@ fun MarketplaceDetailScreen(
                         serverName = s.name,
                         serverVersion = s.version,
                         serverType = s.serverType.name.lowercase().replaceFirstChar { it.uppercase() },
-                        compatible = isProjectCompatible(p, s.version, serverTypeToLoader(s.serverType)),
+                        compatible = selectedVersion?.let { isVersionCompatible(it, s.version, serverTypeToLoader(s.serverType)) }
+                            ?: isProjectCompatible(p, s.version, serverTypeToLoader(s.serverType)),
                         folderHint = getSuggestedFolder(p)
                     )
                 }

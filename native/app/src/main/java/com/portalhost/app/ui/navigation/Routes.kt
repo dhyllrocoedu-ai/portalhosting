@@ -21,6 +21,8 @@ object Routes {
     fun serverDetail(id: String) = "server/$id"
     const val SERVER_FILES = "server_files/{serverId}"
     fun serverFiles(id: String) = "server_files/$id"
+    const val MARKETPLACE_DETAIL = "marketplace/{projectId}"
+    fun marketplaceDetail(id: String) = "marketplace/$id"
     const val FULL_CONSOLE = "console_full"
     const val PLAYER_MANAGEMENT = "player_management"
     const val LOGS_VIEWER = "logs_viewer"

@@ -27,6 +27,8 @@ import androidx.compose.ui.res.painterResource
 import com.portalhost.app.R
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.screens.*
+import com.portalhost.app.ui.screens.marketplace.MarketplaceDetailScreen
+import com.portalhost.app.ui.screens.marketplace.MarketplaceScreen
 import com.portalhost.app.ui.screens.create.CreateServerScreen
 import com.portalhost.app.ui.screens.server.ServerDetailScreen
 import com.portalhost.app.ui.screens.RecentActivityScreen
@@ -196,7 +198,21 @@ fun AppNavigation(
             }
 
             composable(AppTab.ADDONS.route) {
-                AddonsScreen(onBack = { navController.popBackStack() })
+                MarketplaceScreen(
+                    onProjectClick = { projectId ->
+                        navController.navigate(Routes.marketplaceDetail(projectId))
+                    }
+                )
+            }
+
+            composable(Routes.MARKETPLACE_DETAIL) { entry ->
+                val projectId = entry.arguments?.getString("projectId") ?: return@composable
+                MarketplaceDetailScreen(
+                    projectId = projectId,
+                    servers = appState.servers,
+                    getServerDir = { id -> appState.repository.getServerDir(id) },
+                    onBack = { navController.popBackStack() }
+                )
             }
 
             composable(Routes.FULL_CONSOLE) {
