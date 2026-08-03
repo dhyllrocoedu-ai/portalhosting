@@ -11,7 +11,9 @@ data class Toast(
     val id: Long = System.currentTimeMillis(),
     val message: String,
     val type: ToastType = ToastType.Info,
-    val duration: Long = 3000
+    val duration: Long = 3000,
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null
 )
 
 enum class ToastType {
@@ -27,12 +29,20 @@ class ToastManager {
 
     private var nextId = System.currentTimeMillis()
 
-    fun show(message: String, type: ToastType = ToastType.Info, duration: Long = 3000) {
+    fun show(
+        message: String,
+        type: ToastType = ToastType.Info,
+        duration: Long = 3000,
+        actionLabel: String? = null,
+        onAction: (() -> Unit)? = null
+    ) {
         val toast = Toast(
             id = nextId++,
             message = message,
             type = type,
-            duration = duration
+            duration = duration,
+            actionLabel = actionLabel,
+            onAction = onAction
         )
         _toasts.value = _toasts.value + toast
 
@@ -50,4 +60,11 @@ class ToastManager {
     fun success(message: String, duration: Long = 3000) = show(message, ToastType.Success, duration)
     fun warning(message: String, duration: Long = 3000) = show(message, ToastType.Warning, duration)
     fun error(message: String, duration: Long = 5000) = show(message, ToastType.Error, duration)
+    
+    fun warningWithAction(
+        message: String,
+        actionLabel: String,
+        onAction: () -> Unit,
+        duration: Long = 10000
+    ) = show(message, ToastType.Warning, duration, actionLabel, onAction)
 }

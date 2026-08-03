@@ -45,6 +45,20 @@ fun readInstallConfigDataDir(): File? {
     }
 }
 
+fun createDataDirStructure(dataDir: File): Boolean {
+    return try {
+        dataDir.mkdirs()
+        File(dataDir, "servers").mkdirs()
+        File(dataDir, "jdks").mkdirs()
+        File(dataDir, "playit").mkdirs()
+        File(dataDir, "backups").mkdirs()
+        File(dataDir, "temp").mkdirs()
+        true
+    } catch (_: Exception) {
+        false
+    }
+}
+
 fun resolveAppDataDir(): File {
     val custom = System.getProperty("portalhost.data.dir")?.takeIf { it.isNotBlank() }
     if (custom != null) {

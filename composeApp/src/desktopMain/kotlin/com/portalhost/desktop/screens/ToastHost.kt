@@ -24,6 +24,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,7 +52,7 @@ fun ToastHost() {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         toasts.forEach { toast ->
-            ToastCard(toast = toast)
+            ToastCard(toast = toast, toastManager = toastManager)
         }
     }
 }
@@ -91,7 +92,10 @@ private fun styleForType(type: ToastType, colors: androidx.compose.material3.Col
 }
 
 @Composable
-private fun ToastCard(toast: com.portalhost.uinotify.Toast) {
+private fun ToastCard(
+    toast: com.portalhost.uinotify.Toast,
+    toastManager: ToastManager
+) {
     val style = styleForType(toast.type, MaterialTheme.colorScheme)
 
     AnimatedVisibility(
@@ -127,6 +131,22 @@ private fun ToastCard(toast: com.portalhost.uinotify.Toast) {
                     color = style.contentColor,
                     modifier = Modifier.weight(1f),
                 )
+                toast.actionLabel?.let { label ->
+                    TextButton(
+                        onClick = {
+                            toast.onAction?.invoke()
+                            toastManager.dismiss(toast.id)
+                        },
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = style.iconTint,
+                        )
+                    }
+                }
             }
         }
     }

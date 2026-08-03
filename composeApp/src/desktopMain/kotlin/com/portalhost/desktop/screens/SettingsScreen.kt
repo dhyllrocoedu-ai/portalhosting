@@ -173,6 +173,8 @@ fun SettingsScreen() {
                             dataDirWarning = installDir != null && UninstallHelper.isPathInsideInstallDir(installDir, chosen)
                             preferences.dataDirectory.value = chosen.absolutePath
                             System.setProperty("portalhost.data.dir", chosen.absolutePath)
+                            // Create folder structure
+                            com.portalhost.filesystem.createDataDirStructure(chosen)
                         }
                     }
                 }) {

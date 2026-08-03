@@ -130,19 +130,18 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             _progress.value = _progress.value.copy(phase = InstallPhase.EXTRACTING)
             extractArchiveParallel(archiveFile, destinationDir)
             
-            _progress.value = _progress.value.copy(phase = InstallPhase.VERIFYING)
-            
-            val extractedDir = findJdkDir(destinationDir) ?: throw Exception("JDK extraction failed")
+            // Verify extraction produced expected structure
+            val extractedDir = findJdkDir(destinationDir) ?: throw Exception("JDK extraction failed - no jdk directory found in $destinationDir")
             val javaHome = extractedDir.absolutePath
             val javaExe = File(javaHome, javaExeName())
             
             if (!javaExe.exists()) {
-                throw Exception("Java executable not found after extraction")
+                throw Exception("Java executable not found after extraction at $javaExe")
             }
             
             val versionCheck = getJavaVersion(javaExe)
             if (versionCheck != version) {
-                throw Exception("Extracted JDK reports Java $versionCheck, expected $version")
+                throw Exception("Extracted JDK reports Java $versionCheck, expected $version (javaExe: $javaExe)")
             }
             
             val installation = JavaInstallation(
@@ -760,9 +759,23 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             val output = process.inputStream.bufferedReader().readText()
             process.waitFor()
             
-            val versionRegex = """version\s+"(\d+)""".toRegex()
-            val match = versionRegex.find(output)
-            match?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            // Try multiple regex patterns for different JDK vendors
+            val patterns = listOf(
+                """version\s+"(\d+)""",           // standard: version "21.0.5" or version "21"
+                """openjdk\s+version\s+"(\d+)""", // OpenJDK: openjdk version "21.0.5"
+                """java\s+version\s+"(\d+)""",    // Oracle: java version "21.0.5"
+            )
+            
+            for (pattern in patterns) {
+                val regex = pattern.toRegex()
+                val match = regex.find(output)
+                match?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
+            }
+            
+            // Fallback: try to find any version-like number in the output
+            val fallbackRegex = """(\d+)\.(\d+)""".toRegex()
+            val fallbackMatch = fallbackRegex.find(output)
+            fallbackMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
         } catch (e: Exception) {
             0
         }

@@ -11,10 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -25,15 +26,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.portalhost.uinotify.ToastManager
+import com.portalhost.uinotify.ToastType
 import com.portalhost.theme.AppTheme
 import com.portalhost.desktop.screens.WelcomeScreen
 import com.portalhost.desktop.util.UninstallHelper
@@ -54,6 +58,7 @@ import org.koin.core.context.GlobalContext
 import org.koin.compose.koinInject
 import org.jetbrains.skia.Image
 import java.awt.Frame
+import java.io.File
 
 private val resolvedDataDir: String = try {
     val early = java.util.prefs.Preferences.userRoot().node("com/portalhost").get("dataDirectory", "")
@@ -86,6 +91,26 @@ fun DesktopApp(
     val serverManager = koinInject<ServerManager>()
     val firstRunCompleted by preferences.firstRunCompleted.collectAsState()
     val showWelcome = !firstRunCompleted
+
+    // Check if data dir is configured for returning users (non-blocking toast)
+    var dataDirConfigured by remember { mutableStateOf(false) }
+    LaunchedEffect(firstRunCompleted, preferences.dataDirectory.value) {
+        if (firstRunCompleted) {
+            val hasDataDir = preferences.dataDirectory.value.isNotBlank() ||
+                com.portalhost.filesystem.readInstallConfigDataDir() != null
+            dataDirConfigured = hasDataDir
+            if (!hasDataDir) {
+                // Delay toast slightly to ensure UI is ready
+                delay(1000)
+                toastManager.warningWithAction(
+                    message = "Data directory not configured. Click to set it up.",
+                    actionLabel = "Open Settings",
+                    onAction = { currentScreen = Screen.Settings },
+                    duration = 10000
+                )
+            }
+        }
+    }
 
     LaunchedEffect(showWelcome) {
         logger.info { "firstRunCompleted=$firstRunCompleted, showWelcome=$showWelcome" }

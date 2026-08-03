@@ -67,7 +67,7 @@ fun WelcomeScreen(
     val scope = rememberCoroutineScope()
 
     var currentStep by remember { mutableIntStateOf(0) }
-    val totalSteps = 4
+    val totalSteps = 3
 
     var jdkInstalling by remember { mutableStateOf(false) }
     var jdkProgress by remember { mutableStateOf(0.0) }
@@ -75,16 +75,8 @@ fun WelcomeScreen(
     var jdkInstalled by remember { mutableStateOf(false) }
     var jdkSkipped by remember { mutableStateOf(false) }
 
-    var dataFolderCreated by remember { mutableStateOf(false) }
-    var selectedDataDir by remember { mutableStateOf("") }
     var prefsConfigured by remember { mutableStateOf(false) }
     var showSkipDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        selectedDataDir = preferences.dataDirectory.value.ifBlank {
-            defaultDataDir().absolutePath
-        }
-    }
 
     LaunchedEffect(jdkInstalling) {
         if (jdkInstalling) {
@@ -99,8 +91,6 @@ fun WelcomeScreen(
     LaunchedEffect(currentStep) {
         when (currentStep) {
             1 -> {
-            }
-            2 -> {
                 if (!jdkInstalled && !jdkSkipped && !jdkInstalling) {
                     scope.launch {
                         jdkInstalling = true
@@ -117,7 +107,7 @@ fun WelcomeScreen(
                     }
                 }
             }
-            3 -> {
+            2 -> {
                 delay(300)
                 prefsConfigured = true
             }
@@ -143,18 +133,10 @@ fun WelcomeScreen(
                 when (currentStep) {
                     0 -> WelcomeContent(
                         title = "Welcome to Portal Host",
-                        description = "Manage your Minecraft Java Edition servers with ease. This quick setup will configure your data folder, install the Java runtime, and get you started in minutes.",
+                        description = "Manage your Minecraft Java Edition servers with ease. Java runtime will be installed automatically.",
                         subtitle = "Click Next to begin the setup process."
                     )
-                    1 -> DataFolderStep(
-                        currentPath = selectedDataDir,
-                        onPathChange = { selectedDataDir = it },
-                        onConfirm = {
-                            preferences.dataDirectory.value = selectedDataDir
-                            dataFolderCreated = true
-                        }
-                    )
-                    2 -> JdkInstallStep(
+                    1 -> JdkInstallStep(
                         isInstalling = jdkInstalling,
                         progress = jdkProgress,
                         error = jdkError,
@@ -176,7 +158,7 @@ fun WelcomeScreen(
                         },
                         onSkip = { showSkipDialog = true }
                     )
-                    3 -> SetupStepContent(
+                    2 -> SetupStepContent(
                         icon = Icons.Default.Settings,
                         title = "Configuration",
                         description = "Default preferences have been configured. You can customize everything later in Settings.",
@@ -249,15 +231,14 @@ fun WelcomeScreen(
                             },
                             enabled = when (currentStep) {
                                 0 -> true
-                                1 -> dataFolderCreated
-                                2 -> jdkInstalled || jdkSkipped
+                                1 -> jdkInstalled || jdkSkipped
                                 else -> true
                             },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
                                 when {
-                                    currentStep == 2 && jdkInstalling -> "Installing..."
+                                    currentStep == 1 && jdkInstalling -> "Installing..."
                                     else -> "Next"
                                 }
                             )
