@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <UI Id="PortalHostUI">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8"/>
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12"/>
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes"/>
+      
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal"/>
+      <Property Id="WixUI_Mode" Value="InstallDir"/>
+      
+      <DialogRef Id="BrowseDlg"/>
+      <DialogRef Id="ErrorDlg"/>
+      <DialogRef Id="FatalError"/>
+      <DialogRef Id="FilesInUse"/>
+      <DialogRef Id="MsiRMFilesInUse"/>
+      <DialogRef Id="PrepareDlg"/>
+      <DialogRef Id="ProgressDlg"/>
+      <DialogRef Id="ResumeDlg"/>
+      <DialogRef Id="UserExit"/>
+      <DialogRef Id="PortalHostDataDirDlg"/>
+      
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="PortalHostDataDirDlg">1</Publish>
+      <Publish Dialog="PortalHostDataDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="PortalHostDataDirDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="PortalHostDataDirDlg">1</Publish>
+      
+      <InstallUISequence>
+        <Show Dialog="WelcomeDlg" Before="ProgressDlg">NOT Installed</Show>
+        <Show Dialog="PortalHostDataDirDlg" Before="InstallDirDlg">NOT Installed</Show>
+        <Show Dialog="InstallDirDlg" Before="ProgressDlg">NOT Installed</Show>
+        <Show Dialog="ProgressDlg" Before="ExecuteAction">NOT Installed</Show>
+        <Show Dialog="ExitDialog" After="ExecuteAction">NOT Installed</Show>
+      </InstallUISequence>
+      
+      <AdminUISequence>
+        <Show Dialog="WelcomeDlg" Before="ProgressDlg">NOT Installed</Show>
+        <Show Dialog="PortalHostDataDirDlg" Before="InstallDirDlg">NOT Installed</Show>
+        <Show Dialog="InstallDirDlg" Before="ProgressDlg">NOT Installed</Show>
+        <Show Dialog="ProgressDlg" Before="ExecuteAction">NOT Installed</Show>
+        <Show Dialog="ExitDialog" After="ExecuteAction">NOT Installed</Show>
+      </AdminUISequence>
+    </UI>
+  </Fragment>
+</Wix>

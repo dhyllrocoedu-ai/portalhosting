@@ -36,6 +36,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.portalhost.uinotify.ToastManager
 import com.portalhost.theme.AppTheme
 import com.portalhost.desktop.screens.WelcomeScreen
+import com.portalhost.desktop.util.UninstallHelper
 import com.portalhost.desktop.window.PortalHostWindow
 import com.portalhost.desktop.window.Screen
 import com.portalhost.desktop.window.TitleBar
@@ -155,7 +156,10 @@ fun DesktopApp(
 
 fun main() {
     try {
-        System.setProperty("portalhost.data.dir", resolvedDataDir)
+        // Runs before the database is opened: if the data directory lives inside
+        // the install folder, offer to move it out so an uninstall cannot wipe it.
+        val migratedDataDir = UninstallHelper.migrateDataDirBeforeStart()
+        System.setProperty("portalhost.data.dir", migratedDataDir ?: resolvedDataDir)
 
         initKoin(desktopModule())
 

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="PortalHost">
+          <Directory Id="PORTALHOST_DATADIR" Name="data">
+            <Directory Id="SERVERS_DIR" Name="servers"/>
+            <Directory Id="JDKS_DIR" Name="jdks"/>
+            <Directory Id="PLAYIT_DIR" Name="playit"/>
+            <Directory Id="BACKUPS_DIR" Name="backups"/>
+            <Directory Id="TEMP_DIR" Name="temp"/>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+    
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="PortalHostConfigFile" Guid="PUT-GUID-HERE">
+        <File Id="portalhost.cfg" Source="portalhost.cfg" KeyPath="yes"/>
+        <Condition>PORTALHOST_DATADIR_CHOSEN=1</Condition>
+      </Component>
+    </DirectoryRef>
+    
+    <DirectoryRef Id="PORTALHOST_DATADIR">
+      <Component Id="PortalHostDataDirs" Guid="PUT-GUID-HERE" Transitive="yes">
+        <CreateFolder Directory="PORTALHOST_DATADIR"/>
+        <CreateFolder Directory="SERVERS_DIR"/>
+        <CreateFolder Directory="JDKS_DIR"/>
+        <CreateFolder Directory="PLAYIT_DIR"/>
+        <CreateFolder Directory="BACKUPS_DIR"/>
+        <CreateFolder Directory="TEMP_DIR"/>
+        <Condition>PORTALHOST_DATADIR_CHOSEN=1</Condition>
+      </Component>
+    </DirectoryRef>
+    
+    <ComponentGroup Id="ProductComponents">
+      <!-- Application files are added by jpackage automatically -->
+    </ComponentGroup>
+    
+  </Fragment>
+</Wix>

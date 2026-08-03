@@ -25,10 +25,34 @@ fun defaultDataDir(): File {
     }
 }
 
+fun resolveInstallDir(): File? {
+    val javaHome = System.getProperty("java.home")
+    return if (javaHome != null) File(javaHome).parentFile else null
+}
+
+fun readInstallConfigDataDir(): File? {
+    val installDir = resolveInstallDir() ?: return null
+    val configFile = File(installDir, "portalhost.cfg")
+    if (!configFile.exists()) return null
+    return try {
+        configFile.readText().lines()
+            .firstOrNull { it.startsWith("dataDirectory=") }
+            ?.substringAfter("dataDirectory=")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(it) }
+    } catch (_: Exception) {
+        null
+    }
+}
+
 fun resolveAppDataDir(): File {
     val custom = System.getProperty("portalhost.data.dir")?.takeIf { it.isNotBlank() }
     if (custom != null) {
         return File(custom).also { it.mkdirs() }
+    }
+    val fromConfig = readInstallConfigDataDir()
+    if (fromConfig != null) {
+        return fromConfig.also { it.mkdirs() }
     }
     return defaultDataDir().also { it.mkdirs() }
 }

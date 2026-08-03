@@ -20,7 +20,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
-import kotlin.system.measureTimeMillis
 
 class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.FileSystem()) {
     // --- Progress Reporting ---
@@ -66,16 +65,9 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
     
     private val knownJdks = mutableMapOf<Int, String>()
     
-    // --- Mirror Selection ---
-    
-    private var selectedMirrorUrl: String? = null
-    private val mirrorBenchmarkScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
-    
     init {
         loadKnownJdks()
         refreshScope.launch { refresh() }
-        // Benchmark mirrors in background
-        mirrorBenchmarkScope.launch { benchmarkMirrors() }
     }
     
     // --- Persistence ---
@@ -110,39 +102,6 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
         } catch (_: Exception) { }
     }
     
-    // --- Mirror Benchmarking ---
-    
-    private suspend fun benchmarkMirrors() {
-        val mirrors = listOf(
-            "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse",
-            "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse",
-            "https://api.adoptium.net/v3/binary/latest/21/ga/mac/x64/jdk/hotspot/normal/eclipse",
-        )
-        
-        var bestMirror: String? = null
-        var bestTime = Long.MAX_VALUE
-        
-        for (mirror in mirrors) {
-            try {
-                val time = measureTimeMillis {
-                    val url = URL(mirror)
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 5000
-                    conn.readTimeout = 5000
-                    conn.requestMethod = "HEAD"
-                    conn.connect()
-                    conn.responseCode
-                }
-                if (time < bestTime) {
-                    bestTime = time
-                    bestMirror = mirror
-                }
-            } catch (_: Exception) { }
-        }
-        
-        selectedMirrorUrl = bestMirror
-    }
-    
     // --- Installation Flow ---
     
     suspend fun installJdk(version: Int): Result<JavaInstallation> = withContext(Dispatchers.IO) {
@@ -156,7 +115,7 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             
             cleanupDirectory(destinationDir)
             
-            val downloadUrl = selectedMirrorUrl ?: getDownloadUrl(version)
+            val downloadUrl = getDownloadUrl(version)
             val archiveExt = if (isWindows()) "zip" else "tar.gz"
             val archiveFile = File(tempDir, "jdk-${version}.$archiveExt")
             
@@ -250,22 +209,27 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
         }
         
         // Check for existing partial download
-        val existingSize = destination.length()
+        val existingSize = destination.length().coerceIn(0, totalSize)
         val isResume = existingSize > 0 && existingSize < totalSize
+        
+        // Pre-size the destination so each chunk writes directly at its exact
+        // offset. This preserves an existing partial download (no truncating
+        // combine step on resume).
+        destination.parentFile.mkdirs()
+        RandomAccessFile(destination, "rw").use { it.setLength(totalSize) }
         
         val chunkSize = totalSize / chunks
         val chunkRanges = mutableListOf<Pair<Long, Long>>()
         
         for (i in 0 until chunks) {
-            val start = i * chunkSize
+            val start = if (isResume && i == 0) existingSize else i * chunkSize
             val end = if (i == chunks - 1) totalSize - 1 else (i + 1) * chunkSize - 1
             chunkRanges.add(start to end)
         }
         
-        // If resuming, adjust first chunk
-        if (isResume) {
-            chunkRanges[0] = existingSize to chunkRanges[0].second
-        }
+        // A chunk whose range is already fully covered (start > end) needs no
+        // download, e.g. chunk 0 when the partial download already covered it.
+        val activeRanges = chunkRanges.filter { it.first <= it.second }
         
         val completedChunks = AtomicLong(0)
         val totalDownloaded = AtomicLong(if (isResume) existingSize else 0L)
@@ -303,32 +267,18 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
                 )
             }
 
-            val downloadJobs = chunkRanges.mapIndexed { index, (start, end) ->
+            val downloadJobs = activeRanges.map { (start, end) ->
                 launch(Dispatchers.IO) {
-                    val chunkFile = File(destination.parentFile, "${destination.name}.part$index")
                     try {
-                        val chunkStart = if (isResume && index == 0) existingSize else start
-                        val written = downloadRange(currentUrl, chunkStart, end, chunkFile)
+                        val written = downloadRange(currentUrl, start, end, destination)
                         totalDownloaded.addAndGet(written)
                     } finally {
                         completedChunks.incrementAndGet()
                     }
                 }
             }
-        downloadJobs.forEach { it.join() }
-        progressJob.cancel()
-        }
-        
-        // Combine chunk files
-        destination.parentFile.mkdirs()
-        FileOutputStream(destination).use { output ->
-            for (i in 0 until chunks) {
-                val chunkFile = File(destination.parentFile, "${destination.name}.part$i")
-                if (chunkFile.exists()) {
-                    chunkFile.inputStream().use { input -> input.copyTo(output) }
-                    chunkFile.delete()
-                }
-            }
+            downloadJobs.forEach { it.join() }
+            progressJob.cancel()
         }
         
         // Verify
@@ -358,7 +308,7 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
         val buffer = ByteArray(64 * 1024) // 64KB buffer
         
         RandomAccessFile(outputFile, "rw").use { raf ->
-            raf.seek(0)
+            raf.seek(start)
             conn.inputStream.use { input ->
                 var bytesRead: Int
                 while (input.read(buffer).also { bytesRead = it } != -1) {
@@ -511,15 +461,29 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             throw Exception("Downloaded archive is empty")
         }
         val magicBytes = ByteArray(4)
-        archiveFile.inputStream().use { it.read(magicBytes) }
+        val read = archiveFile.inputStream().use { it.read(magicBytes) }
+        val isZip = read >= 4 && magicBytes[0] == 0x50.toByte() && magicBytes[1] == 0x4B.toByte() && magicBytes[2] == 0x03.toByte() && magicBytes[3] == 0x04.toByte()
+        val isGzip = read >= 2 && magicBytes[0] == 0x1F.toByte() && magicBytes[1] == 0x8B.toByte()
+        
         val valid = when {
-            archiveFile.name.endsWith(".zip") -> magicBytes[0] == 0x50.toByte() && magicBytes[1] == 0x4B.toByte() && magicBytes[2] == 0x03.toByte() && magicBytes[3] == 0x04.toByte()
-            archiveFile.name.endsWith(".tar.gz") -> magicBytes[0] == 0x1F.toByte() && magicBytes[1] == 0x8B.toByte()
+            archiveFile.name.endsWith(".zip") -> isZip
+            archiveFile.name.endsWith(".tar.gz") -> isGzip
             else -> true
         }
         if (!valid) {
+            val expected = if (archiveFile.name.endsWith(".zip")) "ZIP" else "gzip"
+            val actual = when {
+                isZip -> "ZIP"
+                isGzip -> "gzip"
+                else -> "HTML/text or unknown"
+            }
+            val message = if (isGzip && archiveFile.name.endsWith(".zip")) {
+                "Downloaded a gzip archive for a ZIP download - the mirror returned an archive for another operating system. Retrying will use the correct build for this machine."
+            } else {
+                "Downloaded file is not a valid $expected archive (got $actual). The download may have failed or returned the wrong platform build."
+            }
             archiveFile.delete()
-            throw Exception("Downloaded file is not a valid archive")
+            throw Exception(message)
         }
     }
     

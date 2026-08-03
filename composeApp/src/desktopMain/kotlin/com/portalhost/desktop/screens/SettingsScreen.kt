@@ -73,6 +73,7 @@ import com.portalhost.preferences.Preferences
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelStatus
 import com.portalhost.util.pickDirectory
+import java.io.File
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -104,6 +105,17 @@ fun SettingsScreen() {
     var hasUpdate by remember { mutableStateOf(false) }
     var foundUpdateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showUninstallBlockedDialog by remember { mutableStateOf(false) }
+
+    var dataDirWarning by remember {
+        mutableStateOf(
+            UninstallHelper.installDirectory()?.let { installDir ->
+                val current = preferences.dataDirectory.value.takeIf { it.isNotBlank() }
+                    ?: defaultDataDir().absolutePath
+                UninstallHelper.isPathInsideInstallDir(installDir, File(current))
+            } ?: false
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 24.dp),
@@ -157,6 +169,8 @@ fun SettingsScreen() {
                     scope.launch {
                         val chosen = pickDirectory(title = "Select Data Directory")
                         if (chosen != null) {
+                            val installDir = UninstallHelper.installDirectory()
+                            dataDirWarning = installDir != null && UninstallHelper.isPathInsideInstallDir(installDir, chosen)
                             preferences.dataDirectory.value = chosen.absolutePath
                             System.setProperty("portalhost.data.dir", chosen.absolutePath)
                         }
@@ -171,6 +185,16 @@ fun SettingsScreen() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (dataDirWarning) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Warning: This folder is inside the Portal Host install directory. " +
+                        "Uninstalling Portal Host deletes that folder and everything in it, " +
+                        "including your data. Choose a folder outside the install directory instead.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
 
         Spacer(Modifier.height(20.dp))
@@ -576,12 +600,18 @@ SettingsSection("Updates") {
                     onDismiss = { showUninstallDialog = false },
                     onConfirm = {
                         showUninstallDialog = false
-                        UninstallHelper.preserveData(preferences)
-                        val productCode = UninstallHelper.findProductCode()
-                        if (productCode != null) {
-                            UninstallHelper.uninstall(productCode)
+                        when (UninstallHelper.preserveData(preferences)) {
+                            UninstallHelper.PreserveResult.FAILED -> {
+                                showUninstallBlockedDialog = true
+                            }
+                            else -> {
+                                val productCode = UninstallHelper.findProductCode()
+                                if (productCode != null) {
+                                    UninstallHelper.uninstall(productCode)
+                                }
+                                kotlin.system.exitProcess(0)
+                            }
                         }
-                        kotlin.system.exitProcess(0)
                     }
                 )
             }
@@ -606,6 +636,33 @@ SettingsSection("Updates") {
             updateInfo = foundUpdateInfo!!,
             onDismiss = { showUpdateDialog = false },
             onNoLongerNeeded = { foundUpdateInfo = null; hasUpdate = false; updateResult = null }
+        )
+    }
+
+    if (showUninstallBlockedDialog) {
+        AlertDialog(
+            onDismissRequest = { showUninstallBlockedDialog = false },
+            icon = { Icon(Icons.Filled.Stop, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Cannot Uninstall Safely") },
+            text = {
+                Column {
+                    Text(
+                        "Your data directory is inside the Portal Host install folder and could not be moved automatically. " +
+                            "Uninstalling now would delete all your data."
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Please move your data folder to\n\n${defaultDataDir().absolutePath}\n\nand try again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showUninstallBlockedDialog = false }) {
+                    Text("OK")
+                }
+            }
         )
     }
 }

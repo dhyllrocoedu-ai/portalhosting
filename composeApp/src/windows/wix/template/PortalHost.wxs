@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?include Product.wxs ?>
+  <?include Main.wxs ?>
+  <?include UI.wxs ?>
+  <?include DataDir.wxs ?>
+  <?include CustomActions.wxs ?>
+</Wix>

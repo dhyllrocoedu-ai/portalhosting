@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <Dialog Id="PortalHostDataDirDlg" Width="370" Height="270" Title="PortalHost Setup - Data Directory">
+      <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes">
+        <Text>{\WixUI_Font_Title}Choose Data Directory</Text>
+      </Control>
+      <Control Id="Description" Type="Text" X="15" Y="25" Width="340" Height="30" Transparent="yes" NoPrefix="yes">
+        <Text>Select the folder where PortalHost will store your servers, Java runtimes, and other data. This folder will be preserved during uninstallation.</Text>
+      </Control>
+      <Control Id="DataDirLabel" Type="Text" X="15" Y="70" Width="100" Height="15" Transparent="yes" NoPrefix="yes">
+        <Text>Data Directory:</Text>
+      </Control>
+      <Control Id="DataDirEdit" Type="Edit" X="15" Y="90" Width="260" Height="18" Property="PORTALHOST_DATADIR" Indirect="yes"/>
+      <Control Id="BrowseButton" Type="PushButton" X="285" Y="90" Width="70" Height="18" Text="Browse...">
+        <Publish Event="Browse" Value="BrowseDlg" Order="1">1</Publish>
+      </Control>
+      <Control Id="DefaultText" Type="Text" X="15" Y="120" Width="340" Height="30" Transparent="yes" NoPrefix="yes">
+        <Text>Default: [LOCALAPPDATA]PortalHost\</Text>
+      </Control>
+      <Control Id="InfoText" Type="Text" X="15" Y="155" Width="340" Height="40" Transparent="yes" NoPrefix="yes">
+        <Text>This folder will be created if it doesn't exist. Your data will be preserved if you uninstall PortalHost.</Text>
+      </Control>
+      <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="Back">
+        <Publish Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      </Control>
+      <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Text="Next" Default="yes">
+        <Publish Event="DoAction" Value="SetDataDirChosen">1</Publish>
+        <Publish Event="NewDialog" Value="InstallDirDlg">1</Publish>
+      </Control>
+      <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Text="Cancel">
+        <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+      </Control>
+    </Dialog>
+    
+    <CustomAction Id="SetDataDirChosen" Property="PORTALHOST_DATADIR_CHOSEN" Value="1" Execute="immediate"/>
+  </Fragment>
+</Wix>

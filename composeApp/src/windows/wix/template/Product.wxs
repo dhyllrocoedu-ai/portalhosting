@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product
+    Id="*"
+    Name="PortalHost"
+    Language="1033"
+    Version="5.0.66"
+    Manufacturer="PortalHost"
+    UpgradeCode="PUT-UPGRADE-CODE-HERE">
+    
+    <Package
+      InstallerVersion="500"
+      Compressed="yes"
+      InstallScope="perMachine"
+      Platform="x64"
+      Description="Minecraft Java Edition Server Manager"
+      Manufacturer="PortalHost"
+      Comments="PortalHost"/>
+    
+    <MajorUpgrade DowngradeErrorMessage="A newer version of PortalHost is already installed." Schedule="afterInstallInitialize"/>
+    
+    <MediaTemplate EmbedCab="yes"/>
+    
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR"/>
+    <Property Id="PORTALHOST_DATADIR" Value="[LocalAppDataFolder]PortalHost\"/>
+    <Property Id="PORTALHOST_DATADIR_CHOSEN" Value="0"/>
+    
+    <Feature Id="ProductFeature" Title="PortalHost" Level="1">
+      <ComponentGroupRef Id="ProductComponents"/>
+      <ComponentRef Id="PortalHostDataDirs"/>
+      <ComponentRef Id="PortalHostConfigFile"/>
+    </Feature>
+    
+    <UIRef Id="PortalHostUI"/>
+    
+    <InstallExecuteSequence>
+      <Custom Action="CreatePortalHostDataDirs" After="InstallFiles">NOT Installed</Custom>
+      <Custom Action="WritePortalHostConfig" After="CreatePortalHostDataDirs">NOT Installed AND PORTALHOST_DATADIR_CHOSEN=1</Custom>
+    </InstallExecuteSequence>
+    
+  </Product>
+</Wix>

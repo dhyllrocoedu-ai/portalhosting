@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <CustomAction Id="WritePortalHostConfig" Script="vbscript" Execute="deferred" Impersonate="no" Return="check">
+      <![CDATA[
+        Dim fso, installDir, dataDir, configPath, configFile
+        Set fso = CreateObject("Scripting.FileSystemObject")
+        
+        ' Get the install directory
+        installDir = Session.Property("INSTALLDIR")
+        dataDir = Session.Property("PORTALHOST_DATADIR")
+        
+        If dataDir <> "" Then
+          configPath = installDir & "portalhost.cfg"
+          Set configFile = fso.CreateTextFile(configPath, True)
+          configFile.WriteLine "dataDirectory=" & dataDir
+          configFile.Close
+        End If
+      ]]>
+    </CustomAction>
+    
+    <CustomAction Id="CreatePortalHostDataDirs" Script="vbscript" Execute="deferred" Impersonate="no" Return="check">
+      <![CDATA[
+        Dim fso, dataDir
+        Set fso = CreateObject("Scripting.FileSystemObject")
+        
+        dataDir = Session.Property("PORTALHOST_DATADIR")
+        
+        If dataDir <> "" Then
+          If Not fso.FolderExists(dataDir) Then
+            fso.CreateFolder dataDir
+          End If
+          If Not fso.FolderExists(dataDir & "\servers") Then
+            fso.CreateFolder dataDir & "\servers"
+          End If
+          If Not fso.FolderExists(dataDir & "\jdks") Then
+            fso.CreateFolder dataDir & "\jdks"
+          End If
+          If Not fso.FolderExists(dataDir & "\playit") Then
+            fso.CreateFolder dataDir & "\playit"
+          End If
+          If Not fso.FolderExists(dataDir & "\backups") Then
+            fso.CreateFolder dataDir & "\backups"
+          End If
+          If Not fso.FolderExists(dataDir & "\temp") Then
+            fso.CreateFolder dataDir & "\temp"
+          End If
+        End If
+      ]]>
+    </CustomAction>
+    
+    <InstallExecuteSequence>
+      <Custom Action="CreatePortalHostDataDirs" After="InstallFiles">NOT Installed AND PORTALHOST_DATADIR_CHOSEN=1</Custom>
+      <Custom Action="WritePortalHostConfig" After="CreatePortalHostDataDirs">NOT Installed AND PORTALHOST_DATADIR_CHOSEN=1</Custom>
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>
