@@ -137,9 +137,10 @@ fun getSuggestedFolder(project: ModrinthProject): String {
         "shader" -> "shaderpacks" // client-side only, will be disabled in UI
         "modpack" -> "modpacks"   // not a single-file install, will be disabled in UI
         "mod" -> {
+            // Datapacks take precedence - some "mod" projects are actually datapacks
+            if (hasDatapackLoader) "world/datapacks"
             // Mods: loader determines fabric/forge/neoforge/quilt -> mods
-            if (loaders.any { it in listOf("fabric", "quilt", "forge", "neoforge") }) "mods"
-            else if (hasDatapackLoader) "world/datapacks" // some "mod" projects are actually datapacks
+            else if (loaders.any { it in listOf("fabric", "quilt", "forge", "neoforge") }) "mods"
             else "mods"
         }
         "plugin" -> {

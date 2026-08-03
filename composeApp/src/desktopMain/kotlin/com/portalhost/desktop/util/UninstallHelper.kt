@@ -185,5 +185,24 @@ object UninstallHelper {
     fun uninstall(productCode: String) {
         val psCommand = "Start-Process msiexec -ArgumentList '/x $productCode /qb' -RunAs"
         Runtime.getRuntime().exec(arrayOf("powershell", "-Command", psCommand))
+        
+        // Schedule a delayed cleanup to run after MSI completes
+        Thread(startForceCleanup()).start()
+    }
+    
+    /**
+     * Force cleanup of install folder after MSI uninstall.
+     * Runs in background thread to avoid blocking the app exit.
+     */
+    private fun startForceCleanup(): Runnable = Runnable {
+        try {
+            Thread.sleep(5000) // Wait for MSI to complete
+            val installDir = installDirectory() ?: return@Runnable
+            if (installDir.exists()) {
+                val psCleanup =
+                    "Remove-Item -Path '${installDir.absolutePath}' -Recurse -Force -ErrorAction SilentlyContinue"
+                Runtime.getRuntime().exec(arrayOf("powershell", "-WindowStyle", "Hidden", "-Command", psCleanup))
+            }
+        } catch (_: Exception) { }
     }
 }

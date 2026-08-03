@@ -3,6 +3,7 @@ package com.portalhost.java
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.model.JavaInstallation
 import com.portalhost.model.ServerType
+import mu.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +21,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
+
+private val logger = KotlinLogging.logger {}
 
 class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.FileSystem()) {
     // --- Progress Reporting ---
@@ -518,8 +521,13 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             val process = ProcessBuilder(javaExe.absolutePath, "-version").redirectErrorStream(true).start()
             val output = process.inputStream.bufferedReader().readText()
             process.waitFor()
-            process.exitValue() == 0 && output.contains("version")
+            val success = process.exitValue() == 0 && output.contains("version")
+            if (!success) {
+                logger.warn { "verifyInstallation failed for $javaExe: exit=${process.exitValue()}, output=$output" }
+            }
+            success
         } catch (e: Exception) {
+            logger.error(e) { "verifyInstallation error for $javaExe" }
             false
         }
     }
@@ -759,11 +767,17 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
             val output = process.inputStream.bufferedReader().readText()
             process.waitFor()
             
+            // Debug: log the raw output for troubleshooting
+            if (output.isNotBlank()) {
+                logger.debug { "java -version output: $output" }
+            }
+            
             // Try multiple regex patterns for different JDK vendors
             val patterns = listOf(
                 """version\s+"(\d+)""",           // standard: version "21.0.5" or version "21"
                 """openjdk\s+version\s+"(\d+)""", // OpenJDK: openjdk version "21.0.5"
                 """java\s+version\s+"(\d+)""",    // Oracle: java version "21.0.5"
+                """(\d+)\.(\d+)\.(\d+)""",        // fallback: 21.0.12
             )
             
             for (pattern in patterns) {
@@ -772,11 +786,11 @@ class JdkManager(private val fileSystem: FileSystem = com.portalhost.filesystem.
                 match?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
             }
             
-            // Fallback: try to find any version-like number in the output
-            val fallbackRegex = """(\d+)\.(\d+)""".toRegex()
-            val fallbackMatch = fallbackRegex.find(output)
-            fallbackMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            // If we got output but no version matched, log it for debugging
+            logger.warn { "Could not parse Java version from output: $output" }
+            0
         } catch (e: Exception) {
+            logger.error(e) { "Failed to get Java version from $javaExe" }
             0
         }
     }
