@@ -6,6 +6,7 @@ import com.portalhost.preferences.Preferences
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.concurrent.TimeUnit
 import javax.swing.JOptionPane
 
 object UninstallHelper {
@@ -182,27 +183,50 @@ object UninstallHelper {
         return path.replace('\\', '/').trimEnd('/').lowercase()
     }
 
-    fun uninstall(productCode: String) {
-        val psCommand = "Start-Process msiexec -ArgumentList '/x $productCode /qb' -RunAs"
-        Runtime.getRuntime().exec(arrayOf("powershell", "-Command", psCommand))
-        
-        // Schedule a delayed cleanup to run after MSI completes
-        Thread(startForceCleanup()).start()
-    }
-    
     /**
-     * Force cleanup of install folder after MSI uninstall.
-     * Runs in background thread to avoid blocking the app exit.
+     * Runs the MSI uninstall on a background thread so the UI stays responsive.
+     *
+     * The sequence:
+     * 1. Launch `msiexec /x` (elevated) and wait for it to finish.
+     * 2. Spawn a detached PowerShell process that force-removes the install folder
+     *    shortly afterwards. Because it is an OS process (not a JVM thread), it
+     *    survives this app terminating.
+     * 3. Exit the app so its files unlock and the detached cleanup can finish.
      */
-    private fun startForceCleanup(): Runnable = Runnable {
+    fun uninstall(productCode: String) {
+        Thread {
+            try {
+                // Wait for the MSI uninstaller to complete (or give up after 2 min).
+                val psCommand =
+                    "Start-Process -FilePath msiexec -ArgumentList '/x', '$productCode', '/qb' -Wait -RunAs"
+                val proc = ProcessBuilder("powershell", "-NoProfile", "-Command", psCommand)
+                    .redirectErrorStream(true)
+                    .start()
+                proc.waitFor(120, TimeUnit.SECONDS)
+            } catch (_: Exception) { }
+
+            launchDetachedForceCleanup()
+
+            // Give the detached cleanup a moment to start, then close the app so its
+            // files unlock and the cleanup can remove the install folder.
+            try { Thread.sleep(2000) } catch (_: InterruptedException) { }
+            kotlin.system.exitProcess(0)
+        }.apply { isDaemon = false }.start()
+    }
+
+    /**
+     * Launches a hidden, detached PowerShell process that force-removes the install
+     * folder a few seconds after the app exits.
+     */
+    private fun launchDetachedForceCleanup() {
         try {
-            Thread.sleep(5000) // Wait for MSI to complete
-            val installDir = installDirectory() ?: return@Runnable
-            if (installDir.exists()) {
-                val psCleanup =
-                    "Remove-Item -Path '${installDir.absolutePath}' -Recurse -Force -ErrorAction SilentlyContinue"
-                Runtime.getRuntime().exec(arrayOf("powershell", "-WindowStyle", "Hidden", "-Command", psCleanup))
-            }
+            val installDir = installDirectory() ?: return
+            if (!installDir.exists()) return
+            val psCleanup =
+                "Start-Sleep -Seconds 5; Remove-Item -Path '${installDir.absolutePath}' -Recurse -Force -ErrorAction SilentlyContinue"
+            Runtime.getRuntime().exec(
+                arrayOf("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", psCleanup)
+            )
         } catch (_: Exception) { }
     }
 }

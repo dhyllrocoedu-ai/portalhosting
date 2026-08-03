@@ -33,6 +33,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -584,9 +585,10 @@ SettingsSection("Updates") {
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(12.dp))
             var showUninstallDialog by remember { mutableStateOf(false) }
+            var isUninstalling by remember { mutableStateOf(false) }
 
             Button(
-                onClick = { showUninstallDialog = true },
+                onClick = { if (!isUninstalling) showUninstallDialog = true },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -607,15 +609,22 @@ SettingsSection("Updates") {
                                 showUninstallBlockedDialog = true
                             }
                             else -> {
+                                isUninstalling = true
                                 val productCode = UninstallHelper.findProductCode()
                                 if (productCode != null) {
                                     UninstallHelper.uninstall(productCode)
+                                } else {
+                                    // Not installed via MSI (e.g. portable EXE): just close the app.
+                                    kotlin.system.exitProcess(0)
                                 }
-                                kotlin.system.exitProcess(0)
                             }
                         }
                     }
                 )
+            }
+
+            if (isUninstalling) {
+                UninstallingDialog()
             }
         }
 
@@ -737,6 +746,22 @@ private fun UninstallDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+@Composable
+private fun UninstallingDialog() {
+    AlertDialog(
+        onDismissRequest = {},
+        title = { Text("Uninstalling PortalHost...") },
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Please wait while the uninstaller removes PortalHost. The app will close automatically.")
+            }
+        },
+        confirmButton = {}
     )
 }
 
