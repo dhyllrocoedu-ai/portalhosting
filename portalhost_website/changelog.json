@@ -1,5 +1,19 @@
 [
   {
+    "version": "5.0.66",
+    "date": "2026-08-03",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.66</strong></p><ul><li><strong>In-app uninstall actually works now.</strong> Previously the app launched <code>msiexec</code> then exited immediately via <code>System.exit(0)</code>, killing the background thread before it could start the force-remove step — nothing was removed. Now <code>msiexec /x</code> runs elevated with <code>-Wait</code> on a background thread, an \"Uninstalling PortalHost...\" dialog is shown while it runs, and a detached PowerShell process (which survives app exit) force-removes the install folder once the app closes.</li><li><strong>Uninstalling never deletes your data.</strong> Servers, JDK runtimes, playit tunnels, backups, and the database are moved out of the install folder to <code>%LOCALAPPDATA%\\PortalHost</code> before MSI removal (case-insensitive path compare, merge-aware moves, fails-safe abort if the move fails). A pre-start confirmation dialog migrates data directories that were previously stored inside the app image.</li><li><strong>Windows uninstaller registry lookup fixed.</strong> <code>Uninstall.bat</code> now correctly resolves the installed MSI via its UninstallString instead of silently falling back to recursive deletion.</li><li><strong>Marketplace compatibility fix.</strong> Compatibility is now evaluated against the selected version's <code>gameVersions</code> and <code>loaders</code> (new <code>isVersionCompatible()</code>) instead of coarse project-level search data, fixing false \"May not be compatible\" warnings.</li><li><strong>Fast JDK 21 installation.</strong> Parallel 4-chunk Range-request download with resume, auto-selected fastest mirror (race condition removed), parallel Kotlin <code>ZipFile</code> extraction (~4x faster), hardened archive validation, and detailed progress (size MB, speed MB/s, ETA, chunk index, extracted-file count).</li><li><strong>Marketplace datapack search &amp; install.</strong> Default search returns plugins, mods, and datapacks together; <code>Datapack</code> added as an explicit loader filter; datapacks install to <code>world/datapacks/</code> with the datapack loader check taking precedence over mod loaders; client-side types (shaders, resourcepacks, modpacks) blocked from server install.</li><li><strong>Player Management live players.</strong> Online tab shows live players from console join/leave events (not stale <code>usercache.json</code>), with Minecraft head icons, Kick/Ban/OP/De-OP action buttons, and join-event dedup.</li></ul>"
+  },
+  {
+    "version": "5.0.66-mobilev2",
+    "date": "2026-08-03",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.66-mobilev2</strong></p><ul><li><strong>Modrinth Marketplace added (new).</strong> Full add-on marketplace: browse plugins, mods, and datapacks with search, filters, sort, and infinite scroll — same fetching and behavior as desktop.</li><li><strong>Version picker + per-server compatibility.</strong> Each project shows its versions; compatibility is checked against the selected version's Minecraft <code>gameVersions</code> and <code>loaders</code> (<code>isVersionCompatible()</code>, matching the desktop fix).</li><li><strong>Install directly to a server.</strong> Downloads the correct file and routes it to <code>plugins/</code>, <code>mods/</code>, or <code>world/datapacks/</code> based on project type and loaders.</li><li><strong>Async icon loading</strong> via Coil for project thumbnails; replaces the old \"Add-ons — Coming Soon\" placeholder.</li><li><strong>Version parity with desktop 5.0.66.</strong> <code>versionCode = 42</code>, <code>versionName = \"5.0.66-mobilev2\"</code>.</li></ul>"
+  },
+  {
     "version": "5.0.65",
     "date": "2026-08-02",
     "platform": "desktop",
