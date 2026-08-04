@@ -73,11 +73,15 @@ fun RecentActivityScreen(
 @Composable
 private fun ActivityRow(entry: ActivityEntry, sdf: SimpleDateFormat) {
     val (icon, color) = when (entry.type) {
-        ActivityType.SUCCESS -> Pair(Icons.Default.CheckCircle, Color(0xFF4CAF50))
-        ActivityType.ERROR -> Pair(Icons.Default.Error, Color(0xFFF44336))
-        ActivityType.WARNING -> Pair(Icons.Default.Warning, Color(0xFFFFC107))
-        ActivityType.PLAYER_JOIN -> Pair(Icons.Default.PersonAdd, Color(0xFF4CAF50))
+        ActivityType.SUCCESS, ActivityType.SERVER_ONLINE, ActivityType.PLAYER_JOIN -> Pair(Icons.Default.CheckCircle, Color(0xFF4ADE80))
+        ActivityType.ERROR, ActivityType.SERVER_CRASH, ActivityType.PLAYER_BAN -> Pair(Icons.Default.Error, Color(0xFFF44336))
+        ActivityType.WARNING, ActivityType.PLAYER_KICK -> Pair(Icons.Default.Warning, Color(0xFFFFC107))
         ActivityType.PLAYER_LEAVE -> Pair(Icons.Default.PersonRemove, Color(0xFFFF9800))
+        ActivityType.SERVER_OFFLINE -> Pair(Icons.Default.CloudOff, Color(0xFF9CA3AF))
+        ActivityType.PLAYER_KILL -> Pair(Icons.Default.SportsMartialArts, Color(0xFFD500F9))
+        ActivityType.PLAYER_OP -> Pair(Icons.Default.AdminPanelSettings, Color(0xFF40C4FF))
+        ActivityType.PLAYER_DEOP -> Pair(Icons.Default.PersonOff, Color(0xFFFB923C))
+        ActivityType.COMMAND_EXECUTED -> Pair(Icons.Default.Terminal, Color(0xFF7C4DFF))
         ActivityType.INFO -> Pair(Icons.Default.Info, MaterialTheme.colorScheme.onSurfaceVariant)
     }
 

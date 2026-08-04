@@ -69,6 +69,10 @@ class ServerManager(
         return serverLocks.getOrPut(serverId) { Mutex() }
     }
 
+    fun getServerName(serverId: String): String? {
+        return _servers.value[serverId]?.name
+    }
+
     private fun loadServersFromDatabase() {
         val configs = database.getAllServers()
         val states = database.getAllServerStates()
@@ -281,7 +285,7 @@ class ServerManager(
                         _serverStates.update { states ->
                             states + (serverId to runningState)
                         }
-                        activityLog.log(serverId, config.name, "Server is online and ready")
+                        activityLog.logServerOnline(serverId, config.name)
                     }
                 }
             }
@@ -359,7 +363,7 @@ class ServerManager(
         database.updateServerState(serverId, newState)
         _serverStates.update { current -> current + (serverId to newState) }
         logger.info { "Server stopped: ${config?.name ?: serverId}" }
-        activityLog.log(serverId, config?.name ?: serverId, "Server stopped")
+        activityLog.logServerOffline(serverId, config?.name ?: serverId)
 
         if (!exited) {
             try {
@@ -447,6 +451,10 @@ class ServerManager(
     private fun parsePlayerEvents(serverId: String, line: String) {
         val joinRegex = Regex("""(\w+)\s+joined the game""")
         val leaveRegex = Regex("""(\w+)\s+left the game""")
+        // Player command: "<player> issued server command: /command"
+        val commandRegex = Regex("""\[(?:Server thread/)?(?:INFO|WARN|ERROR)\]: (\w+) issued server command: (.+)""")
+        // Player kill/death: "player was slain by ..." or "player died" or similar
+        val killRegex = Regex("""(\w+) (?:was (?:slain|killed) by|died|fell from a high place|drowned|burned|was blown up|was shot by|was killed by|was slain by|starved to death|suffocated in a wall|went up in flames|was squashed by|was pricked to death|was frozen to death|was impaled|was roasted|was killed by magic|was killed by dragon|was killed by warden)""")
         val config = _servers.value[serverId]
 
         joinRegex.find(line)?.let { match ->
@@ -473,6 +481,40 @@ class ServerManager(
             }
             activityLog.log(serverId, config?.name ?: serverId, "$name left")
         }
+
+        commandRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            val command = match.groupValues[2]
+            activityLog.logCommand(serverId, config?.name ?: serverId, player, command)
+        }
+
+        // Kick/Ban/Op/Deop messages from server
+        val kickedRegex = Regex("""Kicked (\w+)""")
+        val bannedRegex = Regex("""Banned (\w+)""")
+        val opRegex = Regex("""Made (\w+) a server operator""")
+        val deopRegex = Regex("""Made (\w+) no longer a server operator""")
+
+        kickedRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.logPlayerAction(serverId, config?.name ?: serverId, player, ActivityType.PLAYER_KICK)
+        }
+        bannedRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.logPlayerAction(serverId, config?.name ?: serverId, player, ActivityType.PLAYER_BAN)
+        }
+        opRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.logPlayerAction(serverId, config?.name ?: serverId, player, ActivityType.PLAYER_OP)
+        }
+        deopRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.logPlayerAction(serverId, config?.name ?: serverId, player, ActivityType.PLAYER_DEOP)
+        }
+
+        killRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.logPlayerAction(serverId, config?.name ?: serverId, player, ActivityType.PLAYER_KILL)
+        }
     }
 
     private fun monitorProcess(serverId: String, handle: ManagedProcess) {
@@ -498,7 +540,7 @@ class ServerManager(
 
             if (exitCode != 0) {
                 val config = _servers.value[serverId]
-                activityLog.log(serverId, config?.name ?: serverId, "Server crashed (exit code $exitCode)")
+                activityLog.logServerCrash(serverId, config?.name ?: serverId, exitCode ?: -1)
             }
 
             activeProcesses.remove(serverId)

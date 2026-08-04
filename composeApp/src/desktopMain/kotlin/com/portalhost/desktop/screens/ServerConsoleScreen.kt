@@ -43,7 +43,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -73,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.server.ActivityLog
 import com.portalhost.server.ServerManager
 import com.portalhost.server.classifyLogLevel
 import com.portalhost.server.consoleLineColor
@@ -89,8 +89,10 @@ import com.portalhost.util.pickSaveFile
 @Composable
 fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     val serverManager = koinInject<ServerManager>()
+    val activityLog = koinInject<ActivityLog>()
     val consoleOutputs by serverManager.consoleOutputs.collectAsState()
     val allLines = consoleOutputs[serverId] ?: emptyList()
+    val serverName = serverManager.getServerName(serverId) ?: serverId
 
     val listState = rememberLazyListState()
     var commandInput by remember { mutableStateOf("") }
@@ -107,6 +109,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     val arrowUpIcon = rememberResourcePainter("/icons/arrow_up_highlighted.png")
     val arrowDownIcon = rememberResourcePainter("/icons/arrow_down_highlighted.png")
     val isUserScrolling = remember { mutableStateOf(false) }
+    var isAtBottom by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
 
@@ -120,6 +123,7 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                     writer.flush()
                 } catch (_: Exception) {}
             }
+            activityLog.logCommand(serverId, serverName, "console", commandInput)
             commandHistory = (commandHistory + commandInput).take(100)
             commandInput = ""
             historyIndex = -1
@@ -149,15 +153,17 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
     }
 
     LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress }
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= info.totalItemsCount - 2
+        }
             .distinctUntilChanged()
-            .collect { scrolling ->
-                if (scrolling) {
-                    val info = listState.layoutInfo
-                    val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                    if (lastVisible < info.totalItemsCount - 2) {
-                        isUserScrolling.value = true
-                    }
+            .collect { near ->
+                isAtBottom = near
+                if (near) isUserScrolling.value = false
+                if (!near && !isUserScrolling.value) {
+                    isUserScrolling.value = true
                 }
             }
     }
@@ -333,22 +339,6 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                     }
                 }
             }
-            if (isUserScrolling.value && displayLines.size > 20) {
-                SmallFloatingActionButton(
-                    onClick = {
-                        isUserScrolling.value = false
-                        scope.launch {
-                            try { listState.animateScrollToItem(displayLines.size - 1) } catch (_: Exception) {}
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp),
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-                ) {
-                    Icon(painter = arrowDownIcon, contentDescription = "Scroll to bottom", tint = Color.Unspecified)
-                }
-            }
         }
 
         Surface(
@@ -419,19 +409,39 @@ fun ServerConsoleScreen(serverId: String, onBack: () -> Unit = {}) {
                 ) { Icon(painter = arrowDownIcon, contentDescription = "Next", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
                 Spacer(Modifier.width(4.dp))
                 IconButton(
-                    onClick = { sendCommand() },
+                    onClick = {
+                        if (isAtBottom) {
+                            sendCommand()
+                        } else {
+                            isUserScrolling.value = false
+                            scope.launch {
+                                try { listState.animateScrollToItem(displayLines.size - 1) } catch (_: Exception) {}
+                            }
+                        }
+                    },
                     modifier = Modifier.size(36.dp).background(
-                        color = if (commandInput.isNotBlank()) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f) else Color.Transparent,
+                        color = if (isAtBottom && commandInput.isNotBlank()) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                            else if (!isAtBottom) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
+                            else Color.Transparent,
                         shape = CircleShape
                     ),
-                    enabled = commandInput.isNotBlank(),
+                    enabled = if (isAtBottom) commandInput.isNotBlank() else true,
                 ) {
-                    Icon(
-                        Icons.Filled.Send,
-                        contentDescription = "Send command",
-                        modifier = Modifier.size(18.dp),
-                        tint = if (commandInput.isNotBlank()) Color.White else Color(0xFF555555)
-                    )
+                    if (isAtBottom) {
+                        Icon(
+                            Icons.Filled.Send,
+                            contentDescription = "Send command",
+                            modifier = Modifier.size(18.dp),
+                            tint = if (commandInput.isNotBlank()) Color.White else Color(0xFF555555)
+                        )
+                    } else {
+                        Icon(
+                            painter = arrowDownIcon,
+                            contentDescription = "Scroll to bottom",
+                            modifier = Modifier.size(18.dp),
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }

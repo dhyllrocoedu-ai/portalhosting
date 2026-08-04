@@ -105,7 +105,7 @@ class ServerManager(
         if (exitCode != 0) {
             activityLog.addServerCrash()
         } else {
-            activityLog.addServerStop()
+            activityLog.addServerOffline()
         }
         stoppedJob?.cancel()
         stoppedJob = scope.launch {
@@ -269,7 +269,7 @@ use-native-transport=true
             process = proc
             processMonitor.resetNetworkStats()
             serverStartTime = System.currentTimeMillis()
-            activityLog.addServerStart()
+            activityLog.addServerOnline()
             renice(getPid(proc), RENICE_SERVER)
 
             // Drain pending commands
@@ -463,6 +463,7 @@ use-native-transport=true
             pendingCommands.add(command)
             return
         }
+        activityLog.addCommandExecuted("console", command)
         try {
             proc.outputStream.write("$command\n".toByteArray())
             proc.outputStream.flush()
@@ -473,6 +474,10 @@ use-native-transport=true
     private fun parsePlayerEvents(line: String) {
         val joinRegex = Regex("""(\w+)\s+joined the game""")
         val leaveRegex = Regex("""(\w+)\s+left the game""")
+        // Player command: "<player> issued server command: /command"
+        val commandRegex = Regex("""\[(?:Server thread/)?(?:INFO|WARN|ERROR)\]: (\w+) issued server command: (.+)""")
+        // Player kill/death patterns
+        val killRegex = Regex("""(\w+) (?:was (?:slain|killed) by|died|fell from a high place|drowned|burned|was blown up|was shot by|was killed by|was slain by|starved to death|suffocated in a wall|went up in flames|was squashed by|was pricked to death|was frozen to death|was impaled|was roasted|was killed by magic|was killed by dragon|was killed by warden)""")
 
         joinRegex.find(line)?.let { match ->
             val name = match.groupValues[1]
@@ -490,6 +495,40 @@ use-native-transport=true
                 players = _state.value.players - name
             )
             activityLog.addPlayerLeave(name)
+        }
+
+        commandRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            val command = match.groupValues[2]
+            activityLog.addCommandExecuted(player, command)
+        }
+
+        // Kick/Ban/Op/Deop messages from server
+        val kickedRegex = Regex("""Kicked (\w+)""")
+        val bannedRegex = Regex("""Banned (\w+)""")
+        val opRegex = Regex("""Made (\w+) a server operator""")
+        val deopRegex = Regex("""Made (\w+) no longer a server operator""")
+
+        kickedRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.addPlayerKick(player)
+        }
+        bannedRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.addPlayerBan(player)
+        }
+        opRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.addPlayerOp(player)
+        }
+        deopRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.addPlayerDeop(player)
+        }
+
+        killRegex.find(line)?.let { match ->
+            val player = match.groupValues[1]
+            activityLog.addPlayerKill(player)
         }
     }
 

@@ -62,19 +62,27 @@ fun ActivityRow(entry: ActivityEntry) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val icon = when (entry.type) {
-            ActivityType.SUCCESS -> Icons.Default.CheckCircle
-            ActivityType.ERROR -> Icons.Default.Error
-            ActivityType.WARNING -> Icons.Default.Warning
-            ActivityType.PLAYER_JOIN -> Icons.Default.PersonAdd
+            ActivityType.SUCCESS, ActivityType.SERVER_ONLINE, ActivityType.PLAYER_JOIN -> Icons.Default.CheckCircle
+            ActivityType.ERROR, ActivityType.SERVER_CRASH, ActivityType.PLAYER_BAN -> Icons.Default.Error
+            ActivityType.WARNING, ActivityType.PLAYER_KICK -> Icons.Default.Warning
             ActivityType.PLAYER_LEAVE -> Icons.Default.PersonRemove
+            ActivityType.SERVER_OFFLINE -> Icons.Default.CloudOff
+            ActivityType.PLAYER_KILL -> Icons.Default.SportsMartialArts
+            ActivityType.PLAYER_OP -> Icons.Default.AdminPanelSettings
+            ActivityType.PLAYER_DEOP -> Icons.Default.PersonOff
+            ActivityType.COMMAND_EXECUTED -> Icons.Default.Terminal
             ActivityType.INFO -> Icons.Default.Info
         }
         val tint = when (entry.type) {
-            ActivityType.SUCCESS -> Color(0xFF4CAF50)
-            ActivityType.ERROR -> Color(0xFFF44336)
-            ActivityType.WARNING -> Color(0xFFFFC107)
-            ActivityType.PLAYER_JOIN -> Color(0xFF4CAF50)
+            ActivityType.SUCCESS, ActivityType.SERVER_ONLINE, ActivityType.PLAYER_JOIN -> Color(0xFF4ADE80)
+            ActivityType.ERROR, ActivityType.SERVER_CRASH, ActivityType.PLAYER_BAN -> Color(0xFFF44336)
+            ActivityType.WARNING, ActivityType.PLAYER_KICK -> Color(0xFFFFC107)
             ActivityType.PLAYER_LEAVE -> Color(0xFFFF9800)
+            ActivityType.SERVER_OFFLINE -> Color(0xFF9CA3AF)
+            ActivityType.PLAYER_KILL -> Color(0xFFD500F9)
+            ActivityType.PLAYER_OP -> Color(0xFF40C4FF)
+            ActivityType.PLAYER_DEOP -> Color(0xFFFB923C)
+            ActivityType.COMMAND_EXECUTED -> Color(0xFF7C4DFF)
             ActivityType.INFO -> MaterialTheme.colorScheme.onSurfaceVariant
         }
         Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = tint)

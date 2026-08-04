@@ -115,25 +115,17 @@ fun ConsoleScreen(
 
     // Auto-scroll: always scroll to latest line unless user scrolls up manually
     val isUserScrolling = remember { mutableStateOf(false) }
+    var isAtBottom by remember { mutableStateOf(true) }
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
             val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
             lastVisible >= info.totalItemsCount - 2
         }.distinctUntilChanged().collect { near ->
+            isAtBottom = near
+            if (near) isUserScrolling.value = false
             if (!near && !isUserScrolling.value) {
                 isUserScrolling.value = true
-            }
-        }
-    }
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress }.distinctUntilChanged().collect { scrolling ->
-            if (!scrolling && isUserScrolling.value) {
-                val info = listState.layoutInfo
-                val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-                if (lastVisible >= info.totalItemsCount - 2) {
-                    isUserScrolling.value = false
-                }
             }
         }
     }
@@ -226,21 +218,7 @@ fun ConsoleScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
-        floatingActionButton = {
-            if (isUserScrolling.value && displayLines.size > 50) {
-                SmallFloatingActionButton(
-                    onClick = {
-                        scope.launch {
-                            isUserScrolling.value = false
-                            listState.animateScrollToItem(displayLines.size - 1)
-                        }
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                ) {
-                    Icon(painterResource(R.drawable.arrow_down_highlighted), contentDescription = "Scroll to bottom", tint = Color.Unspecified)
-                }
-            }
-        }
+        floatingActionButton = {}
     ) { padding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(padding)
@@ -358,15 +336,28 @@ fun ConsoleScreen(
                     ) { Icon(painterResource(R.drawable.arrow_down_highlighted), contentDescription = "Next", modifier = Modifier.size(20.dp), tint = Color.Unspecified) }
                     IconButton(
                         onClick = {
-                            if (commandInput.isNotBlank() && isOnline) {
-                                onCommand(commandInput)
-                                commandHistory = (commandHistory + commandInput).take(100)
-                                commandInput = ""
-                                historyIndex = -1
+                            if (isAtBottom) {
+                                if (commandInput.isNotBlank() && isOnline) {
+                                    onCommand(commandInput)
+                                    commandHistory = (commandHistory + commandInput).take(100)
+                                    commandInput = ""
+                                    historyIndex = -1
+                                }
+                            } else {
+                                scope.launch {
+                                    isUserScrolling.value = false
+                                    listState.animateScrollToItem(displayLines.size - 1)
+                                }
                             }
                         },
-                        enabled = isOnline
-                    ) { Icon(painterResource(R.drawable.arrow_right_curved_highlighted), contentDescription = "Send", tint = Color.Unspecified) }
+                        enabled = if (isAtBottom) isOnline else true
+                    ) {
+                        if (isAtBottom) {
+                            Icon(painterResource(R.drawable.arrow_right_curved_highlighted), contentDescription = "Send", tint = Color.Unspecified)
+                        } else {
+                            Icon(painterResource(R.drawable.arrow_down_highlighted), contentDescription = "Scroll to bottom", tint = Color.Unspecified)
+                        }
+                    }
                 }
             }
         }

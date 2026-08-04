@@ -1,5 +1,19 @@
 [
   {
+    "version": "5.0.67",
+    "date": "2026-08-05",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.67</strong></p><ul><li><strong>New PortalHost color palette.</strong> Four signature colors — Portal Violet <code>#7C4DFF</code>, Portal Cyan <code>#40C4FF</code>, Portal Magenta <code>#D500F9</code>, and Host Green <code>#4ADE80</code> — applied across the whole app in both light and dark themes. Status, server-type, activity, chart, and console colors were retuned to match.</li><li><strong>Console auto-scroll button.</strong> The console send button now becomes a down-arrow when you scroll up, letting you jump back to the live log at the bottom; it returns to a send icon at the bottom. Removed the oversized floating auto-scroll button.</li><li><strong>Enhanced Recent Activity.</strong> The activity log now records player commands as <code>&lt;user&gt; execute command: /command</code>, server online/offline transitions, player kills, and kick/ban/op/deop events, each with its own icon and color. Works for both console-sent commands and commands issued by players in-game.</li><li><strong>About screen fix.</strong> The PortalHost wordmark now sits on a raised surface with a subtle glow so it no longer blends into the dark background.</li><li><strong>Sidebar contrast.</strong> The navigation sidebar gained a distinct surface tone and a right-edge border so it clearly separates from the main content.</li></ul>"
+  },
+  {
+    "version": "5.0.67-mobilev2",
+    "date": "2026-08-05",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.67-mobilev2</strong></p><ul><li><strong>New PortalHost color palette.</strong> Four signature colors — Portal Violet <code>#7C4DFF</code>, Portal Cyan <code>#40C4FF</code>, Portal Magenta <code>#D500F9</code>, and Host Green <code>#4ADE80</code> — applied across the app in both light and dark themes.</li><li><strong>Console auto-scroll button.</strong> The console send button becomes a down-arrow when you scroll up, letting you jump back to the live log at the bottom; it returns to a send icon at the bottom. Removed the oversized floating auto-scroll button.</li><li><strong>Enhanced Recent Activity.</strong> The activity log now records player commands as <code>&lt;user&gt; execute command: /command</code>, server online/offline transitions, player kills, and kick/ban/op/deop events, each with its own icon and color. Works for both console-sent commands and commands issued by players in-game.</li><li><strong>APK renamed.</strong> The release artifact is now <code>PortalHost.apk</code> instead of <code>app-release.apk</code>.</li><li><strong>Version parity with desktop 5.0.67.</strong> <code>versionCode = 43</code>, <code>versionName = \"5.0.67-mobilev2\"</code>.</li></ul>"
+  },
+  {
     "version": "5.0.66",
     "date": "2026-08-03",
     "platform": "desktop",

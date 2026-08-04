@@ -27,6 +27,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,6 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -86,11 +89,19 @@ fun AboutScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
 
             wordmark?.let {
-                Image(
-                    painter = it,
-                    contentDescription = "PortalHost",
-                    modifier = Modifier.width(360.dp)
-                )
+                Surface(
+                    modifier = Modifier
+                        .shadow(8.dp, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp)),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Image(
+                        painter = it,
+                        contentDescription = "PortalHost",
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp).width(360.dp)
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))

@@ -118,6 +118,7 @@ import com.portalhost.model.ServerState
 import com.portalhost.model.ServerStatus
 import com.portalhost.server.ActivityEntry
 import com.portalhost.server.ActivityLog
+import com.portalhost.server.ActivityType
 import com.portalhost.server.ServerManager
 import com.portalhost.server.TunnelManager
 import com.portalhost.server.TunnelInfo
@@ -1400,26 +1401,44 @@ private fun ActivityCard(
 }
 
 @Composable
-internal fun activityIconAndColor(action: String, defaultTint: Color): Pair<ImageVector, Color> {
-    val lower = action.lowercase()
-    return when {
-        lower.contains("start") || lower.contains("launch") || lower.contains("join") ->
+internal fun activityIconAndColor(type: ActivityType, action: String, defaultTint: Color): Pair<ImageVector, Color> {
+    return when (type) {
+        ActivityType.SERVER_START, ActivityType.SERVER_ONLINE, ActivityType.PLAYER_JOIN ->
             Icons.Default.CheckCircle to ThemeColors.ActivityLogColors.Start
-        lower.contains("error") || lower.contains("crash") || lower.contains("fail") ->
+        ActivityType.SERVER_STOP, ActivityType.SERVER_OFFLINE ->
+            Icons.Default.Stop to ThemeColors.ActivityLogColors.Stop
+        ActivityType.SERVER_CRASH ->
             Icons.Default.Error to ThemeColors.ActivityLogColors.Error
-        lower.contains("warn") || lower.contains("warning") ->
-            Icons.Default.Warning to ThemeColors.ActivityLogColors.Warning
-        lower.contains("leave") || lower.contains("quit") || lower.contains("disconnect") ->
+        ActivityType.PLAYER_LEAVE ->
             Icons.Default.PersonRemove to ThemeColors.ActivityLogColors.Leave
-        lower.contains("player") || lower.contains("chat") ->
+        ActivityType.PLAYER_KICK ->
+            Icons.Default.PersonRemove to ThemeColors.ActivityLogColors.Warning
+        ActivityType.PLAYER_BAN ->
+            Icons.Default.Delete to ThemeColors.ActivityLogColors.Error
+        ActivityType.PLAYER_OP, ActivityType.PLAYER_DEOP ->
             Icons.Default.Person to ThemeColors.ActivityLogColors.Player
-        else -> Icons.Default.Info to defaultTint
+        ActivityType.PLAYER_KILL ->
+            Icons.Default.Warning to ThemeColors.ActivityLogColors.Kill
+        ActivityType.COMMAND_EXECUTED ->
+            Icons.AutoMirrored.Filled.Send to ThemeColors.ActivityLogColors.Command
+        ActivityType.INFO -> {
+            val lower = action.lowercase()
+            when {
+                lower.contains("start") || lower.contains("launch") || lower.contains("join") ->
+                    Icons.Default.CheckCircle to ThemeColors.ActivityLogColors.Start
+                lower.contains("error") || lower.contains("crash") || lower.contains("fail") ->
+                    Icons.Default.Error to ThemeColors.ActivityLogColors.Error
+                lower.contains("leave") || lower.contains("quit") ->
+                    Icons.Default.PersonRemove to ThemeColors.ActivityLogColors.Leave
+                else -> Icons.Default.Info to defaultTint
+            }
+        }
     }
 }
 
 @Composable
 internal fun ActivityRow(entry: ActivityEntry) {
-    val (icon, color) = activityIconAndColor(entry.action, MaterialTheme.colorScheme.onSurfaceVariant)
+    val (icon, color) = activityIconAndColor(entry.type, entry.action, MaterialTheme.colorScheme.onSurfaceVariant)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically

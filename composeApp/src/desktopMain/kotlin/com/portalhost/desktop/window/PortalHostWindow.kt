@@ -2,6 +2,7 @@ package com.portalhost.desktop.window
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.Image
@@ -16,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Dashboard
@@ -181,7 +184,15 @@ fun NavSidebar(
         modifier = Modifier
             .fillMaxHeight()
             .width(sidebarWidth)
-            .background(MaterialTheme.colorScheme.surfaceContainerLow),
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .drawBehind {
+                drawLine(
+                    color = Color(0xFF2A3144),
+                    start = Offset(size.width - 1.dp.toPx(), 0f),
+                    end = Offset(size.width - 1.dp.toPx(), size.height),
+                    strokeWidth = 1.dp.toPx()
+                )
+            },
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(

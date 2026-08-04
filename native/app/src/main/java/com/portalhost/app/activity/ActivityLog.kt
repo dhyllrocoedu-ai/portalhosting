@@ -7,7 +7,9 @@ data class ActivityEntry(
 )
 
 enum class ActivityType {
-    INFO, SUCCESS, WARNING, ERROR, PLAYER_JOIN, PLAYER_LEAVE
+    INFO, SUCCESS, WARNING, ERROR, PLAYER_JOIN, PLAYER_LEAVE,
+    SERVER_ONLINE, SERVER_OFFLINE, SERVER_CRASH, PLAYER_KICK, PLAYER_BAN,
+    PLAYER_OP, PLAYER_DEOP, PLAYER_KILL, COMMAND_EXECUTED
 }
 
 class ActivityLog(private val maxEntries: Int = 100) {
@@ -45,6 +47,38 @@ class ActivityLog(private val maxEntries: Int = 100) {
 
     fun addBackup() {
         add("Backup completed", ActivityType.SUCCESS)
+    }
+
+    fun addServerOnline() {
+        add("Server is online", ActivityType.SERVER_ONLINE)
+    }
+
+    fun addServerOffline() {
+        add("Server is offline", ActivityType.SERVER_OFFLINE)
+    }
+
+    fun addPlayerKick(player: String, reason: String = "") {
+        add("$player was kicked${if (reason.isNotBlank()) " ($reason)" else ""}", ActivityType.PLAYER_KICK)
+    }
+
+    fun addPlayerBan(player: String, reason: String = "") {
+        add("$player was banned${if (reason.isNotBlank()) " ($reason)" else ""}", ActivityType.PLAYER_BAN)
+    }
+
+    fun addPlayerOp(player: String) {
+        add("$player was opped", ActivityType.PLAYER_OP)
+    }
+
+    fun addPlayerDeop(player: String) {
+        add("$player was deopped", ActivityType.PLAYER_DEOP)
+    }
+
+    fun addPlayerKill(player: String, detail: String = "") {
+        add("$player was killed${if (detail.isNotBlank()) " ($detail)" else ""}", ActivityType.PLAYER_KILL)
+    }
+
+    fun addCommandExecuted(player: String, command: String) {
+        add("<$player> execute command: $command", ActivityType.COMMAND_EXECUTED)
     }
 
     fun clear() {

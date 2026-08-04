@@ -8,11 +8,13 @@ import com.portalhost.uinotify.ToastType
 object ThemeColors {
 
     // Semantic status colors
-    val StatusSuccess = Color(0xFF4CAF50)
-    val StatusWarning = Color(0xFFFFC107)
-    val StatusError = Color(0xFFF44336)
-    val StatusNeutral = Color(0xFF9E9E9E)
-    val StatusInfo = Color(0xFF2196F3)
+    val StatusSuccess = Color(0xFF4ADE80)
+    val StatusWarning = Color(0xFFF59E0B)
+    val StatusError = Color(0xFFEF4444)
+    val StatusNeutral = Color(0xFF9CA3AF)
+    val StatusInfo = Color(0xFF40C4FF)
+    val StatusStarting = Color(0xFFFACC15)
+    val StatusStopping = Color(0xFFFB923C)
 
     // Toast colors
     fun toastBackground(type: ToastType): Color = when (type) {
@@ -32,21 +34,21 @@ object ThemeColors {
     // Server status badge colors
     fun serverStatusColor(status: ServerStatus): Color = when (status) {
         ServerStatus.RUNNING -> StatusSuccess
-        ServerStatus.STARTING -> StatusWarning
-        ServerStatus.STOPPING -> Color(0xFFFF9800)
+        ServerStatus.STARTING -> StatusStarting
+        ServerStatus.STOPPING -> StatusStopping
         ServerStatus.CRASHED -> StatusError
-        ServerStatus.RESTARTING -> StatusWarning
+        ServerStatus.RESTARTING -> StatusStarting
         ServerStatus.STOPPED -> StatusNeutral
     }
 
     // Server type colors
     fun serverTypeColor(type: ServerType): Color = when (type) {
-        ServerType.PAPER -> Color(0xFF4CAF50)
-        ServerType.FABRIC -> Color(0xFF2196F3)
-        ServerType.FORGE -> Color(0xFFFF9800)
-        ServerType.NEOFORGE -> Color(0xFF9C27B0)
-        ServerType.PURPUR -> Color(0xFFFFEB3B)
-        ServerType.FOLIA -> Color(0xFF7B1FA2)
+        ServerType.PAPER -> Color(0xFF4ADE80)
+        ServerType.FABRIC -> Color(0xFF40C4FF)
+        ServerType.FORGE -> Color(0xFFF97316)
+        ServerType.NEOFORGE -> Color(0xFFD97706)
+        ServerType.PURPUR -> Color(0xFFF4D03F)
+        ServerType.FOLIA -> Color(0xFFA855F7)
         ServerType.VANILLA -> StatusNeutral
     }
 
@@ -60,10 +62,13 @@ object ThemeColors {
     // Activity log colors
     object ActivityLogColors {
         val Start = StatusSuccess
+        val Stop = Color(0xFF9CA3AF)
         val Error = StatusError
         val Warning = StatusWarning
-        val Leave = Color(0xFFFF9800)
+        val Leave = Color(0xFFFB923C)
         val Player = StatusInfo
+        val Command = Color(0xFF7C4DFF)
+        val Kill = Color(0xFFD500F9)
     }
 
     // Log viewer colors
@@ -86,35 +91,35 @@ object ThemeColors {
 
     // Performance stat colors
     object PerformanceColors {
-        val Cpu = Color(0xFF5C6BC0)
-        val Ram = StatusSuccess
-        val Tps = Color(0xFFFF9800)
-        val Players = Color(0xFF42A5F5)
-        val NetworkRx = Color(0xFF42A5F5)
-        val NetworkTx = Color(0xFFFF9800)
+        val Cpu = Color(0xFF7C4DFF)
+        val Ram = Color(0xFF40C4FF)
+        val Tps = Color(0xFFD500F9)
+        val Players = Color(0xFF4ADE80)
+        val NetworkRx = Color(0xFF40C4FF)
+        val NetworkTx = Color(0xFFF59E0B)
     }
 
     // Storage breakdown colors
     object StorageColors {
-        val World = Color(0xFF42A5F5)
-        val Plugins = Color(0xFFAB47BC)
-        val Mods = Color(0xFFFF9800)
-        val Datapacks = Color(0xFF66BB6A)
-        val Resourcepacks = Color(0xFFFFEE58)
-        val Other = Color(0xFF78909C)
+        val World = Color(0xFF40C4FF)
+        val Plugins = Color(0xFF7C4DFF)
+        val Mods = Color(0xFFD500F9)
+        val Datapacks = Color(0xFF4ADE80)
+        val Resourcepacks = Color(0xFFF4D03F)
+        val Other = Color(0xFF9CA3AF)
     }
 
     // Console line colors
     object ConsoleLineColors {
-        val Error = Color(0xFFFF5555)
-        val Warning = Color(0xFFFFAA00)
-        val PlayerJoin = Color(0xFF55FF55)
-        val PlayerLeave = Color(0xFFFFFF55)
-        val Chat = Color(0xFFAA55FF)
-        val Debug = Color(0xFF888888)
-        val Info = Color(0xFFE0E0E0)
-        val Default = Color(0xFFCCCCCC)
-        val Success = Color(0xFF4CAF50)
+        val Error = Color(0xFFEF4444)
+        val Warning = Color(0xFFF59E0B)
+        val PlayerJoin = Color(0xFF4ADE80)
+        val PlayerLeave = Color(0xFFF4D03F)
+        val Chat = Color(0xFFD500F9)
+        val Debug = Color(0xFF8B93A7)
+        val Info = Color(0xFFE8EAF2)
+        val Default = Color(0xFFC5CAD5)
+        val Success = Color(0xFF4ADE80)
     }
 
     // MOTD color codes (Minecraft formatting codes)
