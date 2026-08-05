@@ -26,6 +26,10 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Cloudflare wrangler (OAuth tokens, config)
+.wrangler/
+.wrangler.toml
+
 # typescript
 *.tsbuildinfo
 

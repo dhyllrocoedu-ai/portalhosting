@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.portalhost.desktop.util.UninstallHelper
 import com.portalhost.desktop.util.UpdateChecker
 import com.portalhost.desktop.util.UpdateInfo
 import kotlinx.coroutines.delay
@@ -197,12 +198,18 @@ fun UpdateDialog(
 
                                 result.onSuccess { file ->
                                     downloadState = UpdateDownloadState.Installing
-                                    try {
-                                        Desktop.getDesktop().open(file)
-                                    } catch (_: Exception) {}
-                                    delay(2000)
-                                    onNoLongerNeeded()
-                                    onDismiss()
+                                    if (launchSilentUpdateAndRestart(file)) {
+                                        onNoLongerNeeded()
+                                        onDismiss()
+                                        kotlin.system.exitProcess(0)
+                                    } else {
+                                        try {
+                                            Desktop.getDesktop().open(file)
+                                        } catch (_: Exception) {}
+                                        delay(2000)
+                                        onNoLongerNeeded()
+                                        onDismiss()
+                                    }
                                     return@launch
                                 }.onFailure { e ->
                                     if (attempt >= maxRetries) {
@@ -279,4 +286,43 @@ private fun formatBytes(bytes: Long): String {
 private fun formatSpeed(bytesPerSecond: Long): String {
     if (bytesPerSecond <= 0) return ""
     return "${formatBytes(bytesPerSecond)}/s"
+}
+
+/**
+ * Silently installs the downloaded update and relaunches the app into the new
+ * version, without showing the installer UI.
+ *
+ * A detached PowerShell process runs the installer (elevated, quiet) and starts
+ * the freshly installed PortalHost.exe afterwards. Because it is an OS process
+ * (not a JVM thread) it survives this app terminating, which is required so the
+ * MSI can replace files that are locked while the app is running.
+ */
+private fun launchSilentUpdateAndRestart(installerFile: File): Boolean {
+    return try {
+        val installDir = UninstallHelper.installDirectory() ?: return false
+        val appExe = File(installDir, "PortalHost.exe")
+        if (!appExe.exists()) return false
+
+        val installerPath = installerFile.absolutePath.replace("'", "''")
+        val appExePath = appExe.absolutePath.replace("'", "''")
+
+        val installCmd = if (installerFile.name.endsWith(".msi", ignoreCase = true)) {
+            "Start-Process -FilePath msiexec -ArgumentList '/i', '$installerPath', '/qn', '/norestart' -Verb RunAs -Wait"
+        } else {
+            "Start-Process -FilePath '$installerPath' -ArgumentList '/qn', '/norestart' -Verb RunAs -Wait"
+        }
+
+        val psCommand =
+            "Start-Sleep -Seconds 2; " +
+                "$installCmd; " +
+                "Start-Sleep -Seconds 2; " +
+                "Start-Process -FilePath '$appExePath'"
+
+        ProcessBuilder("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", psCommand)
+            .redirectErrorStream(true)
+            .start()
+        true
+    } catch (_: Exception) {
+        false
+    }
 }
