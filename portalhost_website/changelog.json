@@ -1,5 +1,19 @@
 [
   {
+    "version": "5.0.68",
+    "date": "2026-08-05",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.68</strong></p><ul><li><strong>Updates now install automatically.</strong> When an update is found, the app downloads the new version and installs it silently (elevated <code>msiexec</code>/EXE silent install), then relaunches itself — no more manually opening the installer.</li><li><strong>Version 5.0.68.</strong> <code>versionName = \"5.0.68\"</code>.</li></ul>"
+  },
+  {
+    "version": "5.0.68-mobilev2",
+    "date": "2026-08-05",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.68-mobilev2</strong></p><ul><li><strong>In-app update checker (new).</strong> Settings &rarr; Check for Updates now fetches <code>latest.json</code> from the PortalHost website, compares the remote <code>android.version</code> against the installed version, and shows an Update Available dialog with a Download button pointing at the new APK.</li><li><strong>Real PortalHost logo as launcher icon.</strong> The launcher icon (legacy + adaptive) is now generated from the PortalHost logo at all densities instead of the placeholder image.</li><li><strong>Version parity with desktop 5.0.68.</strong> <code>versionCode = 44</code>, <code>versionName = \"5.0.68-mobilev2\"</code>.</li></ul>"
+  },
+  {
     "version": "5.0.67",
     "date": "2026-08-05",
     "platform": "desktop",

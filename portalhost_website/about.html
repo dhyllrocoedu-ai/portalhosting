@@ -186,9 +186,9 @@
                 const response = await fetch('latest.json');
                 const release = await response.json();
                 
-                const desktopVersion = release.version || '5.0.67';
+                const desktopVersion = release.version || '5.0.68';
                 const desktopDate = release.date || '2026-08-05';
-                const androidVersion = release.android?.version || '5.0.67-mobilev2';
+                const androidVersion = release.android?.version || '5.0.68-mobilev2';
                 const androidDate = release.android?.date || '2026-08-05';
                 
                 container.innerHTML = `

@@ -471,7 +471,7 @@ fun MarketplaceDetailScreen(
                                     val destFile = File(destDir, file.filename)
                                     URL(file.url).downloadToFile(
                                         destination = destFile,
-                                        headers = mapOf("User-Agent" to "PortalHost/5.0.67")
+                                        headers = mapOf("User-Agent" to "PortalHost/5.0.68")
                                     ) { downloaded, total ->
                                         if (total > 0) {
                                             downloadProgress = (downloaded.toDouble() / total).toFloat()

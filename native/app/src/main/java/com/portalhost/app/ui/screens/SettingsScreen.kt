@@ -16,12 +16,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.portalhost.app.AndroidUpdateInfo
 import com.portalhost.app.BuildConfig
+import com.portalhost.app.UpdateCheckResult
+import com.portalhost.app.UpdateChecker
 import com.portalhost.app.ui.components.CraftingIcon
 import com.portalhost.app.ui.components.GrassIcon
 import com.portalhost.app.ui.components.RedstoneIcon
 import com.portalhost.app.ui.components.PickaxeIcon
 import com.portalhost.app.ui.model.ServerConfig
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +48,11 @@ fun SettingsScreen(
 ) {
     var showClearConfirm by remember { mutableStateOf(false) }
     var showRemoveJdkConfirm by remember { mutableStateOf(false) }
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<AndroidUpdateInfo?>(null) }
+    var updateMessage by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -283,14 +291,28 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/dhyllrocoedu-ai/portalhosting/releases"))
-                            context.startActivity(intent)
+                            if (!checkingUpdate) {
+                                coroutineScope.launch {
+                                    checkingUpdate = true
+                                    when (val result = UpdateChecker.checkForUpdate()) {
+                                        is UpdateCheckResult.UpdateAvailable -> updateInfo = result.info
+                                        UpdateCheckResult.UpToDate -> updateMessage = "You're up to date"
+                                        UpdateCheckResult.Error -> updateMessage = "Couldn't check for updates. Make sure you're online and try again."
+                                    }
+                                    checkingUpdate = false
+                                }
+                            }
                         },
+                        enabled = !checkingUpdate,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(16.dp))
+                        if (checkingUpdate) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(16.dp))
+                        }
                         Spacer(Modifier.width(4.dp))
-                        Text("Check for Updates")
+                        Text(if (checkingUpdate) "Checking..." else "Check for Updates")
                     }
                     Spacer(Modifier.height(4.dp))
                     OutlinedButton(
@@ -356,6 +378,49 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRemoveJdkConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Update available
+    updateInfo?.let { info ->
+        AlertDialog(
+            onDismissRequest = { updateInfo = null },
+            icon = { Icon(Icons.Default.Update, contentDescription = null) },
+            title = { Text("Update Available") },
+            text = {
+                Column {
+                    Text("PortalHost v${info.latestVersion} is available (you have v${BuildConfig.VERSION_NAME}).")
+                    Spacer(Modifier.height(4.dp))
+                    Text("Released ${info.releaseDate.takeIf { it.isNotBlank() } ?: "recently"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (info.sizeBytes > 0) {
+                        Text("Size: %.1f MB".format(info.sizeBytes / 1024.0 / 1024.0), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text("Download the APK and install it. Your servers and worlds are kept in the app files directory and won't be lost.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    updateInfo = null
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl))
+                    context.startActivity(intent)
+                }) { Text("Download") }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateInfo = null }) { Text("Later") }
+            }
+        )
+    }
+
+    // Check result message
+    updateMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { updateMessage = null },
+            title = { Text("Update Check") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = { updateMessage = null }) { Text("OK") }
             }
         )
     }
