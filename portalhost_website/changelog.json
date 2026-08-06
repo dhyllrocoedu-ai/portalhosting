@@ -1,6 +1,20 @@
 [
   {
     "version": "5.0.68",
+    "date": "2026-08-06",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.68</strong></p><ul><li><strong>Uninstaller completely rewritten.</strong> Detached batch cleanup kills PortalHost/java processes, force-removes install folder, removes Start Menu shortcuts, and self-deletes. MSI path uses direct <code>msiexec.exe /x</code> (no PowerShell wrapper). Portable/EXE path now also runs full cleanup instead of just exiting.</li><li><strong>Marketplace detail screen layout fixed.</strong> Bottom install bar pinned to window bottom via <code>Scaffold.bottomBar</code> — never cropped. Slim content: tiny accent \"✓ Ready\" dot + \"Ready to install\" label + \"Install to Server\" button. Accent highlight with border when version selected (no more blending).</li><li><strong>Version cards highlight refined.</strong> Subtle 4dp top accent strip + 1dp accent border instead of full background tint. Game versions text ellipsized to 2 lines.</li><li><strong>Server delete now works.</strong> Properly awaits <code>serverManager.deleteServer()</code>, only navigates back on success, shows errors via System.err.</li><li><strong>Tab clamping.</strong> <code>coerceIn</code> prevents \"index 9 out of bounds for length 10\" crash when server type filters tabs.</li><li><strong>Folder routing: server-type first.</strong> Paper/Purpur/Folia/Vanilla → <code>plugins</code>; Forge/NeoForge/Fabric/Quilt → <code>mods</code>; Datapack always → <code>world/datapacks</code>.</li></ul>"
+  },
+  {
+    "version": "5.0.68-mobilev2",
+    "date": "2026-08-06",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.68-mobilev2</strong></p><ul><li><strong>Server delete now works.</strong> <code>AppState.deleteServer()</code> stops the server if running, removes from repository, deletes server directory recursively, shows confirmation toast.</li><li><strong>Coroutine/context fixes.</strong> Fixed <code>AppState</code> and <code>AppNavigation</code> coroutine scope and <code>LocalContext</code> issues for delete flow.</li><li><strong>All desktop fixes parity.</strong> Folder routing (server-type first), marketplace install folder logic, tab clamping, version card ellipsis.</li></ul>"
+  },
+  {
+    "version": "5.0.68",
     "date": "2026-08-05",
     "platform": "desktop",
     "prerelease": false,
