@@ -2,6 +2,7 @@ package com.portalhost.desktop.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -220,6 +222,24 @@ fun MarketplaceDetailScreen(
                 )
             )
         },
+        bottomBar = {
+            project?.let { p ->
+                BottomInstallBar(
+                    selectedVersion = selectedVersion,
+                    isDownloading = isDownloading,
+                    downloadProgress = downloadProgress,
+                    servers = servers,
+                    projectType = p.projectType,
+                    onInstallClick = {
+                        if (servers.isNotEmpty() && selectedVersion != null) {
+                            selectedTarget = null
+                            showInstallModal = true
+                        }
+                    },
+                    accentColor = accentColor
+                )
+            }
+        },
         modifier = modifier
     ) { paddingValues ->
         when {
@@ -407,7 +427,8 @@ fun MarketplaceDetailScreen(
                                     onSearchChange = { versionSearchQuery = it },
                                     allGameVersions = allGameVersions,
                                     allLoaders = allLoaders,
-                                    allVersionTypes = allVersionTypes
+                                    allVersionTypes = allVersionTypes,
+                                    accentColor = accentColor
                                 )
                                 2 -> ChangelogTab(
                                     selectedVersion = selectedVersion,
@@ -415,24 +436,6 @@ fun MarketplaceDetailScreen(
                                 )
                             }
                         }
-
-                        HorizontalDivider()
-
-                        // Bottom install bar
-                        BottomInstallBar(
-                            selectedVersion = selectedVersion,
-                            isDownloading = isDownloading,
-                            downloadProgress = downloadProgress,
-                            servers = servers,
-                            projectType = p.projectType,
-                            onInstallClick = {
-                                if (servers.isNotEmpty() && selectedVersion != null) {
-                                    selectedTarget = null
-                                    showInstallModal = true
-                                }
-                            },
-                            accentColor = accentColor
-                        )
                     }
                 }
 
@@ -444,7 +447,7 @@ fun MarketplaceDetailScreen(
                         serverType = s.serverType.name.lowercase().replaceFirstChar { it.uppercase() },
                         compatible = selectedVersion?.let { isVersionCompatible(it, s.version, serverTypeToLoader(s.serverType)) }
                             ?: isProjectCompatible(p, s.version, serverTypeToLoader(s.serverType)),
-                        folderHint = getSuggestedFolder(p)
+                        folderHint = getSuggestedFolder(p, serverTypeToLoader(s.serverType))
                     )
                 }
 
@@ -681,7 +684,8 @@ private fun VersionsTab(
     onSearchChange: (String) -> Unit,
     allGameVersions: List<String>,
     allLoaders: List<String>,
-    allVersionTypes: List<String>
+    allVersionTypes: List<String>,
+    accentColor: androidx.compose.ui.graphics.Color?
 ) {
     Column(
         modifier = Modifier
@@ -794,7 +798,8 @@ private fun VersionsTab(
                 VersionDetailRow(
                     version = version,
                     isSelected = selectedVersion?.id == version.id,
-                    onClick = { onVersionSelect(version) }
+                    onClick = { onVersionSelect(version) },
+                    accentColor = accentColor
                 )
             }
         }
@@ -903,21 +908,31 @@ private fun ChangelogTab(selectedVersion: ModrinthVersion?, accentColor: android
 private fun VersionDetailRow(
     version: ModrinthVersion,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    accentColor: androidx.compose.ui.graphics.Color? = null
 ) {
+    val effectiveAccent = accentColor ?: MaterialTheme.colorScheme.primary
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .border(if (isSelected) 1.dp else 0.dp, if (isSelected) effectiveAccent else Color.Transparent, RoundedCornerShape(8.dp)),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
+            // Thin left accent strip when selected
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp)
+                        .background(effectiveAccent, RoundedCornerShape(topStart = 8.dp, topEnd = 0.dp))
+                        .padding(bottom = 8.dp)
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = version.name,
@@ -932,7 +947,9 @@ private fun VersionDetailRow(
                 Text(
                     text = version.gameVersions.joinToString(", "),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Row(
@@ -971,31 +988,42 @@ private fun BottomInstallBar(
 ) {
     val effectiveAccent = accentColor ?: MaterialTheme.colorScheme.primary
     val isClientSide = isClientSideProject(projectType)
+    val hasSelection = selectedVersion != null
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .background(effectiveAccent.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .background(
+                if (hasSelection)
+                    effectiveAccent.copy(alpha = 0.15f)
+                else
+                    MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
+                RoundedCornerShape(12.dp)
+            )
+            .border(if (hasSelection) 1.dp else 0.dp, if (hasSelection) effectiveAccent.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(12.dp)),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column {
-            selectedVersion?.let { v ->
-                Text(
-                    text = v.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = effectiveAccent
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            selectedVersion?.let { _ ->
+                // Tiny "✓ Selected" indicator using the accent color
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(effectiveAccent)
+                        .padding(end = 4.dp)
                 )
                 Text(
-                    text = "${v.gameVersions.joinToString(", ")} \u2022 ${v.loaders.joinToString(", ")}",
+                    text = "Ready to install",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontWeight = FontWeight.Medium,
+                    color = if (hasSelection) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f) else effectiveAccent
                 )
             } ?: Text(
                 text = "Select a version to install",
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (isClientSide) {

@@ -125,12 +125,25 @@ fun formatDownloads(downloads: Int): String {
     }
 }
 
-fun getSuggestedFolder(project: ModrinthProject): String {
+private val PLUGIN_SERVER_TYPES = setOf("paper", "spigot", "purpur", "folia", "vanilla")
+private val MOD_SERVER_TYPES = setOf("fabric", "quilt", "forge", "neoforge")
+
+/**
+ * Suggests the install subfolder inside a server directory.
+ *
+ * The target server type takes precedence over Modrinth's project metadata so a
+ * plugin installed to a Forge/Fabric server lands in `mods` and a mod installed
+ * to a Paper/Purpur/Folia/Vanilla server lands in `plugins`. Datapacks always go
+ * to `world/datapacks`. Falls back to project metadata when no server type is given.
+ */
+fun getSuggestedFolder(project: ModrinthProject, serverType: String? = null): String {
     val projectType = project.projectType.lowercase()
     val loaders = project.loaders.map { it.lowercase() }
     val hasDatapackLoader = "datapack" in loaders
+    val serverTypeLower = serverType?.lowercase()
+    val isPluginServer = serverTypeLower in PLUGIN_SERVER_TYPES
+    val isModServer = serverTypeLower in MOD_SERVER_TYPES
 
-    // Project type takes precedence — Modrinth's project_type is the primary discriminator
     return when (projectType) {
         "datapack" -> "world/datapacks"
         "resourcepack" -> "resourcepacks"
@@ -139,21 +152,23 @@ fun getSuggestedFolder(project: ModrinthProject): String {
         "mod" -> {
             // Datapacks take precedence - some "mod" projects are actually datapacks
             if (hasDatapackLoader) "world/datapacks"
-            // Mods: loader determines fabric/forge/neoforge/quilt -> mods
-            else if (loaders.any { it in listOf("fabric", "quilt", "forge", "neoforge") }) "mods"
+            // Server type takes precedence - plugin servers load these as plugins
+            else if (isPluginServer) "plugins"
             else "mods"
         }
         "plugin" -> {
-            // Plugins: loader determines paper/spigot/purpur/folia -> plugins
-            if (loaders.any { it in listOf("paper", "spigot", "purpur", "folia") }) "plugins"
+            // Server type takes precedence - mod servers load these as mods
+            if (isModServer) "mods"
             else "plugins"
         }
         else -> {
-            // Fallback: infer from loaders for any unrecognized project_type
+            // Fallback: infer from the target server type, then from project loaders
             when {
                 hasDatapackLoader -> "world/datapacks"
-                loaders.any { it in listOf("paper", "spigot", "purpur", "folia") } -> "plugins"
-                loaders.any { it in listOf("forge", "neoforge", "fabric", "quilt") } -> "mods"
+                isPluginServer -> "plugins"
+                isModServer -> "mods"
+                loaders.any { it in PLUGIN_SERVER_TYPES } -> "plugins"
+                loaders.any { it in MOD_SERVER_TYPES } -> "mods"
                 else -> "plugins" // safe default
             }
         }

@@ -42,7 +42,8 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-private val ALL_TABS = listOf("Properties", "Worlds", "Plugins", "Mods", "Datapacks", "Backups")
+private val PLUGIN_SERVER_TYPES = setOf("paper", "purpur", "folia", "vanilla")
+private val MOD_SERVER_TYPES = setOf("fabric", "forge", "neoforge")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +59,16 @@ fun ServerDetailScreen(
 
     val backupManager = remember(serverDir) { BackupManager(serverDir) }
 
+    val tabs = buildList {
+        add("Properties")
+        add("Worlds")
+        if (server.serverType.lowercase() in PLUGIN_SERVER_TYPES) add("Plugins")
+        if (server.serverType.lowercase() in MOD_SERVER_TYPES) add("Mods")
+        add("Datapacks")
+        add("Backups")
+    }
+    val safeTabIndex = selectedTab.coerceIn(0, tabs.lastIndex)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -68,19 +79,19 @@ fun ServerDetailScreen(
         }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp, modifier = Modifier.padding(vertical = 0.dp)) {
-                ALL_TABS.forEachIndexed { index, label ->
-                    Tab(selected = selectedTab == index, onClick = { selectedTab = index }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })
+            ScrollableTabRow(selectedTabIndex = safeTabIndex, edgePadding = 4.dp, modifier = Modifier.padding(vertical = 0.dp)) {
+                tabs.forEachIndexed { index, label ->
+                    Tab(selected = safeTabIndex == index, onClick = { selectedTab = index }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })
                 }
             }
 
-            when (selectedTab) {
-                0 -> PropertiesTab(server, serverDir, onUpdateServer, onDeleteServer)
-                1 -> WorldsTab(serverDir)
-                2 -> PluginsTab(serverDir)
-                 3 -> ModsTab(serverDir)
-                 4 -> DatapacksTab(serverDir)
-                 5 -> BackupsTab(backupManager, serverState)
+            when (tabs[safeTabIndex]) {
+                "Properties" -> PropertiesTab(server, serverDir, onUpdateServer, onDeleteServer)
+                "Worlds" -> WorldsTab(serverDir)
+                "Plugins" -> PluginsTab(serverDir)
+                "Mods" -> ModsTab(serverDir)
+                "Datapacks" -> DatapacksTab(serverDir)
+                "Backups" -> BackupsTab(backupManager, serverState)
             }
         }
     }

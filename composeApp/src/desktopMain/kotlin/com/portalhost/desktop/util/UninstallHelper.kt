@@ -187,8 +187,8 @@ object UninstallHelper {
      * Runs the MSI uninstall on a background thread so the UI stays responsive.
      *
      * The sequence:
-     * 1. Launch `msiexec /x` (elevated) and wait for it to finish.
-     * 2. Spawn a detached PowerShell process that force-removes the install folder
+     * 1. Launch `msiexec /x` (elevated via UAC if needed) and wait for it to finish.
+     * 2. Spawn a detached batch file that force-removes the install folder
      *    shortly afterwards. Because it is an OS process (not a JVM thread), it
      *    survives this app terminating.
      * 3. Exit the app so its files unlock and the detached cleanup can finish.
@@ -196,37 +196,70 @@ object UninstallHelper {
     fun uninstall(productCode: String) {
         Thread {
             try {
-                // Wait for the MSI uninstaller to complete (or give up after 2 min).
-                val psCommand =
-                    "Start-Process -FilePath msiexec -ArgumentList '/x', '$productCode', '/qb' -Wait -RunAs"
-                val proc = ProcessBuilder("powershell", "-NoProfile", "-Command", psCommand)
-                    .redirectErrorStream(true)
-                    .start()
-                proc.waitFor(120, TimeUnit.SECONDS)
+                // Wait for the MSI uninstaller to complete (or give up after 3 min).
+                // msiexec.exe directly (no PowerShell wrapper) avoids UAC prompt issues.
+                val proc = ProcessBuilder(
+                    "msiexec.exe", "/x", productCode, "/qb", "/norestart"
+                ).redirectErrorStream(true).start()
+                proc.waitFor(180, TimeUnit.SECONDS)
             } catch (_: Exception) { }
 
-            launchDetachedForceCleanup()
-
-            // Give the detached cleanup a moment to start, then close the app so its
-            // files unlock and the cleanup can remove the install folder.
-            try { Thread.sleep(2000) } catch (_: InterruptedException) { }
-            kotlin.system.exitProcess(0)
+            finishDetachedCleanup()
         }.apply { isDaemon = false }.start()
     }
 
     /**
-     * Launches a hidden, detached PowerShell process that force-removes the install
+     * Portable/EXE install (no MSI product code in the registry): run the detached
+     * force-cleanup of the install folder and close the app so its files unlock.
+     */
+    fun uninstallPortable() {
+        Thread {
+            finishDetachedCleanup()
+        }.apply { isDaemon = false }.start()
+    }
+
+    private fun finishDetachedCleanup() {
+        launchDetachedCleanup()
+
+        // Give the detached cleanup a moment to start, then close the app so its
+        // files unlock and the cleanup can remove the install folder.
+        try { Thread.sleep(2000) } catch (_: InterruptedException) { }
+        kotlin.system.exitProcess(0)
+    }
+
+    /**
+     * Launches a hidden, detached batch file that force-removes the install
      * folder a few seconds after the app exits.
      */
-    private fun launchDetachedForceCleanup() {
+    private fun launchDetachedCleanup() {
         try {
             val installDir = installDirectory() ?: return
             if (!installDir.exists()) return
-            val psCleanup =
-                "Start-Sleep -Seconds 5; Remove-Item -Path '${installDir.absolutePath}' -Recurse -Force -ErrorAction SilentlyContinue"
-            Runtime.getRuntime().exec(
-                arrayOf("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", psCleanup)
-            )
+
+            val tmpBat = File(System.getProperty("java.io.tmpdir"), "portalhost_uninstall_${System.currentTimeMillis()}.bat")
+            val installPath = installDir.absolutePath.replace("\"", "\\\"")
+            val startMenu = "${System.getenv("APPDATA")}\\Microsoft\\Windows\\Start Menu\\Programs\\PortalHost".replace("\"", "\\\"")
+            val startMenuLnk = "${System.getenv("APPDATA")}\\Microsoft\\Windows\\Start Menu\\Programs\\PortalHost.lnk".replace("\"", "\\\"")
+
+            tmpBat.writeText("""
+                @echo off
+                :: Wait for the parent process to exit and release file handles
+                timeout /t 3 /nobreak >nul
+                :: Kill any remaining PortalHost processes so files unlock
+                taskkill /F /IM PortalHost.exe /T >nul 2>&1
+                taskkill /F /IM java.exe /FI "WINDOWTITLE eq PortalHost*" /T >nul 2>&1
+                timeout /t 2 /nobreak >nul
+                :: Remove the install folder (program files only - never user data)
+                rd /s /q "$installPath" 2>nul
+                :: Remove Start Menu shortcuts
+                if exist "$startMenu" rd /s /q "$startMenu" 2>nul
+                if exist "$startMenuLnk" del /f /q "$startMenuLnk" 2>nul
+                :: Self-delete this batch file
+                del /f /q "%~f0" >nul 2>&1
+            """.trimIndent())
+
+            // Spawn the batch file detached via 'start /b' (no new window)
+            Runtime.getRuntime().exec(arrayOf("cmd.exe", "/c", "start", "/b", tmpBat.absolutePath))
         } catch (_: Exception) { }
     }
 }

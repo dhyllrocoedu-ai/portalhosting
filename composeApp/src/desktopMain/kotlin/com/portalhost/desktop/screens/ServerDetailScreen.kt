@@ -95,6 +95,7 @@ import androidx.compose.ui.unit.sp
 import com.portalhost.db.DatabaseRepository
 import com.portalhost.model.ServerConfig
 import com.portalhost.model.ServerStatus
+import com.portalhost.model.ServerType
 import com.portalhost.server.BackupEntry
 import com.portalhost.filesystem.FileSystem
 import com.portalhost.server.BackupManager
@@ -206,11 +207,31 @@ fun ServerDetailScreen(
             title = { Text("Delete Server") },
             text = { Text("Are you sure you want to delete \"${config.name}\"? This action cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { serverManager.deleteServer(serverId) }
-                    showDeleteDialog = false
-                    onBack()
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                val result = serverManager.deleteServer(serverId)
+                                if (result.isSuccess) {
+                                    showDeleteDialog = false
+                                    onBack()
+                                } else {
+                                    System.err.println("Failed to delete server: ${result.exceptionOrNull()?.message}")
+                                    showDeleteDialog = false
+                                    // TODO: Show error toast
+                                }
+                            } catch (e: Exception) {
+                                System.err.println("Exception deleting server: ${e.message}")
+                                showDeleteDialog = false
+                                // TODO: Show error toast
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) { Text("Delete") }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
@@ -273,28 +294,42 @@ fun ServerDetailScreen(
             }
         }
 
-        val tabs = listOf("Properties", "Files", "Worlds", "Plugins", "Mods", "Datapacks", "Backups", "Performance", "Logs", "RCON")
-        SecondaryScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 4.dp) {
+        val pluginServerTypes = setOf(ServerType.PAPER, ServerType.PURPUR, ServerType.FOLIA, ServerType.VANILLA)
+        val modServerTypes = setOf(ServerType.FABRIC, ServerType.FORGE, ServerType.NEOFORGE)
+        val tabs = buildList {
+            add("Properties")
+            add("Files")
+            add("Worlds")
+            if (config.serverType in pluginServerTypes) add("Plugins")
+            if (config.serverType in modServerTypes) add("Mods")
+            add("Datapacks")
+            add("Backups")
+            add("Performance")
+            add("Logs")
+            add("RCON")
+        }
+        val safeTabIndex = selectedTab.coerceIn(0, tabs.lastIndex)
+        SecondaryScrollableTabRow(selectedTabIndex = safeTabIndex, edgePadding = 4.dp) {
             tabs.forEachIndexed { index, title ->
                 Tab(
-                    selected = selectedTab == index,
+                    selected = safeTabIndex == index,
                     onClick = { selectedTab = index },
                     text = { Text(title, maxLines = 1, fontSize = 13.sp) },
                 )
             }
         }
 
-        when (selectedTab) {
-            0 -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
-            1 -> ServerFilesScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            2 -> WorldsTab(serverId = serverId)
-            3 -> PluginsTab(serverId = serverId)
-            4 -> ModsTab(serverId = serverId)
-            5 -> DatapacksTab(serverId = serverId)
-            6 -> BackupsTab(serverId = serverId, backupManager = backupManager)
-            7 -> PerformanceScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            8 -> LogViewerScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            9 -> RconScreen(serverId = serverId, onBack = { selectedTab = 0 })
+        when (tabs[safeTabIndex]) {
+            "Properties" -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
+            "Files" -> ServerFilesScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            "Worlds" -> WorldsTab(serverId = serverId)
+            "Plugins" -> PluginsTab(serverId = serverId)
+            "Mods" -> ModsTab(serverId = serverId)
+            "Datapacks" -> DatapacksTab(serverId = serverId)
+            "Backups" -> BackupsTab(serverId = serverId, backupManager = backupManager)
+            "Performance" -> PerformanceScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            "Logs" -> LogViewerScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            "RCON" -> RconScreen(serverId = serverId, onBack = { selectedTab = 0 })
         }
     }
 }

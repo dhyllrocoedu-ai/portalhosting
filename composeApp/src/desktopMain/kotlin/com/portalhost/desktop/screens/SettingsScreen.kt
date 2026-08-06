@@ -614,8 +614,9 @@ SettingsSection("Updates") {
                                 if (productCode != null) {
                                     UninstallHelper.uninstall(productCode)
                                 } else {
-                                    // Not installed via MSI (e.g. portable EXE): just close the app.
-                                    kotlin.system.exitProcess(0)
+                                    // Not installed via MSI (e.g. portable EXE): run the detached
+                                    // cleanup of the install folder, then close the app.
+                                    UninstallHelper.uninstallPortable()
                                 }
                             }
                         }

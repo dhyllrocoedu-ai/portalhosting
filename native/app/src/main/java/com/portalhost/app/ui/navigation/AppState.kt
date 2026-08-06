@@ -1,6 +1,7 @@
 package com.portalhost.app.ui.navigation
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -8,7 +9,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import android.app.Activity
 import androidx.compose.runtime.*
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.portalhost.app.activity.ActivityLog
@@ -23,14 +23,12 @@ import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -57,6 +55,7 @@ class AppState(
     val tunnelUrl: String,
     val onTunnelUrlChange: (String) -> Unit
 ) {
+    private val scope = MainScope()
     var servers by mutableStateOf(repository.list())
         private set
     var activeServerId by mutableStateOf<String?>(null)
@@ -140,9 +139,26 @@ class AppState(
         networkInfo = networkManager.getNetworkInfo()
     }
 
-    fun deleteServer(server: ServerConfig) {
+    suspend fun deleteServer(server: ServerConfig, context: Context) {
+        // Stop the server if it's running
+        val serverState = serverManager.state.value
+        if (serverState.status != ServerStatus.OFFLINE && serverState.status != ServerStatus.STOPPED && serverState.status != ServerStatus.CRASHED && server.id == activeServerId) {
+            serverManager.stop()
+        }
+        // Delete from repository
         repository.remove(server.id)
+        // Delete server directory
+        try {
+            val serverDir = repository.getServerDir(server.id)
+            if (serverDir.exists()) {
+                serverDir.deleteRecursively()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AppState", "Failed to delete server directory", e)
+        }
         refreshServers()
+        // Show confirmation toast
+        Toast.makeText(context, "Server deleted", Toast.LENGTH_SHORT).show()
     }
 
     fun updateServer(updated: ServerConfig) {

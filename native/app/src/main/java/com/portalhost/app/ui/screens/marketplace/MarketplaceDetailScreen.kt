@@ -141,7 +141,7 @@ fun MarketplaceDetailScreen(
                 serverType = s.serverType.lowercase().replaceFirstChar { it.uppercase() },
                 compatible = selectedVersion?.let { isVersionCompatible(it, s.mcVersion, s.serverType) }
                     ?: isProjectCompatible(p, s.mcVersion, s.serverType),
-                folderHint = getSuggestedFolder(p)
+                folderHint = getSuggestedFolder(p, s.serverType)
             )
         }
     }

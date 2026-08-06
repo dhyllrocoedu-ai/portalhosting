@@ -1,5 +1,6 @@
 package com.portalhost.app.ui.navigation
 
+import android.content.Context
 import android.Manifest
 import android.content.Intent
 import android.provider.Settings
@@ -118,6 +119,7 @@ fun AppNavigation(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(AppTab.HOME.route) {
+                val ctx = LocalContext.current
                 val consoleLines by appState.consoleStreamer.linesState
                     .sample(100)
                     .collectAsState(initial = appState.consoleStreamer.lines)
@@ -165,7 +167,7 @@ fun AppNavigation(
                         if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == appState.activeServerId) {
                             scope.launch { appState.serverManager.stop() }
                         }
-                        appState.deleteServer(server)
+                        scope.launch { appState.deleteServer(server, ctx) }
                     },
                     onTunnelStart = {
                         tunnelManager?.let { tm ->
@@ -183,6 +185,7 @@ fun AppNavigation(
             }
 
             composable(AppTab.SERVERS.route) {
+                val ctx = LocalContext.current
                 ServersScreen(
                     repository = appState.repository,
                     onCreateServer = { navController.navigate(Routes.CREATE_SERVER) },
@@ -192,7 +195,7 @@ fun AppNavigation(
                         if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == appState.activeServerId) {
                             scope.launch { appState.serverManager.stop() }
                         }
-                        appState.deleteServer(server)
+                        scope.launch { appState.deleteServer(server, ctx) }
                     }
                 )
             }
@@ -277,18 +280,17 @@ fun AppNavigation(
                 val serverId = entry.arguments?.getString("serverId") ?: return@composable
                 val server = appState.repository.getById(serverId)
                 if (server != null) {
+                    val ctx = LocalContext.current
                     ServerDetailScreen(
                         server = server,
                         serverState = state,
                         onBack = { navController.popBackStack() },
                         onUpdateServer = { updated -> appState.updateServer(updated) },
                         onDeleteServer = {
-                            val s = state.status
-                            if (s != ServerStatus.OFFLINE && s != ServerStatus.STOPPED && s != ServerStatus.CRASHED && server.id == appState.activeServerId) {
-                                scope.launch { appState.serverManager.stop() }
+                            scope.launch {
+                                appState.deleteServer(server, ctx)
+                                navController.popBackStack()
                             }
-                            appState.deleteServer(server)
-                            navController.popBackStack()
                         },
                         serverDir = appState.repository.getServerDir(server.id)
                     )
