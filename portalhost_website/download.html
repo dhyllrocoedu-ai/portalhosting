@@ -187,7 +187,8 @@
                 if (release.android && release.android.url) {
                     androidVersion.textContent = `v${release.android.version || version}`;
                     androidSize.textContent = release.android.size ? PortalHost.formatBytes(release.android.size) : 'Unknown size';
-                    androidDownload.href = release.android.url;
+                    // Use local APK for direct download (no GitHub intermediate page)
+                    androidDownload.href = 'PortalHost.apk';
                     androidDownload.removeAttribute('disabled');
                 } else {
                     androidVersion.textContent = 'Not available';
