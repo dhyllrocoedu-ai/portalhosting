@@ -60,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.portalhost.app.notifications.AppNotifier
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.marketplace.MarketplaceRepository
@@ -82,6 +83,7 @@ fun MarketplaceDetailScreen(
     projectId: String,
     servers: List<ServerConfig>,
     getServerDir: (String) -> File,
+    notifier: AppNotifier,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -329,9 +331,21 @@ fun MarketplaceDetailScreen(
                         installingServer = null
                         showInstallDialog = false
                         snackbarHostState.showSnackbar("Installed ${file.filename} to ${target.serverName}")
+                        notifier.notify(
+                            message = "Installed ${project!!.title} to ${target.serverName}.",
+                            success = true,
+                            title = "Add-on installed",
+                            systemOnly = true
+                        )
                     }.onFailure { e ->
                         installingServer = null
                         snackbarHostState.showSnackbar("Failed to install: ${e.message}")
+                        notifier.notify(
+                            message = "Failed to install ${project!!.title}: ${e.message}",
+                            success = false,
+                            title = "Add-on install failed",
+                            systemOnly = true
+                        )
                     }
                 }
             },

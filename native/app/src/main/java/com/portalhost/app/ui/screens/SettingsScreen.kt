@@ -21,7 +21,7 @@ import com.portalhost.app.BuildConfig
 import com.portalhost.app.UpdateCheckResult
 import com.portalhost.app.UpdateChecker
 import com.portalhost.app.ui.components.CraftingIcon
-import com.portalhost.app.ui.components.GrassIcon
+import com.portalhost.app.ui.components.PortalHostLogo
 import com.portalhost.app.ui.components.RedstoneIcon
 import com.portalhost.app.ui.components.PickaxeIcon
 import com.portalhost.app.ui.model.ServerConfig
@@ -34,6 +34,7 @@ fun SettingsScreen(
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
     jdkProgress: Float = 0f,
+    jdkMessage: String = "",
     jdkError: String? = null,
     onReinstallJava: () -> Unit,
     onUninstallJava: () -> Unit,
@@ -70,7 +71,7 @@ fun SettingsScreen(
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        GrassIcon(size = 20.dp)
+                        PortalHostLogo(size = 20.dp)
                         Spacer(Modifier.width(12.dp))
                         Text("Appearance", style = MaterialTheme.typography.titleSmall)
                     }
@@ -163,7 +164,18 @@ fun SettingsScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Java Runtime", style = MaterialTheme.typography.titleSmall)
                             if (jdkInstalling) {
-                                Text("Installing...", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    if (jdkMessage.isNotBlank()) jdkMessage else "Installing...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (jdkProgress > 0f) {
+                                    Text(
+                                        "${(jdkProgress * 100).toInt()}%",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             } else if (jdkInstalled) {
                                 Text("Installed", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                             } else {

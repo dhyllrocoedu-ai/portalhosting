@@ -55,6 +55,13 @@ fun AppNavigation(
 
     val state by appState.serverManager.state.collectAsState()
     val processStats by appState.serverManager.processStats.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        appState.notifier.notices.collect { notice ->
+            snackbarHostState.showSnackbar(notice.message)
+        }
+    }
 
     LaunchedEffect(currentRoute) {
         appState.refreshServers()
@@ -84,6 +91,7 @@ fun AppNavigation(
     val onRestart: () -> Unit = { scope.launch { appState.serverManager.restart() } }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
@@ -113,8 +121,7 @@ fun AppNavigation(
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
+        NavHost(            navController = navController,
             startDestination = AppTab.HOME.route,
             modifier = Modifier.padding(innerPadding)
         ) {
@@ -137,6 +144,7 @@ fun AppNavigation(
                     tunnelUrl = appState.tunnelUrl,
                     jdkInstalling = appState.jdkInstalling,
                     jdkProgress = appState.jdkProgress,
+                    jdkMessage = appState.jdkMessage,
                     tunnelState = tunnelState,
                     onStart = onStart,
                     onStop = onStop,
@@ -214,6 +222,7 @@ fun AppNavigation(
                     projectId = projectId,
                     servers = appState.servers,
                     getServerDir = { id -> appState.repository.getServerDir(id) },
+                    notifier = appState.notifier,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -251,6 +260,7 @@ fun AppNavigation(
                     jdkInstalled = appState.jdkInstalled,
                     jdkInstalling = appState.jdkInstalling,
                     jdkProgress = appState.jdkProgress,
+                    jdkMessage = appState.jdkMessage,
                     jdkError = appState.jdkError,
                     onReinstallJava = appState.onReinstallJava,
                     onUninstallJava = appState.onUninstallJava,

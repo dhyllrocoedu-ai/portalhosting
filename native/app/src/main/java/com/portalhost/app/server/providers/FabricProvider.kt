@@ -17,31 +17,37 @@ class FabricProvider(
     private val TAG = "FabricProvider"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
+        val url = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
         try {
-            val url = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             val manifest = json.decodeFromString<VanillaManifest>(body)
             manifest.versions
                 .filter { it.type == "release" }
                 .map { it.id }
                 .reversed()
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getVersions: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
-            emptyList()
+            throw ServerProviderException("Failed to load Fabric versions from $url: ${e.message}", e)
         }
     }
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
+        val url = "https://meta.fabricmc.net/v2/versions/loader/$version"
         try {
-            val url = "https://meta.fabricmc.net/v2/versions/loader/$version"
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             val loaders = json.decodeFromString<List<FabricLoaderEntry>>(body)
             loaders.map { BuildInfo("Loader ${it.loader.version}", it.loader.version) }
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getBuildInfos: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
-            emptyList()
+            throw ServerProviderException("Failed to load Fabric loaders for $version from $url: ${e.message}", e)
         }
     }
 

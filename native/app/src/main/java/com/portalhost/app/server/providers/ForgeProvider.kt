@@ -17,24 +17,27 @@ class ForgeProvider(
     private val TAG = "ForgeProvider"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
+        val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
         try {
-            val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             @Suppress("UNCHECKED_CAST")
             val raw = json.decodeFromString<Map<String, List<String>>>(body)
             raw.keys.toList().sortedByDescending { it }
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getVersions: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
-            emptyList()
+            throw ServerProviderException("Failed to load Forge versions from $url: ${e.message}", e)
         }
     }
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
+        val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
         try {
-            val url = "https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json"
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             @Suppress("UNCHECKED_CAST")
             val raw = json.decodeFromString<Map<String, List<String>>>(body)
             val forgeVersions = raw[version] ?: return@withContext emptyList()
@@ -42,9 +45,12 @@ class ForgeProvider(
                 val forge = full.removePrefix("$version-").ifBlank { full }
                 BuildInfo(forge, forge)
             }.reversed()
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getBuildInfos: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
-            emptyList()
+            throw ServerProviderException("Failed to load Forge builds for $version from $url: ${e.message}", e)
         }
     }
 

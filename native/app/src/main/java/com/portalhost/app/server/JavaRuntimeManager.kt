@@ -5,16 +5,33 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+enum class JdkInstallPhase {
+    CONNECTING,
+    DOWNLOADING,
+    EXTRACTING,
+    VERIFYING,
+    COMPLETE,
+    ERROR
+}
+
+data class JdkInstallState(
+    val phase: JdkInstallPhase? = null,
+    val progress: Float = 0f,
+    val message: String = "",
+    val error: String? = null
+)
+
 class JavaRuntimeManager(private val context: Context) {
     private val TAG = "JavaRuntime"
-    private val _installProgress = MutableStateFlow(0f)
-    val installProgress: StateFlow<Float> = _installProgress
+    private val _installState = MutableStateFlow(JdkInstallState())
+    val installState: StateFlow<JdkInstallState> = _installState.asStateFlow()
 
     private val runtimeDir: File
         get() = File(context.filesDir, "runtime/jdk-21")
@@ -28,6 +45,10 @@ class JavaRuntimeManager(private val context: Context) {
     private val tempDir: File
         get() = File(context.cacheDir, "jdk-extract")
 
+    private fun emit(phase: JdkInstallPhase, message: String, progress: Float) {
+        _installState.value = JdkInstallState(phase, progress, message, null)
+    }
+
     suspend fun install(onProgress: ((Float) -> Unit)? = null): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Log.i(TAG, "Installing OpenJDK 21 to ${runtimeDir.absolutePath}")
@@ -37,11 +58,12 @@ class JavaRuntimeManager(private val context: Context) {
                 .readTimeout(120, TimeUnit.SECONDS)
                 .build()
 
+            emit(JdkInstallPhase.CONNECTING, "Connecting to JDK server...", 0f)
+
             // Download from Adoptium API – always resolves to the latest JDK 21 GA build
             val downloadUrl =
                 "https://api.adoptium.net/v3/binary/latest/21/ga/linux/aarch64/jdk/hotspot/normal/eclipse"
             Log.i(TAG, "Downloading JDK from: $downloadUrl")
-            _installProgress.value = 0f
             val archiveFile = File(context.cacheDir, "jdk-21.tar.gz")
 
             val request = Request.Builder().url(downloadUrl).build()
@@ -49,9 +71,11 @@ class JavaRuntimeManager(private val context: Context) {
                 if (!response.isSuccessful) {
                     val msg = "Download failed: HTTP ${response.code}"
                     Log.e(TAG, msg)
+                    _installState.value = JdkInstallState(JdkInstallPhase.ERROR, 0f, "", msg)
                     return@withContext Result.failure(Exception(msg))
                 }
                 val contentLength = response.body?.contentLength() ?: -1L
+                emit(JdkInstallPhase.DOWNLOADING, "Downloading JDK 21...", 0f)
                 response.body?.byteStream()?.use { input ->
                     archiveFile.outputStream().use { output ->
                         val buf = ByteArray(32768)
@@ -62,7 +86,12 @@ class JavaRuntimeManager(private val context: Context) {
                             totalRead += read
                             if (contentLength > 0) {
                                 val pct = totalRead.toFloat() / contentLength.toFloat()
-                                _installProgress.value = pct
+                                _installState.value = JdkInstallState(
+                                    JdkInstallPhase.DOWNLOADING,
+                                    pct,
+                                    "Downloading JDK 21...",
+                                    null
+                                )
                                 onProgress?.invoke(pct)
                             }
                         }
@@ -76,6 +105,7 @@ class JavaRuntimeManager(private val context: Context) {
             tempDir.deleteRecursively()
             tempDir.mkdirs()
 
+            emit(JdkInstallPhase.EXTRACTING, "Extracting JDK...", 0.82f)
             Log.i(TAG, "Extracting ${archiveFile.name} to ${tempDir.absolutePath}...")
             val process = ProcessBuilder(
                 "/system/bin/tar", "-xzf", archiveFile.absolutePath, "-C", tempDir.absolutePath
@@ -102,6 +132,7 @@ class JavaRuntimeManager(private val context: Context) {
                 throw Exception("java binary not found in extracted archive")
             }
 
+            emit(JdkInstallPhase.VERIFYING, "Verifying install...", 0.95f)
             javaBinary.setExecutable(true)
             val javacFile = File(runtimeDir, "bin/javac")
             if (javacFile.exists()) javacFile.setExecutable(true)
@@ -111,13 +142,15 @@ class JavaRuntimeManager(private val context: Context) {
 
             val installed = javaBinary.exists()
             Log.i(TAG, "JDK installed: $installed at ${javaBinary.absolutePath}")
-            _installProgress.value = 1f
             if (!installed) {
+                _installState.value = JdkInstallState(JdkInstallPhase.ERROR, 0f, "", "java binary not found after install")
                 return@withContext Result.failure(Exception("java binary not found after install"))
             }
+            _installState.value = JdkInstallState(JdkInstallPhase.COMPLETE, 1f, "Java runtime installed", null)
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "JDK install failed: ${e.message}", e)
+            _installState.value = JdkInstallState(JdkInstallPhase.ERROR, 0f, "", e.message ?: "JDK install failed")
             Result.failure(e)
         }
     }
@@ -128,5 +161,6 @@ class JavaRuntimeManager(private val context: Context) {
 
     fun uninstall() {
         runtimeDir.deleteRecursively()
+        _installState.value = JdkInstallState(phase = null, progress = 0f, message = "", error = null)
     }
 }

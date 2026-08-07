@@ -34,7 +34,6 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated APKs
-PortalHost.apk
 native/*.apk
 
 # Compose Multiplatform

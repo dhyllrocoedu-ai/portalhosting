@@ -25,6 +25,7 @@ fun StepChooseSource(
     availableVersions: List<String>,
     versionsLoading: Boolean,
     versionsError: String?,
+    versionsFromCache: Boolean = false,
     selectedBuildId: String,
     availableBuilds: List<BuildInfo>,
     buildsLoading: Boolean,
@@ -166,6 +167,15 @@ fun StepChooseSource(
                 }
                 if (mcVersion.isNotBlank()) {
                     Text("Selected: $mcVersion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+
+                if (versionsFromCache) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Showing cached versions (offline or API unavailable). Use Refresh to retry.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
                 // Build picker (for Paper, Fabric, Forge)

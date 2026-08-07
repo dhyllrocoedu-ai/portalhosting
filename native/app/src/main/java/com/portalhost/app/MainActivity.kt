@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
+import com.portalhost.app.notifications.AppNotifier
 import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.JavaRuntimeManager
 import com.portalhost.app.server.ProcessMonitor
@@ -119,10 +120,8 @@ private fun AppEntry(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var jdkInstalled by remember { mutableStateOf(javaRuntimeManager.isInstalled) }
-    var jdkInstalling by remember { mutableStateOf(false) }
-    var jdkProgress by remember { mutableStateOf(0f) }
-    var jdkError by remember { mutableStateOf<String?>(null) }
+    val jdkInstallState by javaRuntimeManager.installState.collectAsState()
+    val notifier = remember { AppNotifier(context.applicationContext) }
 
     // TunnelManager for playit.gg testing
     val tunnelManager = remember { TunnelManager(context) }
@@ -130,7 +129,10 @@ private fun AppEntry(
 
     KeepScreenOnWhileProcessing(
         serverManager = serverManager,
-        jdkInstalling = jdkInstalling
+        jdkInstalling = jdkInstallState.phase == com.portalhost.app.server.JdkInstallPhase.CONNECTING ||
+            jdkInstallState.phase == com.portalhost.app.server.JdkInstallPhase.DOWNLOADING ||
+            jdkInstallState.phase == com.portalhost.app.server.JdkInstallPhase.EXTRACTING ||
+            jdkInstallState.phase == com.portalhost.app.server.JdkInstallPhase.VERIFYING
     )
 
     LaunchedEffect(Unit) {
@@ -139,42 +141,24 @@ private fun AppEntry(
         }
 
         if (!javaRuntimeManager.isInstalled) {
-            jdkInstalling = true
-            val result = javaRuntimeManager.install { progress ->
-                jdkProgress = progress
-            }
-            jdkInstalling = false
-            jdkInstalled = result.isSuccess
+            val result = javaRuntimeManager.install()
             if (result.isSuccess) {
                 Log.i(TAG, "JDK installed successfully")
             } else {
-                jdkError = result.exceptionOrNull()?.message ?: "Unknown error"
-                Log.e(TAG, "JDK install failed: $jdkError")
+                Log.e(TAG, "JDK install failed: ${result.exceptionOrNull()?.message}")
             }
         }
     }
 
     val onReinstallJava: () -> Unit = {
-        javaRuntimeManager.uninstall()
-        jdkInstalled = false
-        jdkProgress = 0f
-        jdkError = null
         scope.launch {
-            jdkInstalling = true
-            val result = javaRuntimeManager.install { progress ->
-                jdkProgress = progress
-            }
-            jdkInstalling = false
-            jdkInstalled = result.isSuccess
-            if (!result.isSuccess) {
-                jdkError = result.exceptionOrNull()?.message ?: "Unknown error"
-            }
+            javaRuntimeManager.uninstall()
+            javaRuntimeManager.install()
         }
     }
 
     val onUninstallJava: () -> Unit = {
         javaRuntimeManager.uninstall()
-        jdkInstalled = false
     }
 
     val onFixupJava: () -> Unit = {
@@ -186,7 +170,6 @@ private fun AppEntry(
     val onClearAppData: () -> Unit = {
         File(filesDir, "servers").deleteRecursively()
         javaRuntimeManager.uninstall()
-        jdkInstalled = false
         repository.clear()
     }
 
@@ -201,16 +184,13 @@ private fun AppEntry(
         consoleStreamer = consoleStreamer,
         repository = repository,
         filesDir = filesDir,
-        jdkInstalled = jdkInstalled,
-        jdkInstalling = jdkInstalling,
-        jdkProgress = jdkProgress,
-        jdkError = jdkError,
-        javaPath = javaRuntimeManager.resolveJavaPath(),
+        javaRuntimeManager = javaRuntimeManager,
         onReinstallJava = onReinstallJava,
         onUninstallJava = onUninstallJava,
         onFixupJava = onFixupJava,
         onClearAppData = onClearAppData,
         activityLog = activityLog,
+        notifier = notifier,
         networkManager = networkManager,
         storageInfo = storageInfo,
         darkTheme = darkTheme,

@@ -18,34 +18,40 @@ class FoliaProvider(
     private val baseUrl = "https://api.papermc.io/v2/projects/folia"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
+        val url = "$baseUrl"
         try {
-            val url = "$baseUrl"
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             val response = json.decodeFromString<FoliaVersionsResponse>(body)
             response.versions
                 .filter { it.matches(Regex("^\\d+(\\.\\d+)*$")) }
                 .distinct()
                 .sortedByDescending { it }
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getVersions: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getVersions: ${e.message}")
-            emptyList()
+            throw ServerProviderException("Failed to load Folia versions from $url: ${e.message}", e)
         }
     }
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/versions/$version/builds"
         try {
-            val url = "$baseUrl/versions/$version/builds"
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext emptyList()
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             val response = json.decodeFromString<FoliaBuildsResponse>(body)
             response.builds
                 .filter { it.channel == "default" }
                 .sortedByDescending { it.build }
                 .map { BuildInfo("#${it.build}", it.build.toString()) }
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getBuildInfos: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
-            emptyList()
+            throw ServerProviderException("Failed to load Folia builds for $version from $url: ${e.message}", e)
         }
     }
 
@@ -57,7 +63,7 @@ class FoliaProvider(
                 "$baseUrl/versions/$version/builds/$buildId"
             }
             val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().body?.string() ?: return@withContext null
+            val body = client.newCall(req).execute().bodyOrThrow(url)
             val response = json.decodeFromString<FoliaBuildResponse>(body)
 
             val app = response.downloads?.get("application") ?: return@withContext null
@@ -65,9 +71,12 @@ class FoliaProvider(
             val sha256 = app.sha256
             val downloadUrl = "$baseUrl/versions/$version/builds/${response.build}/downloads/$jarName"
             DownloadInfo(downloadUrl, sha256, jarName)
+        } catch (e: ServerProviderException) {
+            Log.e(TAG, "getDownloadInfo: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "getDownloadInfo: ${e.message}")
-            null
+            throw ServerProviderException("Failed to resolve Folia download for $version build $buildId: ${e.message}", e)
         }
     }
 

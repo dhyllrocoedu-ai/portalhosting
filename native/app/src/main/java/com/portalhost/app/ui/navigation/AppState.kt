@@ -13,11 +13,15 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.network.NetworkManager
+import com.portalhost.app.notifications.AppNotifier
 import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.DeviceDetector
+import com.portalhost.app.server.JavaRuntimeManager
+import com.portalhost.app.server.JdkInstallPhase
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.providers.ServerType
 import com.portalhost.app.server.ServerManager
+import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
@@ -38,16 +42,14 @@ class AppState(
     val consoleStreamer: ConsoleStreamer,
     val repository: ServerRepository,
     val filesDir: File,
-    val jdkInstalled: Boolean,
-    val jdkInstalling: Boolean,
-    val jdkProgress: Float,
-    val jdkError: String?,
+    val javaRuntimeManager: JavaRuntimeManager,
     val javaPath: String,
     val onReinstallJava: () -> Unit,
     val onUninstallJava: () -> Unit,
     val onFixupJava: () -> Unit,
     val onClearAppData: () -> Unit,
     val activityLog: ActivityLog,
+    val notifier: AppNotifier,
     val networkManager: NetworkManager,
     val storageInfo: StorageInfo,
     val darkTheme: Boolean,
@@ -65,6 +67,99 @@ class AppState(
         private set
     var performanceHistory by mutableStateOf(listOf<com.portalhost.app.ui.screens.StatsSnapshot>())
         private set
+
+    var jdkInstalled by mutableStateOf(javaRuntimeManager.isInstalled)
+        private set
+    var jdkInstalling by mutableStateOf(false)
+        private set
+    var jdkProgress by mutableStateOf(0f)
+        private set
+    var jdkMessage by mutableStateOf("")
+        private set
+    var jdkError by mutableStateOf<String?>(null)
+        private set
+
+    private var lastServerStatus = serverManager.state.value.status
+    private var lastJdkPhase = javaRuntimeManager.installState.value.phase
+
+    init {
+        scope.launch {
+            javaRuntimeManager.installState.collect { state ->
+                jdkProgress = state.progress
+                jdkMessage = state.message
+                jdkError = state.error
+                jdkInstalling = state.phase == JdkInstallPhase.CONNECTING ||
+                    state.phase == JdkInstallPhase.DOWNLOADING ||
+                    state.phase == JdkInstallPhase.EXTRACTING ||
+                    state.phase == JdkInstallPhase.VERIFYING
+                jdkInstalled = javaRuntimeManager.isInstalled
+
+                val prevPhase = lastJdkPhase
+                lastJdkPhase = state.phase
+                if (state.phase == JdkInstallPhase.COMPLETE && prevPhase != JdkInstallPhase.COMPLETE) {
+                    notifier.notify(
+                        message = "Java runtime is ready to start servers.",
+                        success = true,
+                        title = "JDK installed"
+                    )
+                } else if (state.phase == JdkInstallPhase.ERROR && prevPhase != JdkInstallPhase.ERROR) {
+                    notifier.notify(
+                        message = state.error ?: "Failed to install Java runtime.",
+                        success = false,
+                        title = "JDK install failed"
+                    )
+                }
+            }
+        }
+        scope.launch {
+            serverManager.state.collect { state ->
+                notifyServerStatus(state)
+            }
+        }
+    }
+
+    private fun notifyServerStatus(state: ServerState) {
+        val prev = lastServerStatus
+        lastServerStatus = state.status
+        if (state.status == prev) return
+        when (state.status) {
+            ServerStatus.ONLINE -> notifier.notify(
+                message = "Your server is now online.",
+                success = true,
+                title = "Server online"
+            )
+            ServerStatus.STOPPED -> {
+                if (state.exitCode != 0) {
+                    notifier.notify(
+                        message = "The server crashed (exit code ${state.exitCode}).",
+                        success = false,
+                        title = "Server crashed"
+                    )
+                } else {
+                    notifier.notify(
+                        message = "The server was stopped.",
+                        success = true,
+                        title = "Server stopped"
+                    )
+                }
+            }
+            ServerStatus.CRASHED -> notifier.notify(
+                message = state.error ?: "The server failed to start.",
+                success = false,
+                title = "Server crashed"
+            )
+            ServerStatus.OFFLINE -> {
+                if (prev == ServerStatus.ONLINE || prev == ServerStatus.STARTING) {
+                    notifier.notify(
+                        message = "The server is no longer running.",
+                        success = true,
+                        title = "Server stopped"
+                    )
+                }
+            }
+            else -> {}
+        }
+    }
 
     // Debounced StateFlows to reduce recomposition frequency
     private val _processStatsFlow = MutableStateFlow(serverManager.processStats.value)
@@ -254,16 +349,13 @@ fun rememberAppState(
     consoleStreamer: ConsoleStreamer,
     repository: ServerRepository,
     filesDir: File,
-    jdkInstalled: Boolean,
-    jdkInstalling: Boolean,
-    jdkProgress: Float,
-    jdkError: String?,
-    javaPath: String,
+    javaRuntimeManager: JavaRuntimeManager,
     onReinstallJava: () -> Unit,
     onUninstallJava: () -> Unit,
     onFixupJava: () -> Unit,
     onClearAppData: () -> Unit,
     activityLog: ActivityLog,
+    notifier: AppNotifier,
     networkManager: NetworkManager,
     storageInfo: StorageInfo,
     darkTheme: Boolean,
@@ -277,22 +369,20 @@ fun rememberAppState(
             consoleStreamer = consoleStreamer,
             repository = repository,
             filesDir = filesDir,
-            jdkInstalled = jdkInstalled,
-            jdkInstalling = jdkInstalling,
-            javaPath = javaPath,
+            javaRuntimeManager = javaRuntimeManager,
+            javaPath = javaRuntimeManager.resolveJavaPath(),
             onReinstallJava = onReinstallJava,
             onUninstallJava = onUninstallJava,
             onFixupJava = onFixupJava,
             onClearAppData = onClearAppData,
             activityLog = activityLog,
+            notifier = notifier,
             networkManager = networkManager,
             storageInfo = storageInfo,
             darkTheme = darkTheme,
             onToggleTheme = onToggleTheme,
             tunnelUrl = tunnelUrl,
-            onTunnelUrlChange = onTunnelUrlChange,
-            jdkProgress = jdkProgress,
-            jdkError = jdkError
+            onTunnelUrlChange = onTunnelUrlChange
         )
     }
 

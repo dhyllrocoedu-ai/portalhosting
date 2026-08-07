@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.68-mobilev2",
+    "date": "2026-08-07",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.68-mobilev2 (2nd build)</strong></p><ul><li><strong>Server software versions fixed.</strong> \"No versions available\" is gone — version/builds downloads now throw on HTTP errors instead of silently returning empty, and failures surface a clear error message with a Refresh button.</li><li><strong>Persistent version cache.</strong> Fetched versions are cached on disk (5-min TTL) and shown from cache when the API is unreachable, so the picker keeps working offline.</li><li><strong>JDK install with phases.</strong> Java runtime install now reports each phase (connecting, downloading, extracting, verifying) with live progress % and clear failure messages.</li><li><strong>PortalHost logo parity.</strong> The PortalHost logo now appears in-app (header, empty state) and as the launcher icon at every density — matching desktop.</li><li><strong>Unified notifications.</strong> Server status changes (online/crashed/stopped), JDK install results, and add-on install results now show both in-app and as system notifications.</li></ul>"
+  },
+  {
     "version": "5.0.68",
     "date": "2026-08-06",
     "platform": "desktop",

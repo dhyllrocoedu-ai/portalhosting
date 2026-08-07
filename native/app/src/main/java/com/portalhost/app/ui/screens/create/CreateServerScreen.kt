@@ -25,6 +25,7 @@ import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.saveServerIcon
 import kotlinx.coroutines.launch
+import kotlinx.serialization.serializer
 import java.io.File
 
 enum class CreateSource { PICK_FILE, DOWNLOAD_PAPER, DOWNLOAD_VANILLA, DOWNLOAD_FABRIC, DOWNLOAD_FORGE, DOWNLOAD_NEOFORGE, DOWNLOAD_FOLIA, DOWNLOAD_PURPUR }
@@ -64,6 +65,7 @@ fun CreateServerScreen(
     var availableVersions by remember { mutableStateOf<List<String>>(emptyList()) }
     var versionsLoading by remember { mutableStateOf(false) }
     var versionsError by remember { mutableStateOf<String?>(null) }
+    var versionsFromCache by remember { mutableStateOf(false) }
     var selectedBuildId by remember { mutableStateOf("") }
     var availableBuilds by remember { mutableStateOf<List<BuildInfo>>(emptyList()) }
     var buildsLoading by remember { mutableStateOf(false) }
@@ -122,7 +124,7 @@ fun CreateServerScreen(
 
     val scope = rememberCoroutineScope()
     val downloader = remember { ServerDownloader() }
-    val cache = remember { ServerCache() }
+    val cache = remember { ServerCache(context) }
     val scrollState = rememberScrollState()
 
     val provider: ServerProvider? = createSource?.toServerType()?.let { downloader.getProvider(it) }
@@ -131,7 +133,7 @@ fun CreateServerScreen(
     LaunchedEffect(mcVersion, createSource) {
         if (mcVersion.isNotBlank() && (createSource?.supportsBuilds() == true) && provider != null) {
             val cacheKey = "${createSource!!.name}.builds.$mcVersion"
-            val cached = cache.get<List<BuildInfo>>(cacheKey)
+            val cached = cache.get(cacheKey, serializer<List<BuildInfo>>())
             if (cached != null) {
                 availableBuilds = cached
             } else {
@@ -139,14 +141,19 @@ fun CreateServerScreen(
                 buildsError = null
                 try {
                     val builds = provider.getBuildInfos(mcVersion)
-                    cache.set(cacheKey, builds)
+                    cache.set(cacheKey, serializer<List<BuildInfo>>(), builds)
                     availableBuilds = builds
                     if (builds.isEmpty()) {
                         buildsError = "No builds currently available for $mcVersion.\nTry another version or refresh."
                     }
                 } catch (e: Exception) {
-                    buildsError = "Failed to load builds: ${e.message}"
-                    availableBuilds = emptyList()
+                    val stale = cache.getStale(cacheKey, serializer<List<BuildInfo>>())
+                    if (stale != null && stale.isNotEmpty()) {
+                        availableBuilds = stale
+                    } else {
+                        buildsError = "Failed to load builds: ${e.message}"
+                        availableBuilds = emptyList()
+                    }
                 }
                 buildsLoading = false
             }
@@ -240,6 +247,7 @@ fun CreateServerScreen(
                     availableVersions = availableVersions,
                     versionsLoading = versionsLoading,
                     versionsError = versionsError,
+                    versionsFromCache = versionsFromCache,
                     selectedBuildId = selectedBuildId,
                     availableBuilds = availableBuilds,
                     buildsLoading = buildsLoading,
@@ -260,24 +268,31 @@ fun CreateServerScreen(
                         buildsError = null
                         versionsLoading = true
                         versionsError = null
+                        versionsFromCache = false
                         availableVersions = emptyList()
                         val cacheKey = type.name
                         scope.launch {
-                            val cached = cache.get<List<String>>(cacheKey)
+                            val cached = cache.get(cacheKey, serializer<List<String>>())
                             if (cached != null) {
                                 availableVersions = cached
                                 versionsLoading = false
                             } else {
-                                val (vers, err) = try {
+                                val (vers, err, fromStale) = try {
                                     val prov = downloader.getProvider(type.toServerType()!!)
                                     val result = prov.getVersions()
-                                    cache.set(cacheKey, result)
-                                    Pair(result, null)
+                                    cache.set(cacheKey, serializer<List<String>>(), result)
+                                    Triple(result, null, false)
                                 } catch (e: Exception) {
-                                    Pair(emptyList(), e.message ?: "Failed to fetch versions")
+                                    val stale = cache.getStale(cacheKey, serializer<List<String>>())
+                                    if (stale != null && stale.isNotEmpty()) {
+                                        Triple(stale, null, true)
+                                    } else {
+                                        Triple(emptyList(), e.message ?: "Failed to fetch versions", false)
+                                    }
                                 }
                                 availableVersions = vers
                                 versionsError = err
+                                versionsFromCache = fromStale
                                 versionsLoading = false
                             }
                         }

@@ -21,7 +21,7 @@ import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.server.TunnelState
 import com.portalhost.app.storage.StorageStats
-import com.portalhost.app.ui.components.GrassIcon
+import com.portalhost.app.ui.components.PortalHostLogo
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.home.*
@@ -41,6 +41,7 @@ fun HomeScreen(
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
     jdkProgress: Float = 0f,
+    jdkMessage: String = "",
     onStart: () -> Unit,
     onStop: () -> Unit,
     onRestart: () -> Unit,
@@ -92,7 +93,7 @@ fun HomeScreen(
                 .padding(top = 16.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            GrassIcon(size = 28.dp)
+            PortalHostLogo(size = 28.dp)
             Spacer(Modifier.width(10.dp))
             Text("PortalHost", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
@@ -117,7 +118,7 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        GrassIcon(size = 64.dp)
+                        PortalHostLogo(size = 64.dp)
                         Spacer(Modifier.height(16.dp))
                         Text("No servers yet", style = MaterialTheme.typography.titleLarge)
                         Spacer(Modifier.height(8.dp))
@@ -157,7 +158,19 @@ fun HomeScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(12.dp))
-                                Text("Installing Java runtime...")
+                                Column {
+                                    Text(
+                                        if (jdkMessage.isNotBlank()) jdkMessage else "Installing Java runtime...",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    if (jdkProgress > 0f) {
+                                        Text(
+                                            "${(jdkProgress * 100).toInt()}%",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                             if (jdkProgress > 0f) {
                                 Spacer(Modifier.height(8.dp))
