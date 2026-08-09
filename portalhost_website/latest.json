@@ -1,9 +1,9 @@
 {
   "version": "5.0.69",
-  "date": "2026-08-09",
+  "date": "2026-08-10",
   "msi": {
     "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.69--desktopv2/PortalHost-5.0.69.msi",
-    "size": 132894990
+    "size": 132899086
   },
   "exe": {
     "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.69--desktopv2/PortalHost-5.0.69.exe",
