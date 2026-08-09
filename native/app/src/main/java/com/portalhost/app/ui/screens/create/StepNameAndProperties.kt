@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -26,12 +25,21 @@ import com.portalhost.app.ui.screens.MotdEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StepProperties(
-    port: String, gamemode: String, difficulty: String, motd: String,
-    gamemodes: List<String>, difficulties: List<String>,
-    onPortChange: (String) -> Unit, onGamemodeChange: (String) -> Unit,
-    onDifficultyChange: (String) -> Unit, onMotdChange: (String) -> Unit,
-    iconUri: Uri? = null, onIconChange: (Uri?) -> Unit = {}
+fun StepNameAndProperties(
+    name: String,
+    onNameChange: (String) -> Unit,
+    port: String,
+    gamemode: String,
+    difficulty: String,
+    motd: String,
+    gamemodes: List<String>,
+    difficulties: List<String>,
+    onPortChange: (String) -> Unit,
+    onGamemodeChange: (String) -> Unit,
+    onDifficultyChange: (String) -> Unit,
+    onMotdChange: (String) -> Unit,
+    iconUri: Uri? = null,
+    onIconChange: (Uri?) -> Unit = {}
 ) {
     val context = LocalContext.current
     var previewBitmap by remember(iconUri) {
@@ -60,12 +68,60 @@ fun StepProperties(
     }
 
     Column {
-        Text("Server Properties", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Server Details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
-        Text("Configure basic server settings", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(24.dp))
+        Text(
+            "Name your server and configure its basic properties",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(20.dp))
 
-        // Server Icon
+        OutlinedTextField(
+            value = name,
+            onValueChange = onNameChange,
+            label = { Text("Server Name") },
+            placeholder = { Text("My Survival Server") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
+        )
+
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(
+            value = port,
+            onValueChange = { onPortChange(it.filter { c -> c.isDigit() }.take(5)) },
+            label = { Text("Port") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            leadingIcon = { Icon(Icons.Default.Lan, contentDescription = null) }
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text("Gamemode", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(6.dp))
+        FlowRowChips(
+            options = gamemodes,
+            selected = gamemode,
+            onSelect = onGamemodeChange
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Text("Difficulty", style = MaterialTheme.typography.titleSmall)
+        Spacer(Modifier.height(6.dp))
+        FlowRowChips(
+            options = difficulties,
+            selected = difficulty,
+            onSelect = onDifficultyChange
+        )
+
+        Spacer(Modifier.height(16.dp))
+        MotdEditor(motd = motd, onMotdChange = onMotdChange)
+
+        Spacer(Modifier.height(16.dp))
+
+        // Server icon picker
         Card(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier.padding(12.dp).fillMaxWidth(),
@@ -92,50 +148,45 @@ fun StepProperties(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Server Icon", style = MaterialTheme.typography.titleSmall)
-                    Text(if (previewBitmap != null) "Tap to change" else "Select a picture", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (previewBitmap != null) "Tap to change" else "Select a picture",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 OutlinedButton(onClick = { iconPickerLauncher.launch("image/*") }) {
                     Text(if (previewBitmap != null) "Change" else "Select")
                 }
             }
-            Text("Recommended: 64x64 PNG", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 12.dp, bottom = 8.dp))
+            Text(
+                "Recommended: 64x64 PNG",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 12.dp, bottom = 8.dp)
+            )
         }
-        Spacer(Modifier.height(12.dp))
+    }
+}
 
-        OutlinedTextField(
-            value = port,
-            onValueChange = { onPortChange(it.filter { c -> c.isDigit() }.take(5)) },
-            label = { Text("Port") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            leadingIcon = { Icon(Icons.Default.Lan, contentDescription = null) }
-        )
-        Spacer(Modifier.height(12.dp))
-        Text("Gamemode", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            gamemodes.forEach { gm ->
-                FilterChip(
-                    selected = gamemode == gm,
-                    onClick = { onGamemodeChange(gm) },
-                    label = { Text(gm.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
-                )
-            }
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FlowRowChips(
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        options.forEach { opt ->
+            FilterChip(
+                selected = selected == opt,
+                onClick = { onSelect(opt) },
+                label = {
+                    Text(opt.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall)
+                }
+            )
         }
-        Spacer(Modifier.height(12.dp))
-        Text("Difficulty", style = MaterialTheme.typography.titleSmall)
-        Spacer(Modifier.height(4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            difficulties.forEach { diff ->
-                FilterChip(
-                    selected = difficulty == diff,
-                    onClick = { onDifficultyChange(diff) },
-                    label = { Text(diff.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) }
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        MotdEditor(motd = motd, onMotdChange = onMotdChange)
     }
 }

@@ -26,6 +26,7 @@ fun StepChooseSource(
     versionsLoading: Boolean,
     versionsError: String?,
     versionsFromCache: Boolean = false,
+    versionRefreshError: String? = null,
     selectedBuildId: String,
     availableBuilds: List<BuildInfo>,
     buildsLoading: Boolean,
@@ -140,41 +141,56 @@ fun StepChooseSource(
                     Text("Refresh")
                 }
             } else if (!downloading && jarName.isBlank()) {
-                // Version dropdown
-                var versionExpanded by remember { mutableStateOf(false) }
+                // Version field — tap to open the bottom-sheet picker with search + pagination
+                var versionPickerOpen by remember { mutableStateOf(false) }
                 Box {
                     OutlinedTextField(
                         value = if (mcVersion.isNotBlank()) mcVersion else "Select version",
                         onValueChange = {},
                         readOnly = true,
+                        enabled = false,
                         label = { Text("Minecraft Version") },
                         trailingIcon = {
-                            IconButton(onClick = { versionExpanded = true }) {
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Select version")
-                            }
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Select version")
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = availableVersions.isNotEmpty()) {
+                                if (availableVersions.isNotEmpty()) versionPickerOpen = true
+                            },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
-                    DropdownMenu(expanded = versionExpanded, onDismissRequest = { versionExpanded = false }) {
-                        availableVersions.forEach { v ->
-                            DropdownMenuItem(
-                                text = { Text(v) },
-                                onClick = { onVersionChange(v); versionExpanded = false }
-                            )
-                        }
-                    }
                 }
                 if (mcVersion.isNotBlank()) {
                     Text("Selected: $mcVersion", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
 
-                if (versionsFromCache) {
+                if (versionsFromCache || versionRefreshError != null) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Showing cached versions (offline or API unavailable). Use Refresh to retry.",
+                        versionRefreshError
+                            ?: "Showing cached versions (offline or API unavailable). Pull down or retry to refresh.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (versionPickerOpen && availableVersions.isNotEmpty()) {
+                    NativeVersionPickerSheet(
+                        selectedVersion = mcVersion,
+                        availableVersions = availableVersions,
+                        onDismiss = { versionPickerOpen = false },
+                        onVersionSelected = { v ->
+                            onVersionChange(v)
+                            versionPickerOpen = false
+                        }
                     )
                 }
 

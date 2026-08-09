@@ -18,12 +18,14 @@ class PurpurProvider(
     private val baseUrl = "https://api.purpurmc.org/v2/purpur"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/versions"
+        val url = baseUrl
         try {
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<PurpurVersionsResponse>(body)
-            response.versions.sortedByDescending { it }
+            val response = json.decodeFromString<PurpurRootResponse>(body)
+            response.versions
+                .distinct()
+                .sortedByDescending { parseSemver(it) }
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getVersions: ${e.message}")
             throw e
@@ -34,14 +36,15 @@ class PurpurProvider(
     }
 
     override suspend fun getBuildInfos(version: String): List<BuildInfo> = withContext(Dispatchers.IO) {
-        val url = "$baseUrl/versions/$version/builds"
+        val url = "$baseUrl/$version"
         try {
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<PurpurBuildsResponse>(body)
-            response.builds
-                .sortedByDescending { it.build }
-                .map { BuildInfo("#${it.build}", it.build.toString()) }
+            val response = json.decodeFromString<PurpurBuildsWrapper>(body)
+            response.builds.all
+                .distinct()
+                .sortedByDescending { it.toIntOrNull() ?: 0 }
+                .map { BuildInfo("#$it", it) }
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
             throw e
@@ -57,15 +60,11 @@ class PurpurProvider(
                 val builds = getBuildInfos(version)
                 builds.firstOrNull()?.id ?: return@withContext null
             }
-            val url = "$baseUrl/versions/$version/builds/$buildNumber"
-            val req = Request.Builder().url(url).build()
-            val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<PurpurBuildResponse>(body)
-
-            val jarName = response.download
-            val sha256 = response.sha256
-            val downloadUrl = "$baseUrl/versions/$version/builds/$buildNumber/downloads/$jarName"
-            DownloadInfo(downloadUrl, sha256, jarName)
+            DownloadInfo(
+                url = "$baseUrl/$version/$buildNumber/download",
+                sha256 = null,
+                suggestedFileName = "purpur-$version-$buildNumber.jar"
+            )
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getDownloadInfo: ${e.message}")
             throw e
@@ -76,15 +75,19 @@ class PurpurProvider(
     }
 
     @Serializable
-    private data class PurpurVersionsResponse(val versions: List<String>)
+    private data class PurpurRootResponse(
+        val project: String,
+        val versions: List<String>
+    )
+
     @Serializable
-    private data class PurpurBuildsResponse(val builds: List<PurpurBuildEntry>)
+    private data class PurpurBuildsWrapper(
+        val builds: PurpurBuildList
+    )
+
     @Serializable
-    private data class PurpurBuildEntry(val build: Int, val download: String, val sha256: String)
-    @Serializable
-    private data class PurpurBuildResponse(
-        val build: Int,
-        val download: String,
-        val sha256: String? = null
+    private data class PurpurBuildList(
+        val latest: String,
+        val all: List<String>
     )
 }

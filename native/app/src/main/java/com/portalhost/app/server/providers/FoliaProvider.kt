@@ -15,18 +15,18 @@ class FoliaProvider(
     override val type = ServerType.FOLIA
     override val supportsBuilds = true
     private val TAG = "FoliaProvider"
-    private val baseUrl = "https://api.papermc.io/v2/projects/folia"
+    private val baseUrl = "https://fill.papermc.io/v3/projects/folia"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
-        val url = "$baseUrl"
+        val url = baseUrl
         try {
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<FoliaVersionsResponse>(body)
-            response.versions
-                .filter { it.matches(Regex("^\\d+(\\.\\d+)*$")) }
+            val response = json.decodeFromString<FoliaProjectV3>(body)
+            response.versions.values.flatten()
+                .filter { !it.contains("-") }
                 .distinct()
-                .sortedByDescending { it }
+                .sortedByDescending { parseSemver(it) }
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getVersions: ${e.message}")
             throw e
@@ -41,11 +41,11 @@ class FoliaProvider(
         try {
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<FoliaBuildsResponse>(body)
-            response.builds
-                .filter { it.channel == "default" }
-                .sortedByDescending { it.build }
-                .map { BuildInfo("#${it.build}", it.build.toString()) }
+            val builds = json.decodeFromString<List<FoliaBuildEntryV3>>(body)
+            builds
+                .filter { it.channel == "STABLE" }
+                .sortedByDescending { it.id }
+                .map { BuildInfo("#${it.id}", it.id.toString()) }
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
             throw e
@@ -64,13 +64,14 @@ class FoliaProvider(
             }
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<FoliaBuildResponse>(body)
+            val response = json.decodeFromString<FoliaBuildResponseV3>(body)
 
-            val app = response.downloads?.get("application") ?: return@withContext null
-            val jarName = app.name
-            val sha256 = app.sha256
-            val downloadUrl = "$baseUrl/versions/$version/builds/${response.build}/downloads/$jarName"
-            DownloadInfo(downloadUrl, sha256, jarName)
+            val download = response.downloads?.get("server:default") ?: return@withContext null
+            DownloadInfo(
+                url = download.url,
+                sha256 = download.checksums?.get("sha256"),
+                suggestedFileName = download.name
+            )
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getDownloadInfo: ${e.message}")
             throw e
@@ -81,19 +82,33 @@ class FoliaProvider(
     }
 
     @Serializable
-    private data class FoliaVersionsResponse(val versions: List<String>)
-    @Serializable
-    private data class FoliaBuildsResponse(val builds: List<FoliaBuildEntry>)
-    @Serializable
-    private data class FoliaBuildEntry(val build: Int, val channel: String)
-    @Serializable
-    private data class FoliaBuildResponse(
-        val build: Int,
-        val downloads: Map<String, FoliaDownloadEntry>? = null
+    private data class FoliaProjectV3(
+        val project: FoliaProjectInfoV3,
+        val versions: Map<String, List<String>>
     )
+
     @Serializable
-    private data class FoliaDownloadEntry(
+    private data class FoliaProjectInfoV3(val id: String, val name: String)
+
+    @Serializable
+    private data class FoliaBuildEntryV3(
+        val id: Int,
+        val time: String,
+        val channel: String,
+        val downloads: Map<String, FoliaDownloadV3>
+    )
+
+    @Serializable
+    private data class FoliaBuildResponseV3(
+        val id: Int,
+        val downloads: Map<String, FoliaDownloadV3>? = null
+    )
+
+    @Serializable
+    private data class FoliaDownloadV3(
         val name: String,
-        val sha256: String? = null
+        val url: String,
+        val checksums: Map<String, String>? = null,
+        val size: Long? = null
     )
 }

@@ -17,6 +17,7 @@ import com.portalhost.app.notifications.AppNotifier
 import com.portalhost.app.server.ConsoleStreamer
 import com.portalhost.app.server.JavaRuntimeManager
 import com.portalhost.app.server.ProcessMonitor
+import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.server.TunnelManager
@@ -71,6 +72,18 @@ class MainActivity : ComponentActivity() {
         val consoleJob = serverScope.launch {
             serverManager.consoleLines.collect { line ->
                 consoleStreamer.append(line)
+            }
+        }
+
+        // Warm up provider connections (DNS + TLS) so version lists load faster
+        // when the user opens the create-server wizard. Fire-and-forget; failures ignored.
+        val downloaderForWarmup = ServerDownloader()
+        serverScope.launch {
+            for (host in ServerDownloader.PROVIDER_HOSTS) {
+                try {
+                    val req = okhttp3.Request.Builder().url(host).head().build()
+                    downloaderForWarmup.fastClient.newCall(req).execute().close()
+                } catch (_: Exception) { }
             }
         }
 

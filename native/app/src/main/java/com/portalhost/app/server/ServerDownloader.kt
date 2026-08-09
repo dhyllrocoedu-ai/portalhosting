@@ -13,14 +13,30 @@ import java.util.concurrent.TimeUnit
 
 class ServerDownloader {
     private val TAG = "ServerDownloader"
-    private val client = OkHttpClient.Builder()
+
+    val client: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(300, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.MINUTES)
         .followRedirects(true)
         .addInterceptor { chain ->
             val original = chain.request()
             val request = original.newBuilder()
-                .header("User-Agent", "PortalHost/1.0 (https://github.com/user/PortalHost)")
+                .header("User-Agent", "PortalHost/5.0 (https://github.com/dhyllrocoedu-ai/portalhosting)")
+                .build()
+            chain.proceed(request)
+        }
+        .build()
+
+    val fastClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
+        .callTimeout(15, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .addInterceptor { chain ->
+            val original = chain.request()
+            val request = original.newBuilder()
+                .header("User-Agent", "PortalHost/5.0 (https://github.com/dhyllrocoedu-ai/portalhosting)")
                 .build()
             chain.proceed(request)
         }
@@ -29,13 +45,13 @@ class ServerDownloader {
     val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
     fun getProvider(type: ServerType): ServerProvider = when (type) {
-        ServerType.PAPER -> PaperProvider(client, json)
-        ServerType.VANILLA -> VanillaProvider(client, json)
-        ServerType.FABRIC -> FabricProvider(client, json)
-        ServerType.FORGE -> ForgeProvider(client, json)
-        ServerType.NEOFORGE -> NeoForgeProvider(client, json)
-        ServerType.FOLIA -> FoliaProvider(client, json)
-        ServerType.PURPUR -> PurpurProvider(client, json)
+        ServerType.PAPER -> PaperProvider(fastClient, json)
+        ServerType.VANILLA -> VanillaProvider(fastClient, json)
+        ServerType.FABRIC -> FabricProvider(fastClient, json)
+        ServerType.FORGE -> ForgeProvider(fastClient)
+        ServerType.NEOFORGE -> NeoForgeProvider(fastClient, json)
+        ServerType.FOLIA -> FoliaProvider(fastClient, json)
+        ServerType.PURPUR -> PurpurProvider(fastClient, json)
     }
 
     suspend fun download(
@@ -107,5 +123,16 @@ class ServerDownloader {
             }
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    companion object {
+        val PROVIDER_HOSTS = listOf(
+            "https://fill.papermc.io",
+            "https://meta.fabricmc.net",
+            "https://maven.minecraftforge.net",
+            "https://maven.neoforged.net",
+            "https://api.purpurmc.org",
+            "https://launchermeta.mojang.com"
+        )
     }
 }
