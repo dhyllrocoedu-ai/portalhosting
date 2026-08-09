@@ -25,9 +25,9 @@ object HttpCache {
 
     fun fetchWithCache(
         url: String,
-        connectTimeoutMs: Int = 10000,
-        readTimeoutMs: Int = 15000,
-        maxRetries: Int = 2
+        connectTimeoutMs: Int = 5000,
+        readTimeoutMs: Int = 10000,
+        maxRetries: Int = 1
     ): Result<String> {
         for (attempt in 0..maxRetries) {
             try {
@@ -52,6 +52,9 @@ object HttpCache {
                 if (responseCode !in 200..299) {
                     val errorBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
                     conn.disconnect()
+                    if (responseCode == 404 || responseCode == 410) {
+                        return Result.failure(Exception("HTTP $responseCode for $url${if (errorBody.isNotBlank()) ": $errorBody" else ""}"))
+                    }
                     if (attempt < maxRetries) continue
                     return Result.failure(Exception("HTTP $responseCode for $url${if (errorBody.isNotBlank()) ": $errorBody" else ""}"))
                 }
@@ -66,7 +69,7 @@ object HttpCache {
                 return Result.success(body)
             } catch (e: Exception) {
                 if (attempt < maxRetries) {
-                    Thread.sleep(1000L * (attempt + 1))
+                    Thread.sleep(500L * (attempt + 1))
                     continue
                 }
                 return Result.failure(e)
@@ -116,9 +119,9 @@ object HttpCache {
 
     suspend fun fetchWithCacheSuspend(
         url: String,
-        connectTimeoutMs: Int = 10000,
-        readTimeoutMs: Int = 15000,
-        maxRetries: Int = 2
+        connectTimeoutMs: Int = 5000,
+        readTimeoutMs: Int = 10000,
+        maxRetries: Int = 1
     ): Result<String> = withContext(Dispatchers.IO) {
         fetchWithCache(url, connectTimeoutMs, readTimeoutMs, maxRetries)
     }
