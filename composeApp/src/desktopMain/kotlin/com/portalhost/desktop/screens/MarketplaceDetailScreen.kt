@@ -428,7 +428,8 @@ fun MarketplaceDetailScreen(
                                     allGameVersions = allGameVersions,
                                     allLoaders = allLoaders,
                                     allVersionTypes = allVersionTypes,
-                                    accentColor = accentColor
+                                    accentColor = accentColor,
+                                    projectType = p.projectType
                                 )
                                 2 -> ChangelogTab(
                                     selectedVersion = selectedVersion,
@@ -685,48 +686,21 @@ private fun VersionsTab(
     allGameVersions: List<String>,
     allLoaders: List<String>,
     allVersionTypes: List<String>,
-    accentColor: androidx.compose.ui.graphics.Color?
+    accentColor: androidx.compose.ui.graphics.Color?,
+    projectType: String = ""
 ) {
+    val isDatapack = projectType.equals("datapack", ignoreCase = true)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Filter bar
+        // Filter bar (matches reference: Game version chip + Loader/datapack chip)
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Search field
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = versionSearchQuery,
-                    onValueChange = onSearchChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Search versions...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    trailingIcon = {
-                        if (versionSearchQuery.isNotBlank()) {
-                            IconButton(onClick = { onSearchChange("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    },
-                    singleLine = true
-                )
-                FilterChip(
-                    selected = filterGameVersion != null || filterLoader != null || filterVersionType != null,
-                    onClick = { },
-                    label = { Text("Filters") },
-                    leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                )
-            }
-
-            // Filter dropdowns
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -734,49 +708,32 @@ private fun VersionsTab(
             ) {
                 if (allGameVersions.isNotEmpty()) {
                     VersionFilterDropdown(
-                        label = "Game Version",
+                        label = "Game version",
                         value = filterGameVersion,
                         options = allGameVersions,
                         onSelect = { selected ->
                             onFilterChange(selected, filterLoader, filterVersionType)
-                        }
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 if (allLoaders.isNotEmpty()) {
                     VersionFilterDropdown(
-                        label = "Loader",
+                        label = if (isDatapack) "datapack" else "Loader",
                         value = filterLoader,
                         options = allLoaders,
                         onSelect = { selected ->
                             onFilterChange(filterGameVersion, selected, filterVersionType)
-                        }
-                    )
-                }
-                if (allVersionTypes.isNotEmpty()) {
-                    VersionFilterDropdown(
-                        label = "Type",
-                        value = filterVersionType,
-                        options = allVersionTypes.map { it.replaceFirstChar { it.uppercase() } },
-                        optionValues = allVersionTypes,
-                        onSelect = { selected ->
-                            onFilterChange(filterGameVersion, filterLoader, selected)
-                        }
+                        },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
 
-        // Version count
-        Text(
-            text = "Showing ${versions.size} of ${allVersions.size} versions",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 8.dp)
-        )
+        Spacer(Modifier.height(12.dp))
 
-        // Version list
+        // Version list (no search bar to match reference layout)
         if (versions.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -813,7 +770,8 @@ private fun VersionFilterDropdown(
     value: String?,
     options: List<String>,
     optionValues: List<String>? = null,
-    onSelect: (String?) -> Unit
+    onSelect: (String?) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     val values = optionValues ?: options
@@ -821,7 +779,7 @@ private fun VersionFilterDropdown(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },
-        modifier = Modifier.width(160.dp)
+        modifier = modifier
     ) {
         OutlinedTextField(
             value = value ?: label,
@@ -916,62 +874,61 @@ private fun VersionDetailRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
-            .border(if (isSelected) 1.dp else 0.dp, if (isSelected) effectiveAccent else Color.Transparent, RoundedCornerShape(8.dp)),
+            .border(if (isSelected) 1.dp else 0.dp, if (isSelected) effectiveAccent else Color.Transparent, RoundedCornerShape(10.dp)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = if (isSelected)
+                effectiveAccent.copy(alpha = 0.12f)
+            else
+                MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Thin left accent strip when selected
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .background(effectiveAccent, RoundedCornerShape(topStart = 8.dp, topEnd = 0.dp))
-                        .padding(bottom = 8.dp)
-                )
-            }
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Title row: name + versionType chip + (selected checkmark)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = version.name,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                Spacer(Modifier.width(8.dp))
                 VersionTypeChip(type = version.versionType)
+                if (isSelected) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = effectiveAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
             Spacer(Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = version.gameVersions.joinToString(", "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    version.loaders.forEach { loader ->
-                        Text(
-                            text = loader,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                Text(
-                    text = "${formatDownloads(version.downloads)} downloads \u2022 ${version.datePublished.take(10)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            // Game version line
+            Text(
+                text = version.gameVersions.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(2.dp))
+            // Loader · downloads footer
+            Text(
+                text = buildString {
+                    append(version.loaders.joinToString(", "))
+                    append(" \u00B7 ")
+                    append(formatDownloads(version.downloads))
+                    append(" downloads")
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -989,61 +946,69 @@ private fun BottomInstallBar(
     val effectiveAccent = accentColor ?: MaterialTheme.colorScheme.primary
     val isClientSide = isClientSideProject(projectType)
     val hasSelection = selectedVersion != null
+    val fileName = selectedVersion?.let { v ->
+        v.files.firstOrNull { it.primary }?.filename ?: v.files.firstOrNull()?.filename ?: v.name
+    }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
             .background(
                 if (hasSelection)
                     effectiveAccent.copy(alpha = 0.15f)
                 else
                     MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f),
-                RoundedCornerShape(12.dp)
+                RoundedCornerShape(16.dp)
             )
-            .border(if (hasSelection) 1.dp else 0.dp, if (hasSelection) effectiveAccent.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(12.dp)),
+            .border(if (hasSelection) 1.dp else 0.dp, if (hasSelection) effectiveAccent.copy(alpha = 0.3f) else Color.Transparent, RoundedCornerShape(16.dp)),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            selectedVersion?.let { _ ->
-                // Tiny "✓ Selected" indicator using the accent color
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(effectiveAccent)
-                        .padding(end = 4.dp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+            if (hasSelection && fileName != null) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = effectiveAccent,
+                    modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = "Ready to install",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = fileName,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
-                    color = if (hasSelection) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f) else effectiveAccent
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            } ?: Text(
-                text = "Select a version to install",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (isClientSide) {
+            } else {
                 Text(
-                    text = "This is a client-side addon (${projectType.replaceFirstChar { it.uppercase() }}) — cannot be installed to a server",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "Select a version to install",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (isClientSide) {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Client-side only",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error
                 )
             }
         }
+        Spacer(Modifier.width(12.dp))
         if (isDownloading) {
             LinearProgressIndicator(
                 progress = { downloadProgress },
-                modifier = Modifier.width(200.dp),
+                modifier = Modifier.width(160.dp),
                 color = effectiveAccent
             )
         } else {
             Button(
                 onClick = onInstallClick,
                 enabled = selectedVersion != null && servers.isNotEmpty() && !isClientSide,
+                shape = RoundedCornerShape(20.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isClientSide) MaterialTheme.colorScheme.surfaceContainerHighest else effectiveAccent,
                     contentColor = if (isClientSide) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimary
@@ -1051,7 +1016,7 @@ private fun BottomInstallBar(
             ) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(if (isClientSide) "Client-side Only" else "Install to Server")
+                Text(if (isClientSide) "Client-side" else "Install")
             }
         }
     }
