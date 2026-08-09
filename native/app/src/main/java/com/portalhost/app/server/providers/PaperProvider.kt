@@ -15,18 +15,19 @@ class PaperProvider(
     override val type = ServerType.PAPER
     override val supportsBuilds = true
     private val TAG = "PaperProvider"
-    private val baseUrl = "https://api.papermc.io/v2/projects/paper"
+    private val baseUrl = "https://fill.papermc.io/v3/projects/paper"
 
     override suspend fun getVersions(): List<String> = withContext(Dispatchers.IO) {
-        val url = "$baseUrl"
+        val url = baseUrl
         try {
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<PaperVersionsResponse>(body)
-            response.versions
-                .filter { it.matches(Regex("^\\d+(\\.\\d+)*$")) }
+            val response = json.decodeFromString<PaperProjectV3>(body)
+            response.versions.values.flatten()
+                .filter { !it.contains("-") }
                 .distinct()
-                .sortedByDescending { it }
+                .sortedByDescending { parseSemver(it) }
+                .map { it }
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getVersions: ${e.message}")
             throw e
@@ -41,10 +42,11 @@ class PaperProvider(
         try {
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<PaperBuildsResponse>(body)
-            response.builds
-                .sortedByDescending { it.build }
-                .map { BuildInfo("#${it.build}", it.build.toString()) }
+            val builds = json.decodeFromString<List<PaperBuildEntryV3>>(body)
+            builds
+                .filter { it.channel == "STABLE" }
+                .sortedByDescending { it.id }
+                .map { BuildInfo("#${it.id}", it.id.toString()) }
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getBuildInfos: ${e.message}")
             throw e
@@ -63,13 +65,14 @@ class PaperProvider(
             }
             val req = Request.Builder().url(url).build()
             val body = client.newCall(req).execute().bodyOrThrow(url)
-            val response = json.decodeFromString<PaperBuildResponse>(body)
+            val response = json.decodeFromString<PaperBuildResponseV3>(body)
 
-            val app = response.downloads?.get("application") ?: return@withContext null
-            val jarName = app.name
-            val sha256 = app.sha256
-            val downloadUrl = "$baseUrl/versions/$version/builds/${response.build}/downloads/$jarName"
-            DownloadInfo(downloadUrl, sha256, jarName)
+            val download = response.downloads?.get("server:default") ?: return@withContext null
+            DownloadInfo(
+                url = download.url,
+                sha256 = download.checksums?.get("sha256"),
+                suggestedFileName = download.name
+            )
         } catch (e: ServerProviderException) {
             Log.e(TAG, "getDownloadInfo: ${e.message}")
             throw e
@@ -80,19 +83,33 @@ class PaperProvider(
     }
 
     @Serializable
-    private data class PaperVersionsResponse(val versions: List<String>)
-    @Serializable
-    private data class PaperBuildsResponse(val builds: List<PaperBuildEntry>)
-    @Serializable
-    private data class PaperBuildEntry(val build: Int)
-    @Serializable
-    private data class PaperBuildResponse(
-        val build: Int,
-        val downloads: Map<String, PaperDownloadEntry>? = null
+    private data class PaperProjectV3(
+        val project: PaperProjectInfoV3,
+        val versions: Map<String, List<String>>
     )
+
     @Serializable
-    private data class PaperDownloadEntry(
+    private data class PaperProjectInfoV3(val id: String, val name: String)
+
+    @Serializable
+    private data class PaperBuildEntryV3(
+        val id: Int,
+        val time: String,
+        val channel: String,
+        val downloads: Map<String, PaperDownloadV3>
+    )
+
+    @Serializable
+    private data class PaperBuildResponseV3(
+        val id: Int,
+        val downloads: Map<String, PaperDownloadV3>? = null
+    )
+
+    @Serializable
+    private data class PaperDownloadV3(
         val name: String,
-        val sha256: String? = null
+        val url: String,
+        val checksums: Map<String, String>? = null,
+        val size: Long? = null
     )
 }

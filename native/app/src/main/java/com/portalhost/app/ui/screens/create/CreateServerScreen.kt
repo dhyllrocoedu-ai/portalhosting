@@ -24,6 +24,7 @@ import com.portalhost.app.server.providers.*
 import com.portalhost.app.ui.model.ServerConfig
 import com.portalhost.app.ui.model.ServerRepository
 import com.portalhost.app.ui.screens.saveServerIcon
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.serializer
 import java.io.File
@@ -54,7 +55,7 @@ fun CreateServerScreen(
     onBack: () -> Unit
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
-    val totalSteps = 6
+    val totalSteps = 5
 
     var createSource by remember { mutableStateOf<CreateSource?>(null) }
     var jarUri by remember { mutableStateOf<Uri?>(null) }
@@ -84,6 +85,8 @@ fun CreateServerScreen(
     var downloadError by remember { mutableStateOf<String?>(null) }
     var availableStorage by remember { mutableStateOf(0L) }
     var requiredStorage by remember { mutableStateOf(0L) }
+    var versionFetchJob by remember { mutableStateOf<Job?>(null) }
+    var versionRefreshError by remember { mutableStateOf<String?>(null) }
 
     val gamemodes = listOf("survival", "creative", "adventure", "spectator")
     val difficulties = listOf("peaceful", "easy", "normal", "hard")
@@ -248,6 +251,7 @@ fun CreateServerScreen(
                     versionsLoading = versionsLoading,
                     versionsError = versionsError,
                     versionsFromCache = versionsFromCache,
+                    versionRefreshError = versionRefreshError,
                     selectedBuildId = selectedBuildId,
                     availableBuilds = availableBuilds,
                     buildsLoading = buildsLoading,
@@ -266,48 +270,82 @@ fun CreateServerScreen(
                         availableBuilds = emptyList()
                         buildsLoading = false
                         buildsError = null
-                        versionsLoading = true
                         versionsError = null
-                        versionsFromCache = false
+                        versionRefreshError = null
                         availableVersions = emptyList()
                         val cacheKey = type.name
-                        scope.launch {
-                            val cached = cache.get(cacheKey, serializer<List<String>>())
-                            if (cached != null) {
-                                availableVersions = cached
-                                versionsLoading = false
-                            } else {
-                                val (vers, err, fromStale) = try {
-                                    val prov = downloader.getProvider(type.toServerType()!!)
-                                    val result = prov.getVersions()
-                                    cache.set(cacheKey, serializer<List<String>>(), result)
-                                    Triple(result, null, false)
-                                } catch (e: Exception) {
-                                    val stale = cache.getStale(cacheKey, serializer<List<String>>())
-                                    if (stale != null && stale.isNotEmpty()) {
-                                        Triple(stale, null, true)
-                                    } else {
-                                        Triple(emptyList(), e.message ?: "Failed to fetch versions", false)
-                                    }
+
+                        // Stale-while-revalidate: show any cached versions (even expired)
+                        // immediately so the picker is never blank. The fresh fetch runs
+                        // in the background and replaces stale data when it lands.
+                        val cached = cache.getStale(cacheKey, serializer<List<String>>())
+                        if (cached != null && cached.isNotEmpty()) {
+                            availableVersions = cached
+                            versionsFromCache = true
+                            versionsLoading = true
+                        } else {
+                            versionsLoading = true
+                            versionsFromCache = false
+                        }
+
+                        // Cancel any in-flight fetch from a previous selection
+                        versionFetchJob?.cancel()
+
+                        versionFetchJob = scope.launch {
+                            val refreshResult = try {
+                                val prov = downloader.getProvider(type.toServerType()!!)
+                                val fresh = prov.getVersions()
+                                cache.set(cacheKey, serializer<List<String>>(), fresh)
+                                Triple(fresh, null, false)
+                            } catch (e: Exception) {
+                                val stillStale = cache.getStale(cacheKey, serializer<List<String>>())
+                                if (stillStale != null && stillStale.isNotEmpty()) {
+                                    Triple(stillStale, null, true)
+                                } else {
+                                    Triple(emptyList<String>(), e.message ?: "Failed to fetch versions", false)
                                 }
-                                availableVersions = vers
-                                versionsError = err
-                                versionsFromCache = fromStale
-                                versionsLoading = false
                             }
+
+                            availableVersions = refreshResult.first
+                            if (refreshResult.second != null) {
+                                versionsError = refreshResult.second
+                                versionsFromCache = false
+                                versionRefreshError = null
+                            } else {
+                                versionsError = null
+                                versionsFromCache = refreshResult.third
+                                versionRefreshError = if (refreshResult.third) {
+                                    "Could not refresh versions — showing cached."
+                                } else null
+                            }
+                            versionsLoading = false
                         }
                     }
                 )
 
-                1 -> StepServerName(name = serverName, onNameChange = { serverName = it })
+                1 -> StepNameAndProperties(
+                    name = serverName,
+                    onNameChange = { serverName = it },
+                    port = port,
+                    gamemode = gamemode,
+                    difficulty = difficulty,
+                    motd = motd,
+                    gamemodes = gamemodes,
+                    difficulties = difficulties,
+                    onPortChange = { port = it },
+                    onGamemodeChange = { gamemode = it },
+                    onDifficultyChange = { difficulty = it },
+                    onMotdChange = { motd = it },
+                    iconUri = iconUri,
+                    onIconChange = { iconUri = it }
+                )
                 2 -> StepRamConfig(minRam = minRam, maxRam = maxRam, maxRamLimit = maxRamLimit, ramStatus = computeRamStatus(), onMinChange = { minRam = it.coerceAtMost(maxRam) }, onMaxChange = { maxRam = it.coerceAtLeast(minRam) })
-                3 -> StepProperties(port = port, gamemode = gamemode, difficulty = difficulty, motd = motd, gamemodes = gamemodes, difficulties = difficulties, onPortChange = { port = it }, onGamemodeChange = { gamemode = it }, onDifficultyChange = { difficulty = it }, onMotdChange = { motd = it }, iconUri = iconUri, onIconChange = { iconUri = it })
-                4 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
+                3 -> StepStorageCheck(availableBytes = availableStorage, requiredBytes = requiredStorage, maxRam = maxRam, onCheck = {
                     val stat = android.os.StatFs(context.filesDir.absolutePath)
                     availableStorage = stat.availableBlocksLong * stat.blockSizeLong
                     requiredStorage = (maxRam * 1024 * 1024 * 1024).toLong() + 500_000_000L
                 })
-                5 -> StepEula(eulaAccepted = eulaAccepted, onEulaChange = { eulaAccepted = it })
+                4 -> StepEula(eulaAccepted = eulaAccepted, onEulaChange = { eulaAccepted = it })
             }
 
             Spacer(Modifier.weight(1f))
@@ -337,8 +375,8 @@ fun CreateServerScreen(
                         },
                         enabled = when (currentStep) {
                             0 -> step0Complete && !downloading
-                            1 -> serverName.isNotBlank()
-                            4 -> availableStorage > 0 && requiredStorage > 0 && availableStorage >= requiredStorage
+                            1 -> serverName.isNotBlank() && port.toIntOrNull() != null
+                            3 -> availableStorage > 0 && requiredStorage > 0 && availableStorage >= requiredStorage
                             else -> true
                         },
                         modifier = Modifier.weight(1f)
