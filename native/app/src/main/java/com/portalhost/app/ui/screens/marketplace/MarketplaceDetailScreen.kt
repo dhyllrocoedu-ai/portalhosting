@@ -63,6 +63,7 @@ import androidx.compose.ui.window.Dialog
 import com.portalhost.app.notifications.AppNotifier
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.ui.model.ServerConfig
+import com.portalhost.app.ui.screens.create.NativeVersionPickerSheet
 import com.portalhost.marketplace.MarketplaceRepository
 import com.portalhost.marketplace.formatDownloads
 import com.portalhost.marketplace.getSuggestedFolder
@@ -103,7 +104,7 @@ fun MarketplaceDetailScreen(
     // Version filters
     var filterGameVersion by remember { mutableStateOf<String?>(null) }
     var filterLoader by remember { mutableStateOf<String?>(null) }
-    var gameVersionMenuOpen by remember { mutableStateOf(false) }
+    var gameVersionSheetOpen by remember { mutableStateOf(false) }
     var loaderMenuOpen by remember { mutableStateOf(false) }
 
     val allGameVersions = remember(versions) {
@@ -233,36 +234,28 @@ fun MarketplaceDetailScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box {
-                                    FilterChip(
-                                        selected = filterGameVersion != null,
-                                        onClick = { gameVersionMenuOpen = true },
-                                        label = { Text(filterGameVersion ?: "Game version", maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                                    )
-                                    DropdownMenu(expanded = gameVersionMenuOpen, onDismissRequest = { gameVersionMenuOpen = false }) {
-                                        DropdownMenuItem(
-                                            text = { Text("All versions") },
-                                            onClick = {
-                                                filterGameVersion = null
-                                                gameVersionMenuOpen = false
-                                            }
+                                FilterChip(
+                                    selected = filterGameVersion != null,
+                                    onClick = { gameVersionSheetOpen = true },
+                                    label = {
+                                        Text(
+                                            filterGameVersion ?: "Game version",
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
-                                        allGameVersions.forEach { gv ->
-                                            DropdownMenuItem(
-                                                text = { Text(gv) },
-                                                onClick = {
-                                                    filterGameVersion = gv
-                                                    gameVersionMenuOpen = false
-                                                }
-                                            )
-                                        }
                                     }
-                                }
+                                )
                                 Box {
                                     FilterChip(
                                         selected = filterLoader != null,
                                         onClick = { loaderMenuOpen = true },
-                                        label = { Text(filterLoader ?: "Loader", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                        label = {
+                                            Text(
+                                                filterLoader ?: if (p.projectType.equals("datapack", ignoreCase = true)) "datapack" else "Loader",
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     )
                                     DropdownMenu(expanded = loaderMenuOpen, onDismissRequest = { loaderMenuOpen = false }) {
                                         DropdownMenuItem(
@@ -307,6 +300,18 @@ fun MarketplaceDetailScreen(
                 }
             }
         }
+    }
+
+    if (gameVersionSheetOpen && versions.isNotEmpty()) {
+        NativeVersionPickerSheet(
+            selectedVersion = filterGameVersion ?: "",
+            availableVersions = allGameVersions,
+            onDismiss = { gameVersionSheetOpen = false },
+            onVersionSelected = { v ->
+                filterGameVersion = v.ifBlank { null }
+                gameVersionSheetOpen = false
+            }
+        )
     }
 
     if (showInstallDialog && project != null) {

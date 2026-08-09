@@ -1,5 +1,19 @@
 [
   {
+    "version": "5.0.69",
+    "date": "2026-08-10",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.69 (marketplace versions UI)</strong></p><ul><li><strong>Version cards now match the mobile layout.</strong> Each card shows the version title, type chip (RELEASE / BETA), game versions, and the loader + downloads line. Selected cards are tinted with the project accent and get a checkmark.</li><li><strong>Sticky install bar shows the real filename.</strong> When a version is selected, the bottom bar names the file that will be downloaded (e.g. <code>Terralith_1.21.11_v2.6.0.zip</code>) and exposes a single rounded <em>Install</em> button.</li><li><strong>Project-type-aware loader chip.</strong> Datapack projects show a <em>datapack</em> chip next to <em>Game version</em> instead of the generic <em>Loader</em> filter.</li></ul>"
+  },
+  {
+    "version": "5.0.69-mobilev2",
+    "date": "2026-08-10",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.69-mobilev2 (bug fixes + dashboard polish)</strong></p><ul><li><strong>Server no longer crashes on start (libpthread.so.0 fix).</strong> The Java runtime now ships as the Termux-built OpenJDK 21, compiled against Android&rsquo;s bionic libc, so the JVM runs natively on Android without glibc link errors.</li><li><strong>Dashboard server card fits narrow phones.</strong> The card padding, icon size, status badge, and action buttons were re-sized for Tecno Camon 40 / 360 dp viewports. Server name ellipsizes cleanly and chips no longer overflow.</li><li><strong>Players card on the dashboard.</strong> Mirrors the desktop dashboard &mdash; live online players with quick actions and a shortcut to the full Player Management screen.</li><li><strong>Files tab in Server Details.</strong> A new <em>Files</em> tab sits next to <em>Properties</em> and jumps to the existing server file browser.</li><li><strong>Marketplace Game version filter as a bottom sheet.</strong> Tapping the <em>Game version</em> chip now opens the same paginated search sheet used for server software versions.</li></ul>"
+  },
+  {
     "version": "5.0.69-mobilev2",
     "date": "2026-08-10",
     "platform": "mobile",

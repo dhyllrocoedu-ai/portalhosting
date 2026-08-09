@@ -53,7 +53,8 @@ fun ServerDetailScreen(
     onBack: () -> Unit,
     onUpdateServer: (ServerConfig) -> Unit = {},
     onDeleteServer: () -> Unit = {},
-    serverDir: File
+    serverDir: File,
+    onOpenFiles: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -61,6 +62,7 @@ fun ServerDetailScreen(
 
     val tabs = buildList {
         add("Properties")
+        add("Files")
         add("Worlds")
         if (server.serverType.lowercase() in PLUGIN_SERVER_TYPES) add("Plugins")
         if (server.serverType.lowercase() in MOD_SERVER_TYPES) add("Mods")
@@ -81,7 +83,13 @@ fun ServerDetailScreen(
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             ScrollableTabRow(selectedTabIndex = safeTabIndex, edgePadding = 4.dp, modifier = Modifier.padding(vertical = 0.dp)) {
                 tabs.forEachIndexed { index, label ->
-                    Tab(selected = safeTabIndex == index, onClick = { selectedTab = index }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })
+                    Tab(selected = safeTabIndex == index, onClick = {
+                        if (label == "Files") {
+                            onOpenFiles()
+                        } else {
+                            selectedTab = index
+                        }
+                    }, text = { Text(label, maxLines = 1, fontSize = 13.sp) })
                 }
             }
 

@@ -38,6 +38,7 @@ fun HomeScreen(
     activityLog: ActivityLog,
     networkInfo: NetworkInfo,
     storageStats: StorageStats,
+    currentPlayers: List<String> = emptyList(),
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
     jdkProgress: Float = 0f,
@@ -233,6 +234,15 @@ fun HomeScreen(
 
                 // Activity
                 ActivityCard(activityLog = activityLog, onViewAll = onViewActivity)
+
+                // Players (mirrors desktop dashboard)
+                PlayerListCard(
+                    players = currentPlayers,
+                    isOnline = serverState.status == ServerStatus.ONLINE,
+                    onCommand = onCommand,
+                    onOpenPlayers = onOpenPlayers,
+                    maxPlayers = maxPlayers
+                )
 
                 Spacer(Modifier.height(8.dp))
             }

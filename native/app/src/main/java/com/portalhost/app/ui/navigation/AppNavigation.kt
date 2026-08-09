@@ -140,6 +140,7 @@ fun AppNavigation(
                     activityLog = appState.activityLog,
                     networkInfo = appState.networkInfo,
                     storageStats = appState.storageStats,
+                    currentPlayers = state.players,
                     jdkInstalled = appState.jdkInstalled,
                     tunnelUrl = appState.tunnelUrl,
                     jdkInstalling = appState.jdkInstalling,
@@ -302,6 +303,7 @@ fun AppNavigation(
                                 navController.popBackStack()
                             }
                         },
+                        onOpenFiles = { navController.navigate(Routes.serverFiles(server.id)) },
                         serverDir = appState.repository.getServerDir(server.id)
                     )
                 }

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.ServerState
@@ -66,10 +67,10 @@ fun ServerCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -78,36 +79,39 @@ fun ServerCard(
                     Image(
                         bitmap = serverIcon,
                         contentDescription = "${activeServer?.name} icon",
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)),
+                        modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Surface(
-                        modifier = Modifier.size(64.dp),
+                        modifier = Modifier.size(56.dp),
                         shape = RoundedCornerShape(12.dp),
                         color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Default.Storage, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = activeServer?.name ?: "No Server",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = statusColorForBadge.copy(alpha = 0.15f)
                         ) {
                             Text(
                                 text = statusLabel,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = statusColorForBadge,
                                 fontWeight = FontWeight.SemiBold
@@ -117,46 +121,57 @@ fun ServerCard(
                     if (activeServer != null) {
                         Text(
                             text = "${formatServerType(activeServer.serverType)} ${activeServer.mcVersion}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Spacer(Modifier.height(6.dp))
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         if (activeServer != null) {
-                            SuggestionChip(
-                                onClick = {},
-                                label = { Text("MC ${activeServer.mcVersion.ifBlank { "?" }}", fontSize = 10.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            SuggestionChip(
-                                onClick = {},
-                                label = { Text("Java 21", fontSize = 10.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            SuggestionChip(
-                                onClick = {},
-                                label = { Text("RAM ${activeServer.maxRam}", fontSize = 10.sp) },
-                                shape = RoundedCornerShape(8.dp)
-                            )
+                            item {
+                                SuggestionChip(
+                                    onClick = {},
+                                    label = { Text("MC ${activeServer.mcVersion.ifBlank { "?" }}", fontSize = 10.sp, maxLines = 1) },
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                            }
+                            item {
+                                SuggestionChip(
+                                    onClick = {},
+                                    label = { Text("Java 21", fontSize = 10.sp, maxLines = 1) },
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                            }
+                            item {
+                                SuggestionChip(
+                                    onClick = {},
+                                    label = { Text("RAM ${activeServer.maxRam}", fontSize = 10.sp, maxLines = 1) },
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                            }
                         }
                     }
                 }
                 if (serverConfigs.isNotEmpty()) {
-                    IconButton(onClick = { expanded = !expanded }) {
+                    IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(36.dp)) {
                         Icon(
                             if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = "Switch server"
+                            contentDescription = "Switch server",
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val canStart = (serverState.status == ServerStatus.OFFLINE || serverState.status == ServerStatus.STOPPED || serverState.status == ServerStatus.CRASHED) && activeServer != null
                 val canStop = serverState.status == ServerStatus.ONLINE
@@ -241,20 +256,20 @@ private fun RowScope.ControlButton(
     ElevatedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.weight(1f).height(56.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.weight(1f).height(48.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.elevatedButtonColors(
             containerColor = color.copy(alpha = 0.12f),
             contentColor = color,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
-        contentPadding = PaddingValues(vertical = 4.dp)
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = label, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = label, modifier = Modifier.size(18.dp))
             Spacer(Modifier.height(2.dp))
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(label, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
         }
     }
 }
