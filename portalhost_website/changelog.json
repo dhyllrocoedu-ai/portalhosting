@@ -1,5 +1,19 @@
 [
   {
+    "version": "5.0.69-mobilev2",
+    "date": "2026-08-09",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.69-mobilev2</strong></p><ul><li><strong>Server software versions fixed on every non-Vanilla type.</strong> Rewrote the native Paper, Folia, Purpur, Fabric, and Forge providers to match the desktop endpoints and response shapes (Paper/Folia v3 <code>fill.papermc.io</code>, Fabric <code>meta.fabricmc.net</code>, Forge <code>maven.minecraftforge.net</code> XML, Purpur root API). All six providers now load reliably instead of returning 404/410.</li><li><strong>Faster version loading.</strong> Shorter HTTP timeouts (5–10 s connect/read), no retry on 404/410, a separate fast OkHttp client for version/build fetches capped at 15 s, and a connection warmup to all provider hosts at app start so DNS + TLS are already cached when the wizard opens.</li><li><strong>Stale-while-revalidate picker.</strong> When you tap a server type, cached versions render immediately while the fresh fetch runs in the background. The list never goes blank during reload. Previous fetch jobs are cancelled when you switch types so results can&rsquo;t race.</li><li><strong>New version picker UX.</strong> Tap the version field to open a Material3 <strong>ModalBottomSheet</strong> with a sticky search box and a vertically paginated list of versions (10 per page, matching the desktop grid). Empty/no-match state and Prev/Next pagination included.</li><li><strong>5-step create-server wizard.</strong> Server name + properties (port, gamemode, difficulty, MOTD, icon) are now combined into one screen to match the desktop flow. StepStorageCheck, StepRamConfig, and StepEula are unchanged.</li><li><strong>Refresh-error hint.</strong> When the background fetch fails, the picker shows &ldquo;Could not refresh versions &mdash; showing cached.&rdquo; so you know the list is stale.</li><li><strong>Version 5.0.69 parity with desktop.</strong> <code>versionCode = 45</code>, <code>versionName = \"5.0.69-mobilev2\"</code>.</li></ul>"
+  },
+  {
+    "version": "5.0.69",
+    "date": "2026-08-09",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.0.69</strong></p><ul><li><strong>Faster version list loads.</strong> <code>HttpCache</code> and <code>URL.readTextWithTimeout</code> now use shorter timeouts (5 s connect / 10 s read) and stop retrying on 404/410 &mdash; the URL won&rsquo;t change between retries, so retrying was pure latency.</li><li><strong>Connection warmup.</strong> DesktopMain warms up DNS + TLS to all provider hosts (<code>fill.papermc.io</code>, <code>meta.fabricmc.net</code>, <code>maven.minecraftforge.net</code>, <code>maven.neoforged.net</code>, <code>api.purpurmc.org</code>, <code>launchermeta.mojang.com</code>) on startup so opening the create-server wizard is instant.</li><li><strong>Version 5.0.69.</strong> Build version bumped to <code>5.0.69</code> across Gradle, jpackage, and <code>BuildConfig.VERSION_NAME</code>. User-Agent strings updated to <code>PortalHost/5.0.69</code>.</li></ul>"
+  },
+  {
     "version": "5.0.68-mobilev2",
     "date": "2026-08-07",
     "platform": "mobile",
