@@ -191,6 +191,28 @@ fun main() {
         val logRepo = GlobalContext.get().get<com.portalhost.log.LogRepository>()
         setupLogging(logRepo)
         org.slf4j.LoggerFactory.getLogger("PortalHost").info("Application starting")
+
+        // Warm up provider host connections (DNS + TLS) so the version list loads faster.
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            for (host in listOf(
+                "https://fill.papermc.io",
+                "https://meta.fabricmc.net",
+                "https://maven.minecraftforge.net",
+                "https://maven.neoforged.net",
+                "https://api.purpurmc.org",
+                "https://launchermeta.mojang.com"
+            )) {
+                try {
+                    val conn = java.net.URL(host).openConnection() as java.net.HttpURLConnection
+                    conn.connectTimeout = 3000
+                    conn.readTimeout = 3000
+                    conn.requestMethod = "HEAD"
+                    conn.setRequestProperty("User-Agent", "PortalHost/1.0")
+                    conn.connect()
+                    conn.disconnect()
+                } catch (_: Exception) { }
+            }
+        }
     } catch (e: Throwable) {
         System.err.println("FATAL: Failed to initialize application: ${e.message}")
         e.printStackTrace(System.err)

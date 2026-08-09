@@ -15,7 +15,7 @@ interface ServerProvider {
     val id: String
     val name: String
     val supportedTypes: Set<ServerType>
-    
+
     suspend fun fetchVersions(): Result<List<ServerVersion>>
     suspend fun fetchBuilds(version: String): Result<List<ServerBuild>>
     suspend fun downloadBuild(
@@ -68,8 +68,8 @@ fun URL.downloadToFile(
 }
 
 fun URL.readTextWithTimeout(
-    connectTimeoutMs: Int = 10000,
-    readTimeoutMs: Int = 30000,
+    connectTimeoutMs: Int = 5000,
+    readTimeoutMs: Int = 10000,
     headers: Map<String, String> = emptyMap()
 ): String {
     val conn = openConnection() as HttpURLConnection
