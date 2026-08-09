@@ -1,6 +1,13 @@
 [
   {
     "version": "5.0.69-mobilev2",
+    "date": "2026-08-10",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.69-mobilev2 (in-app updater)</strong></p><ul><li><strong>Updates install right inside the app.</strong> Settings &rarr; Check for Updates now downloads the new APK in-app with a live progress dialog (percentage + MB), then hands it to Android&rsquo;s system installer via FileProvider. No more leaving the app to download from a browser.</li><li><strong>Robust failure fallback.</strong> If the download or the system installer fails, you get a clear error and an &ldquo;Open in Browser&rdquo; button that jumps to the APK on the PortalHost site.</li><li><strong>APK now hosted on the PortalHost site.</strong> The Android build is published at <code>portalhost.pages.dev/portalhost-v5.0.69.apk</code> (no GitHub release page in between), and the download page reads the Android URL straight from <code>latest.json</code>.</li></ul>"
+  },
+  {
+    "version": "5.0.69-mobilev2",
     "date": "2026-08-09",
     "platform": "mobile",
     "prerelease": false,

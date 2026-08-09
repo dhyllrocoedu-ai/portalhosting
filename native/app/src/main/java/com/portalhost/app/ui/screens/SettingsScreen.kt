@@ -25,7 +25,9 @@ import com.portalhost.app.ui.components.PortalHostLogo
 import com.portalhost.app.ui.components.RedstoneIcon
 import com.portalhost.app.ui.components.PickaxeIcon
 import com.portalhost.app.ui.model.ServerConfig
+import com.portalhost.app.update.AppUpdater
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +54,9 @@ fun SettingsScreen(
     var checkingUpdate by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<AndroidUpdateInfo?>(null) }
     var updateMessage by remember { mutableStateOf<String?>(null) }
+    var downloadingUpdate by remember { mutableStateOf(false) }
+    var updateProgress by remember { mutableStateOf(0f) }
+    var downloadedApk by remember { mutableStateOf<File?>(null) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -397,7 +402,7 @@ fun SettingsScreen(
     // Update available
     updateInfo?.let { info ->
         AlertDialog(
-            onDismissRequest = { updateInfo = null },
+            onDismissRequest = { if (!downloadingUpdate) updateInfo = null },
             icon = { Icon(Icons.Default.Update, contentDescription = null) },
             title = { Text("Update Available") },
             text = {
@@ -409,18 +414,122 @@ fun SettingsScreen(
                         Text("Size: %.1f MB".format(info.sizeBytes / 1024.0 / 1024.0), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text("Download the APK and install it. Your servers and worlds are kept in the app files directory and won't be lost.")
+                    Text("Tap Download to fetch and install the new version right inside the app. Your servers and worlds are kept in the app files directory and won't be lost.")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        downloadingUpdate = true
+                        updateProgress = 0f
+                        downloadedApk = null
+                        coroutineScope.launch {
+                            val result = AppUpdater.download(context, info) { frac ->
+                                updateProgress = frac
+                            }
+                            result.onSuccess { file ->
+                                downloadedApk = file
+                                downloadingUpdate = false
+                            }.onFailure { e ->
+                                downloadingUpdate = false
+                                updateInfo = null
+                                updateMessage = "Download failed: ${e.message}. Tap Open in Browser to download manually."
+                            }
+                        }
+                    },
+                    enabled = !downloadingUpdate
+                ) { Text("Download") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        if (!downloadingUpdate) {
+                            updateInfo = null
+                            downloadedApk?.let { runCatching { it.delete() } }
+                            downloadedApk = null
+                        }
+                    },
+                    enabled = !downloadingUpdate
+                ) { Text("Later") }
+            }
+        )
+    }
+
+    // Downloading progress
+    if (downloadingUpdate && updateInfo != null) {
+        AlertDialog(
+            onDismissRequest = { },
+            icon = { CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp) },
+            title = { Text("Downloading PortalHost v${updateInfo?.latestVersion}…") },
+            text = {
+                Column {
+                    if ((updateInfo?.sizeBytes ?: 0) > 0) {
+                        LinearProgressIndicator(
+                            progress = { updateProgress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "${(updateProgress * 100).toInt()}%  ·  %.1f MB / %.1f MB".format(
+                                updateInfo!!.sizeBytes * updateProgress / 1024.0 / 1024.0,
+                                updateInfo!!.sizeBytes / 1024.0 / 1024.0
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Downloading…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    // Ready to install
+    val apkReady = downloadedApk
+    val infoForInstall = updateInfo
+    if (apkReady != null && infoForInstall != null && !downloadingUpdate) {
+        AlertDialog(
+            onDismissRequest = {
+                downloadedApk = null
+                updateInfo = null
+            },
+            icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
+            title = { Text("Ready to Install") },
+            text = {
+                Column {
+                    Text("PortalHost v${infoForInstall.latestVersion} has finished downloading.")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Tap Install to open Android's installer. If the install dialog is blocked by 'Install unknown apps', grant the permission for PortalHost in Settings and try again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
+                    runCatching { AppUpdater.install(context, apkReady) }
+                        .onFailure {
+                            updateMessage = "Couldn't start the installer: ${it.message}. Tap Open in Browser to download manually."
+                        }
+                    downloadedApk = null
                     updateInfo = null
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(info.downloadUrl))
-                    context.startActivity(intent)
-                }) { Text("Download") }
+                }) { Text("Install") }
             },
             dismissButton = {
-                TextButton(onClick = { updateInfo = null }) { Text("Later") }
+                TextButton(onClick = {
+                    AppUpdater.openInBrowser(context, infoForInstall)
+                    downloadedApk = null
+                    updateInfo = null
+                }) { Text("Open in Browser") }
             }
         )
     }
@@ -432,7 +541,17 @@ fun SettingsScreen(
             title = { Text("Update Check") },
             text = { Text(message) },
             confirmButton = {
-                TextButton(onClick = { updateMessage = null }) { Text("OK") }
+                if (message.contains("Open in Browser", ignoreCase = true) && updateInfo != null) {
+                    TextButton(onClick = {
+                        updateInfo?.let { AppUpdater.openInBrowser(context, it) }
+                        updateMessage = null
+                    }) { Text("Open in Browser") }
+                } else {
+                    TextButton(onClick = { updateMessage = null }) { Text("OK") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateMessage = null }) { Text("Dismiss") }
             }
         )
     }
