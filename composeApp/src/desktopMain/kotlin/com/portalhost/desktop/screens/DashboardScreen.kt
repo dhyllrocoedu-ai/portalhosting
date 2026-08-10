@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -209,9 +210,14 @@ fun DashboardScreen(
         }
     }
 
-    LaunchedEffect(servers) {
-        if (selectedServerId == null && servers.isNotEmpty()) {
-            selectedServerId = servers.keys.first()
+    LaunchedEffect(servers, serverStates) {
+        // Auto-select the first RUNNING server, or fall back to the first server
+        val runningServer = servers.keys.firstOrNull { id ->
+            serverStates[id]?.status == ServerStatus.RUNNING
+        }
+        val targetId = runningServer ?: servers.keys.firstOrNull()
+        if (targetId != null && selectedServerId != targetId) {
+            selectedServerId = targetId
         }
     }
 
@@ -449,41 +455,54 @@ fun DashboardScreen(
                     onCommandInputChange = { commandInput = it }
                 )
 
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val useTwoColumnLayout = maxWidth >= 900.dp
+BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val useTwoColumnLayout = maxWidth >= 900.dp
 
-                    if (useTwoColumnLayout) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            PlayerListCard(
-                                modifier = Modifier.weight(1f),
-                                players = activeState?.players ?: emptyList(),
-                                onlineCount = activeState?.playersOnline ?: 0,
-                                maxPlayers = activeState?.maxPlayers ?: 20,
-                                onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
-                            )
+                        if (useTwoColumnLayout) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                PlayerListCard(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 300.dp),
+                                    players = activeState?.players ?: emptyList(),
+                                    onlineCount = activeState?.playersOnline ?: 0,
+                                    maxPlayers = activeState?.maxPlayers ?: 20,
+                                    onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
+                                )
 
-                            ActivityCard(
-                                modifier = Modifier.weight(1f),
-                                activities = activities,
-                                onViewAll = onNavigateToActivity
-                            )
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            PlayerListCard(
-                                players = activeState?.players ?: emptyList(),
-                                onlineCount = activeState?.playersOnline ?: 0,
-                                maxPlayers = activeState?.maxPlayers ?: 20,
-                                onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
-                            )
+                                ActivityCard(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .heightIn(min = 300.dp),
+                                    activities = activities,
+                                    onViewAll = onNavigateToActivity
+                                )
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                PlayerListCard(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 250.dp),
+                                    players = activeState?.players ?: emptyList(),
+                                    onlineCount = activeState?.playersOnline ?: 0,
+                                    maxPlayers = activeState?.maxPlayers ?: 20,
+                                    onOpenPlayers = { selectedServerId?.let { onNavigateToPlayers(it) } }
+                                )
 
-                            ActivityCard(activities = activities, onViewAll = onNavigateToActivity)
+                                ActivityCard(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 250.dp),
+                                    activities = activities,
+                                    onViewAll = onNavigateToActivity
+                                )
+                            }
                         }
                     }
-}
 }
     }
 

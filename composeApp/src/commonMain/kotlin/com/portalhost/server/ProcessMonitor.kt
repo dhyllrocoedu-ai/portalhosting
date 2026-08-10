@@ -90,8 +90,9 @@ class ProcessMonitor {
             if (!statFile.exists()) return 0f
 
             val parts = statFile.readText().split(" ")
-            val utime = parts[13].toLong()
-            val stime = parts[14].toLong()
+            if (parts.size < 15) return 0f
+            val utime = parts[13].toLongOrNull() ?: return 0f
+            val stime = parts[14].toLongOrNull() ?: return 0f
             val cpuTime = utime + stime
             val wallTime = System.nanoTime()
 
