@@ -60,6 +60,7 @@ private val HEAD_SKINS = listOf(
 )
 
 private val SKIN_COLORS = listOf(
+    Color(0x00000000), // 0: Transparent (skip)
     Color(0xFFB87C4C), // 1: Skin (Steve)
     Color(0xFF553D2A), // 2: Hair (brown)
     Color(0xFF000000), // 3: Eyes
@@ -84,7 +85,7 @@ fun MinecraftHeadIcon(player: String, modifier: Modifier = Modifier, size: Dp = 
         for (row in skin.indices) {
             for (col in skin[row].indices) {
                 val colorIndex = skin[row][col]
-                if (colorIndex > 0) {
+                if (colorIndex > 0 && colorIndex < SKIN_COLORS.size) {
                     drawRect(
                         color = SKIN_COLORS[colorIndex],
                         topLeft = Offset(col * pixelSize, row * pixelSize),
