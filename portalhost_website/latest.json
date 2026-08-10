@@ -3,11 +3,11 @@
   "date": "2026-08-10",
   "msi": {
     "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.69--desktopv2/PortalHost-5.0.69.msi",
-    "size": 132899086
+    "size": 132890895
   },
   "exe": {
     "url": "https://github.com/dhyllrocoedu-ai/portalhosting/releases/download/v5.0.69--desktopv2/PortalHost-5.0.69.exe",
-    "size": 133568000
+    "size": 133563904
   },
   "android": {
     "version": "5.0.69-mobilev2",
