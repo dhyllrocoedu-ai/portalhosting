@@ -31,7 +31,7 @@ class ServerManager(
     private val processMonitor: ProcessMonitor,
     private val fileSystem: FileSystem,
     private val scope: CoroutineScope,
-    private val database: DatabaseRepository,
+    private val database: DatabaseRepository?,
     private val jdkManager: JdkManager,
     private val activityLog: ActivityLog,
 ) {
@@ -61,15 +61,15 @@ class ServerManager(
     }
 
     fun clearConsole(serverId: String) {
-        database.deleteConsoleLogs(serverId)
+        database?.deleteConsoleLogs(serverId)
         _consoleOutputs.update { it + (serverId to emptyList()) }
     }
 
     fun firstConsoleLogTimestamp(serverId: String, messageLike: String): Long? =
-        database.firstConsoleLogTimestamp(serverId, messageLike)
+        database?.firstConsoleLogTimestamp(serverId, messageLike)
 
     fun lastConsoleLogTimestamp(serverId: String, messageLike: String): Long? =
-        database.lastConsoleLogTimestamp(serverId, messageLike)
+        database?.lastConsoleLogTimestamp(serverId, messageLike)
 
     private fun getLock(serverId: String): Mutex {
         return serverLocks.getOrPut(serverId) { Mutex() }
@@ -80,8 +80,16 @@ class ServerManager(
     }
 
     private fun loadServersFromDatabase() {
-        val configs = database.getAllServers()
-        val states = database.getAllServerStates()
+        val db = database
+        if (db == null) {
+            logger.warn { "Database unavailable - starting with empty server list" }
+            _servers.value = emptyMap()
+            _serverStates.value = emptyMap()
+            _consoleOutputs.value = emptyMap()
+            return
+        }
+        val configs = db.getAllServers()
+        val states = db.getAllServerStates()
         val serversMap = configs.associateBy { it.id }
         _servers.value = serversMap
         _serverStates.value = states
@@ -109,7 +117,7 @@ class ServerManager(
                 oldJar.delete()
             }
 
-            consoleMap[id] = database.getConsoleLogs(id)
+            consoleMap[id] = db.getConsoleLogs(id)
         }
         _consoleOutputs.value = consoleMap
     }
@@ -163,13 +171,13 @@ class ServerManager(
                     jarFile.renameTo(targetJar)
                 }
                 val updatedConfig = newConfig.copy()
-                database.insertServer(updatedConfig)
+                database?.insertServer(updatedConfig)
                 _servers.update { it + (updatedConfig.id to updatedConfig) }
                 val initialState = ServerState(
                     id = updatedConfig.id,
                     status = ServerStatus.STOPPED,
                 )
-                database.updateServerState(updatedConfig.id, initialState)
+                database?.updateServerState(updatedConfig.id, initialState)
                 _serverStates.update { it + (updatedConfig.id to initialState) }
                 logger.info { "Server created: ${updatedConfig.name}" }
                 Result.success(updatedConfig.id)
@@ -210,9 +218,9 @@ class ServerManager(
             }
         }
 
-        database.insertServer(newConfig)
+        database?.insertServer(newConfig)
         val initialState = ServerState(id = newConfig.id, status = ServerStatus.STOPPED)
-        database.updateServerState(newConfig.id, initialState)
+        database?.updateServerState(newConfig.id, initialState)
         _serverStates.update { it + (newConfig.id to initialState) }
 
         val flatJar = java.io.File(serversDir, "${newConfig.id}.jar")
@@ -269,7 +277,7 @@ class ServerManager(
                         current.add(line)
                         output + (serverId to current)
                     }
-                    database.insertConsoleLog(serverId, line)
+                    database?.insertConsoleLog(serverId, line)
                     processMonitor.parseTps(line)?.let { tps ->
                         _processStats.update { stats ->
                             val current = stats[serverId] ?: ProcessStats()
@@ -287,7 +295,7 @@ class ServerManager(
                             status = ServerStatus.RUNNING,
                             pid = processHandle.pid
                         )
-                        database.updateServerState(serverId, runningState)
+                        database?.updateServerState(serverId, runningState)
                         _serverStates.update { states ->
                             states + (serverId to runningState)
                         }
@@ -332,7 +340,7 @@ class ServerManager(
         if (process == null) {
             logger.warn { "No running process for $serverId, marking as stopped" }
             val newState = ServerState(id = serverId, status = ServerStatus.STOPPED, pid = null)
-            database.updateServerState(serverId, newState)
+            database?.updateServerState(serverId, newState)
             _serverStates.update { current -> current + (serverId to newState) }
             return@withContext Result.success(Unit)
         }
@@ -366,7 +374,7 @@ class ServerManager(
 
         activeProcesses.remove(serverId)
         val newState = ServerState(id = serverId, status = ServerStatus.STOPPED, pid = null)
-        database.updateServerState(serverId, newState)
+        database?.updateServerState(serverId, newState)
         _serverStates.update { current -> current + (serverId to newState) }
         logger.info { "Server stopped: ${config?.name ?: serverId}" }
         activityLog.logServerOffline(serverId, config?.name ?: serverId)
@@ -396,7 +404,7 @@ class ServerManager(
         val config = _servers.value[serverId]
         logger.info { "Deleting server: ${config?.name ?: serverId}" }
         stopServerInternal(serverId)
-        database.deleteServer(serverId)
+        database?.deleteServer(serverId)
         _servers.update { it - serverId }
         _serverStates.update { it - serverId }
         activeProcesses.remove(serverId)
@@ -539,7 +547,7 @@ class ServerManager(
 
             val newStatus = if (exitCode == 0) ServerStatus.STOPPED else ServerStatus.CRASHED
             val newState = ServerState(id = serverId, status = newStatus, pid = null)
-            database.updateServerState(serverId, newState)
+            database?.updateServerState(serverId, newState)
             _serverStates.update { current ->
                 current + (serverId to newState)
             }

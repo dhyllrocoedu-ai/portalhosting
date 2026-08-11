@@ -181,13 +181,21 @@ fun DesktopApp(
 }
 
 fun main() {
+    // Surface any uncaught crash (including inside the Compose loop) instead of
+    // dying silently - the app must never appear to "not open" without a reason.
+    Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+        fatalStartup("Unexpected error", throwable, null)
+    }
+
     // Acquire a single-instance lock so two PortalHost processes cannot run at
     // the same time. This prevents the silent-update restart from spawning a
     // second PortalHost.exe that fights with the old (still-shutting-down) one
     // for file locks on the install directory.
     val instanceLock = SingleInstanceLock.acquire()
     if (instanceLock == null) {
-        System.err.println("PortalHost is already running. Exiting duplicate instance.")
+        // Another instance is actually running (or a stale lock we could not
+        // recover). Tell the user instead of exiting silently.
+        SingleInstanceLock.showAlreadyRunningDialog()
         return
     }
 
@@ -198,6 +206,8 @@ fun main() {
         instanceLock.release()
     })
 
+    lateinit var prefs: Preferences
+    lateinit var serverManager: ServerManager
     try {
         // Runs before the database is opened: if the data directory lives inside
         // the install folder, offer to move it out so an uninstall cannot wipe it.
@@ -231,15 +241,13 @@ fun main() {
                 } catch (_: Exception) { }
             }
         }
+
+        prefs = GlobalContext.get().get<Preferences>()
+        serverManager = GlobalContext.get().get<ServerManager>()
     } catch (e: Throwable) {
-        System.err.println("FATAL: Failed to initialize application: ${e.message}")
-        e.printStackTrace(System.err)
-        instanceLock.release()
+        fatalStartup("Failed to initialize application", e, instanceLock)
         return
     }
-
-        val prefs = GlobalContext.get().get<Preferences>()
-        val serverManager = GlobalContext.get().get<ServerManager>()
     val savedWidth = prefs.windowWidth.value
     val savedHeight = prefs.windowHeight.value
 
@@ -387,4 +395,53 @@ fun main() {
             }
         }
     }
+}
+
+/**
+ * Never let the app die silently: write a diagnostic file (data dir first,
+ * temp dir as fallback) and show a visible error dialog so a failed launch
+ * always has an explanation.
+ */
+private fun fatalStartup(reason: String, e: Throwable, instanceLock: SingleInstanceLock?) {
+    try { instanceLock?.release() } catch (_: Throwable) {}
+    val message = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+    val trace = e.stackTraceToString()
+    System.err.println("FATAL: $reason: $message")
+    e.printStackTrace(System.err)
+
+    val logFile = runCatching {
+        val dataDir = System.getProperty("portalhost.data.dir")?.takeIf { it.isNotBlank() }
+            ?: defaultDataDir().absolutePath
+        val file = File(dataDir, "startup-error.log").also { it.parentFile?.mkdirs() }
+        file.appendText(
+            "\n===== ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())} =====\n" +
+                "$reason\n$message\n$trace\n"
+        )
+        file
+    }.getOrNull() ?: runCatching {
+        val file = File(System.getProperty("java.io.tmpdir"), "portalhost-startup-error.log")
+        file.appendText(
+            "\n===== ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())} =====\n" +
+                "$reason\n$message\n$trace\n"
+        )
+        file
+    }.getOrNull()
+
+    try {
+        java.awt.EventQueue.invokeLater {
+            javax.swing.JOptionPane.showMessageDialog(
+                null,
+                buildString {
+                    append("Portal Host could not start.\n\n")
+                    append("$reason:\n")
+                    append(message)
+                    append("\n\nDetails written to:\n")
+                    append(logFile?.absolutePath ?: "(could not write log file)")
+                    append("\n\nPlease report this error so it can be fixed.")
+                },
+                "Portal Host - Startup Error",
+                javax.swing.JOptionPane.ERROR_MESSAGE
+            )
+        }
+    } catch (_: Throwable) { }
 }
