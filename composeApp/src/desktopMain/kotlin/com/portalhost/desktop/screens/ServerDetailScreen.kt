@@ -307,6 +307,7 @@ fun ServerDetailScreen(
             add("Performance")
             add("Logs")
             add("RCON")
+            add("Map")
         }
         val safeTabIndex = selectedTab.coerceIn(0, tabs.lastIndex)
         SecondaryScrollableTabRow(selectedTabIndex = safeTabIndex, edgePadding = 4.dp) {
@@ -330,6 +331,7 @@ fun ServerDetailScreen(
             "Performance" -> PerformanceScreen(serverId = serverId, onBack = { selectedTab = 0 })
             "Logs" -> LogViewerScreen(serverId = serverId, onBack = { selectedTab = 0 })
             "RCON" -> RconScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            "Map" -> WorldMapScreen(serverId = serverId, onBack = { selectedTab = 0 })
         }
     }
 }

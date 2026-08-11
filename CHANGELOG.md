@@ -1,5 +1,24 @@
 # Changelog
 
+## v5.1.0--desktopv2 (2026-08-11)
+
+### Features
+- **Player Detail screen** — New dedicated screen per player with real Mojang skin bitmap (when online), pixel-art fallback (when offline), UUID with copy button, name history, first/last seen (from usercache.json + console log join events), whitelisted/operator/banned status chips, and quick actions (kick, ban with reason, OP/De-OP, whitelist toggle)
+- **World Map tab** — New "Map" tab in ServerDetailScreen. Phase A+D: visualizes which chunks have been generated in the world (region outline), plus live player position markers polled every 3 seconds via RCON (`data get entity`). Pan with drag, zoom 1×-16× per chunk cell, click a chunk to see its coords. World dir dropdown (overworld/nether/end).
+- **PlayerProfileRepository** — Reads `<serverDir>/usercache.json`, normalizes UUIDs to dashed form, joins with `console_logs` table for first/last seen timestamps
+- **MojangSkinService** — Ktor-based sessionserver.mojang.com client with 5s/10s timeouts, per-UUID mutex dedupe, 429 handled gracefully
+- **SkinRenderCache** — Two-tier cache (memory LRU + disk PNG + URL sidecar) so skin bitmaps persist across launches
+- **RegionFileIndex** — Parses `.mca` location tables only (Phase A; biome/terrain decoding deferred to a pluggable `ChunkDecoder` interface)
+- **EntityPositionService** — RCON-driven live XYZ for online players, used by the World Map
+
+### Bug Fixes
+- **MinecraftHeadIcon SKIN_COLORS bounds** — Added missing index 9 (Skeleton bone color) so the Skeleton skin variant no longer crashes with `IndexOutOfBoundsException` when a player's name hash selects it
+
+### Tests
+- `RegionFileIndexTest` — synthesized `.mca` location tables covering all-present, all-absent, mixed
+- `PlayerProfileRepositoryTest` — UUID normalization (dashes, uppercase, invalid)
+- `MojangSkinServiceTest` — MockEngine fixtures for 200 OK and 429 responses
+
 ## v5.0.0--desktopv2 (2026-07-17)
 
 ### Features

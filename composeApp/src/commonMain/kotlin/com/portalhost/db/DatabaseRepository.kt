@@ -131,6 +131,76 @@ class DatabaseRepository(
         stmt.close()
     }
 
+    data class ConsoleLogRow(val timestamp: Long, val level: String, val message: String)
+
+    fun queryConsoleLogs(serverId: String, messageLike: String? = null, limit: Int = 500): List<ConsoleLogRow> {
+        return try {
+            val baseSql = "SELECT timestamp, level, message FROM console_logs WHERE server_id = ?" +
+                (if (messageLike != null) " AND message LIKE ?" else "") +
+                " ORDER BY timestamp ASC LIMIT ?"
+            val stmt = connection.prepareStatement(baseSql)
+            stmt.setString(1, serverId)
+            var idx = 2
+            if (messageLike != null) {
+                stmt.setString(idx++, messageLike)
+            }
+            stmt.setInt(idx, limit)
+            val rs = stmt.executeQuery()
+            val results = mutableListOf<ConsoleLogRow>()
+            while (rs.next()) {
+                results.add(
+                    ConsoleLogRow(
+                        timestamp = rs.getLong("timestamp"),
+                        level = rs.getString("level"),
+                        message = rs.getString("message"),
+                    )
+                )
+            }
+            rs.close()
+            stmt.close()
+            results
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to query console logs for $serverId" }
+            emptyList()
+        }
+    }
+
+    fun firstConsoleLogTimestamp(serverId: String, messageLike: String): Long? {
+        return try {
+            val stmt = connection.prepareStatement(
+                "SELECT MIN(timestamp) AS t FROM console_logs WHERE server_id = ? AND message LIKE ?"
+            )
+            stmt.setString(1, serverId)
+            stmt.setString(2, messageLike)
+            val rs = stmt.executeQuery()
+            val result = if (rs.next()) rs.getLong("t").takeIf { !rs.wasNull() } else null
+            rs.close()
+            stmt.close()
+            result
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to query first console log for $serverId" }
+            null
+        }
+    }
+
+    fun lastConsoleLogTimestamp(serverId: String, messageLike: String): Long? {
+        return try {
+            val stmt = connection.prepareStatement(
+                "SELECT MAX(timestamp) AS t FROM console_logs WHERE server_id = ? AND message LIKE ?"
+            )
+            stmt.setString(1, serverId)
+            stmt.setString(2, messageLike)
+            val rs = stmt.executeQuery()
+            val result = if (rs.next()) rs.getLong("t").takeIf { !rs.wasNull() } else null
+            rs.close()
+            stmt.close()
+            result
+        } catch (e: Exception) {
+            logger.error(e) { "Failed to query last console log for $serverId" }
+            null
+        }
+    }
+
     // Backup CRUD
     fun insertBackup(backup: BackupEntry) {
         val stmt = connection.prepareStatement(

@@ -60,6 +60,7 @@ import com.portalhost.desktop.screens.AboutScreen
 import com.portalhost.desktop.screens.MarketplaceDetailScreen
 import com.portalhost.desktop.screens.MarketplaceScreen
 import com.portalhost.desktop.screens.PlayerManagementScreen
+import com.portalhost.desktop.screens.PlayerDetailScreen
 import com.portalhost.desktop.screens.RecentActivityScreen
 import com.portalhost.desktop.screens.ServerConsoleScreen
 import com.portalhost.desktop.screens.ServerDetailScreen
@@ -81,6 +82,7 @@ sealed class Screen {
     object Create : Screen()
     object Settings : Screen()
     data class Players(val serverId: String) : Screen()
+    data class PlayerDetail(val serverId: String, val uuid: String) : Screen()
     object Marketplace : Screen()
     data class MarketplaceDetail(val projectId: String) : Screen()
     object About : Screen()
@@ -336,7 +338,13 @@ fun ScreenContent(
     )
     is Screen.Players -> PlayerManagementScreen(
         serverId = (screen as Screen.Players).serverId,
-        onBack = { onNavigate(Screen.Home) }
+        onBack = { onNavigate(Screen.Home) },
+        onOpenPlayer = { uuid -> onNavigate(Screen.PlayerDetail((screen as Screen.Players).serverId, uuid)) }
+    )
+    is Screen.PlayerDetail -> PlayerDetailScreen(
+        serverId = (screen as Screen.PlayerDetail).serverId,
+        uuid = (screen as Screen.PlayerDetail).uuid,
+        onBack = { onNavigate(Screen.Players((screen as Screen.PlayerDetail).serverId)) }
     )
     Screen.Settings -> SettingsScreen()
     Screen.Marketplace -> MarketplaceScreen(

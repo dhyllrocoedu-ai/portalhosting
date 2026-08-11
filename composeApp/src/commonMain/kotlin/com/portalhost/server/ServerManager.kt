@@ -65,6 +65,12 @@ class ServerManager(
         _consoleOutputs.update { it + (serverId to emptyList()) }
     }
 
+    fun firstConsoleLogTimestamp(serverId: String, messageLike: String): Long? =
+        database.firstConsoleLogTimestamp(serverId, messageLike)
+
+    fun lastConsoleLogTimestamp(serverId: String, messageLike: String): Long? =
+        database.lastConsoleLogTimestamp(serverId, messageLike)
+
     private fun getLock(serverId: String): Mutex {
         return serverLocks.getOrPut(serverId) { Mutex() }
     }

@@ -1,5 +1,6 @@
 package com.portalhost.desktop.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,24 +63,19 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import com.portalhost.server.ServerManager
 import com.portalhost.model.ServerStatus
+import com.portalhost.player.BannedIpEntry
+import com.portalhost.player.BannedPlayerEntry
+import com.portalhost.player.OpEntry
+import com.portalhost.player.WhitelistEntry
 import org.koin.compose.koinInject
 import java.io.File
 import kotlin.OptIn
 
 private val playerJson = Json { prettyPrint = true }
 
-@Serializable
-data class WhitelistEntry(val uuid: String, val name: String)
-@Serializable
-data class OpEntry(val uuid: String, val name: String, val level: Int = 4, val bypassesPlayerLimit: Boolean = false)
-@Serializable
-data class BannedPlayerEntry(val uuid: String, val name: String, val created: String? = null, val source: String? = null, val expires: String? = null, val reason: String? = null)
-@Serializable
-data class BannedIpEntry(val ip: String, val created: String? = null, val source: String? = null, val expires: String? = null, val reason: String? = null)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
+fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}, onOpenPlayer: (String) -> Unit = {}) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Online", "Whitelist", "Operators", "Banned Players", "Banned IPs")
     val serverManager = koinInject<ServerManager>()
@@ -115,17 +111,17 @@ fun PlayerManagementScreen(serverId: String, onBack: () -> Unit = {}) {
         }
 
         when (selectedTab) {
-            0 -> OnlinePlayersTab(serverManager, serverId)
-            1 -> WhitelistTab(serverDir)
-            2 -> OperatorsTab(serverDir)
-            3 -> BannedPlayersTab(serverDir)
+            0 -> OnlinePlayersTab(serverManager, serverId, onOpenPlayer)
+            1 -> WhitelistTab(serverDir, onOpenPlayer)
+            2 -> OperatorsTab(serverDir, onOpenPlayer)
+            3 -> BannedPlayersTab(serverDir, onOpenPlayer)
             4 -> BannedIpsTab(serverDir)
         }
     }
 }
 
 @Composable
-private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String) {
+private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String, onOpenPlayer: (String) -> Unit) {
     val serverStates by serverManager.serverStates.collectAsState()
     val state = serverStates[serverId]
     val players = state?.players ?: emptyList()
@@ -166,6 +162,12 @@ private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String) {
                                     writer.flush()
                                 } catch (_: Exception) {}
                             }
+                        },
+                        onOpenDetail = {
+                            serverManager.servers.value[serverId]?.let { cfg ->
+                                val uuid = java.util.UUID.nameUUIDFromBytes(player.toByteArray()).toString()
+                                onOpenPlayer(uuid)
+                            }
                         }
                     )
                 }
@@ -177,7 +179,8 @@ private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String) {
 @Composable
 private fun PlayerActionCard(
     player: String,
-    onCommand: (String) -> Unit
+    onCommand: (String) -> Unit,
+    onOpenDetail: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
@@ -188,7 +191,7 @@ private fun PlayerActionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onOpenDetail)) {
                 MinecraftHeadIcon(player = player, size = 24.dp)
                 Spacer(Modifier.width(12.dp))
                 Text(player, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
@@ -258,7 +261,7 @@ private fun ActionButton(
 }
 
 @Composable
-private fun WhitelistTab(serverDir: File) {
+private fun WhitelistTab(serverDir: File, onOpenPlayer: (String) -> Unit) {
     val file = File(serverDir, "whitelist.json")
     var players by remember(file) { mutableStateOf<List<WhitelistEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
@@ -348,7 +351,7 @@ private fun WhitelistTab(serverDir: File) {
                         ) {
                             androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Filled.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f).clickable { onOpenPlayer(player.uuid) }) {
                                 Text(player.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text("UUID: ${player.uuid}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -385,7 +388,7 @@ private fun WhitelistTab(serverDir: File) {
 }
 
 @Composable
-private fun OperatorsTab(serverDir: File) {
+private fun OperatorsTab(serverDir: File, onOpenPlayer: (String) -> Unit) {
     val file = File(serverDir, "ops.json")
     var players by remember(file) { mutableStateOf<List<OpEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
@@ -483,7 +486,7 @@ private fun OperatorsTab(serverDir: File) {
                         ) {
                             androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Filled.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f).clickable { onOpenPlayer(player.uuid) }) {
                                 Text(player.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text("UUID: ${player.uuid} | Level: ${player.level}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -520,7 +523,7 @@ private fun OperatorsTab(serverDir: File) {
 }
 
 @Composable
-private fun BannedPlayersTab(serverDir: File) {
+private fun BannedPlayersTab(serverDir: File, onOpenPlayer: (String) -> Unit) {
     val file = File(serverDir, "banned-players.json")
     var players by remember(file) { mutableStateOf<List<BannedPlayerEntry>>(emptyList()) }
     var newName by remember { mutableStateOf("") }
@@ -626,7 +629,7 @@ private fun BannedPlayersTab(serverDir: File) {
                         ) {
                             androidx.compose.material.Icon(androidx.compose.material.icons.Icons.Filled.Block, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f).clickable { onOpenPlayer(player.uuid) }) {
                                 Text(player.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                                 Text("UUID: ${player.uuid} | Reason: ${player.reason}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }

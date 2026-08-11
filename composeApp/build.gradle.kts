@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.0.69"
+version = "5.1.0"
 
 kotlin {
     jvm("desktop")
@@ -45,6 +45,13 @@ kotlin {
                 implementation("net.java.dev.jna:jna-platform:5.14.0")
             }
         }
+        val desktopTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")
+                implementation("io.ktor:ktor-client-mock:3.0.0")
+            }
+        }
         configurations.all {
             resolutionStrategy {
                 force("androidx.compose.ui:ui-text:1.7.2")
@@ -65,7 +72,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.0.69"
+            packageVersion = "5.1.0"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             windows {
