@@ -95,6 +95,25 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 
 val jdkHome = file(System.getenv("JAVA_HOME") ?: System.getProperty("java.home"))
 
+val generateVersionResource by tasks.registering {
+    val versionFile = file("src/desktopMain/resources/version.txt")
+    outputs.file(versionFile)
+    inputs.property("version", project.version.toString())
+    doLast {
+        versionFile.parentFile.mkdirs()
+        versionFile.writeText("${project.version}\n")
+        println("Wrote ${versionFile.absolutePath} with version ${project.version}")
+    }
+}
+
+tasks.named("desktopProcessResources") {
+    dependsOn(generateVersionResource)
+    inputs.file(file("src/desktopMain/resources/version.txt"))
+}
+tasks.matching { it.name == "createRuntimeImage" || it.name == "createDistributable" }.configureEach {
+    dependsOn(generateVersionResource)
+}
+
 val restoreJavaExeInRuntime by tasks.registering {
     val runtimeBin = file("build/compose/tmp/main/runtime/bin")
     outputs.dir(runtimeBin)

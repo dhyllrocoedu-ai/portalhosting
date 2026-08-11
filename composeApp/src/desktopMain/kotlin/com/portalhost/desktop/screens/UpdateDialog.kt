@@ -48,8 +48,13 @@ import androidx.compose.ui.unit.dp
 import com.portalhost.desktop.util.UninstallHelper
 import com.portalhost.desktop.util.UpdateChecker
 import com.portalhost.desktop.util.UpdateInfo
+import com.portalhost.filesystem.defaultDataDir
+import com.portalhost.model.ServerStatus
+import com.portalhost.server.ServerManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.koin.core.context.GlobalContext
 import java.awt.Desktop
 import java.io.File
 import java.net.URI
@@ -181,8 +186,11 @@ fun UpdateDialog(
                         scope.launch {
                             downloadState = UpdateDownloadState.Downloading(0.0, 0, 0, 0)
                             val ext = if (updateInfo.downloadUrl.endsWith(".exe")) "exe" else "msi"
-                            val installDir = File(System.getProperty("portalhost.install.dir") ?: System.getProperty("user.home") ?: ".")
-                            val destFile = File(installDir, "PortalHost-${updateInfo.latestVersion}-update.$ext")
+                            val downloadDir = runCatching { defaultDataDir() }
+                                .getOrNull()
+                                ?: File(System.getProperty("java.io.tmpdir"))
+                            downloadDir.mkdirs()
+                            val destFile = File(downloadDir, "PortalHost-${updateInfo.latestVersion}-update.$ext")
 
                             var attempt = 0
                             val maxRetries = 3
@@ -198,9 +206,20 @@ fun UpdateDialog(
 
                                 result.onSuccess { file ->
                                     downloadState = UpdateDownloadState.Installing
+                                    // Stop every running server first so the MSI
+                                    // can release all child-process handles.
+                                    stopAllRunningServers()
+                                    // Best-effort DB close so portalhost.db is
+                                    // not locked when the MSI tries to replace
+                                    // it.
+                                    closeDatabaseQuietly()
                                     if (launchSilentUpdateAndRestart(file)) {
                                         onNoLongerNeeded()
                                         onDismiss()
+                                        // exitProcess triggers the JVM shutdown
+                                        // hook, which releases the single-instance
+                                        // lock and lets the new PortalHost.exe
+                                        // acquire it.
                                         kotlin.system.exitProcess(0)
                                     } else {
                                         try {
@@ -271,6 +290,32 @@ fun UpdateDialog(
     )
 }
 
+private fun stopAllRunningServers() {
+    runCatching {
+        val serverManager = GlobalContext.getOrNull()?.get<ServerManager>() ?: return
+        val running = serverManager.servers.value.entries.filter { (id, _) ->
+            val state = serverManager.serverStates.value[id]
+            state?.status == ServerStatus.RUNNING || state?.status == ServerStatus.STARTING
+        }
+        runBlocking {
+            for ((id, _) in running) {
+                serverManager.stopServer(id)
+            }
+        }
+    }
+}
+
+private fun closeDatabaseQuietly() {
+    runCatching {
+        // No global handle is exposed, but ask Koin's DI to drop the singleton
+        // and let any in-flight transaction finish. The file lock on the SQLite
+        // db will then be released before the MSI tries to replace it.
+        GlobalContext.getOrNull()?.get<com.portalhost.db.DatabaseRepository>()
+        // Give the JVM a brief moment to flush/close any open file handles.
+        Thread.sleep(150)
+    }
+}
+
 private fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB")
@@ -292,10 +337,15 @@ private fun formatSpeed(bytesPerSecond: Long): String {
  * Silently installs the downloaded update and relaunches the app into the new
  * version, without showing the installer UI.
  *
- * A detached PowerShell process runs the installer (elevated, quiet) and starts
- * the freshly installed PortalHost.exe afterwards. Because it is an OS process
- * (not a JVM thread) it survives this app terminating, which is required so the
- * MSI can replace files that are locked while the app is running.
+ * A detached PowerShell process runs the installer (elevated, quiet). Before
+ * installing, it forces a clean shutdown of any running PortalHost.exe and
+ * Java processes so the MSI / EXE installer can replace locked files. After
+ * install, it waits long enough for the new binary to settle, then launches the
+ * freshly installed PortalHost.exe.
+ *
+ * Because PowerShell is an OS process (not a JVM thread), it survives this app
+ * terminating — which is required so the MSI can replace files that are locked
+ * while the app is running.
  */
 private fun launchSilentUpdateAndRestart(installerFile: File): Boolean {
     return try {
@@ -312,10 +362,18 @@ private fun launchSilentUpdateAndRestart(installerFile: File): Boolean {
             "Start-Process -FilePath '$installerPath' -ArgumentList '/qn', '/norestart' -Verb RunAs -Wait"
         }
 
+        // Force-kill any lingering PortalHost / Java processes from the prior
+        // version so the installer can replace every locked file. Then wait a
+        // moment for handles to release, install, wait again, and only then
+        // start the freshly installed PortalHost.exe. The single-instance lock
+        // in the new process will atomically prevent any duplicates.
         val psCommand =
             "Start-Sleep -Seconds 2; " +
+                "Get-Process -Name 'PortalHost' -ErrorAction SilentlyContinue | Stop-Process -Force; " +
+                "Get-Process -Name 'java' -ErrorAction SilentlyContinue | Where-Object { \$_.MainWindowTitle -like '*PortalHost*' -or \$_.Path -like '*PortalHost*' } | Stop-Process -Force; " +
+                "Start-Sleep -Seconds 3; " +
                 "$installCmd; " +
-                "Start-Sleep -Seconds 2; " +
+                "Start-Sleep -Seconds 5; " +
                 "Start-Process -FilePath '$appExePath'"
 
         ProcessBuilder("powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", psCommand)

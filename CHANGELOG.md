@@ -2,6 +2,13 @@
 
 ## v5.1.0--desktopv2 (2026-08-11)
 
+### Bug Fixes (hotfix, same version)
+- **Update flow: process no longer duplicates after auto-restart.** `SingleInstanceLock` (FileChannel lock on `<dataDir>/portalhost.instance.lock`) is acquired in `main()` and released by a JVM shutdown hook. The PowerShell installer script now force-kills any lingering PortalHost.exe / portalhost-tagged Java processes, waits 3 s, runs the MSI, waits 5 s, then starts the freshly installed PortalHost.exe — the new process instantly acquires the single-instance lock, so duplicates cannot start.
+- **Update flow: running servers and DB closed before install.** The update dialog now stops every running server and gives SQLite a brief moment to flush handles before launching the installer, so the MSI can replace `portalhost.db` and any child-process files without lock conflicts.
+- **Version display no longer stale after self-update.** `BuildConfig.VERSION_NAME` was hardcoded to `5.0.69` in source, so every build (including `5.1.0`) still showed `5.0.69`. A Gradle task (`generateVersionResource`) now writes `<version>` into `src/desktopMain/resources/version.txt`, and `BuildConfig` reads it from the classpath. The MSI bundles `version.txt = "5.1.0"` inside the JAR so the title bar / About / Settings all show the real version after install.
+- **World Map accuracy.** Map rendering now puts world (0,0) at the canvas center, computes the chunk bounding box from the actual loaded regions (with padding), and renders ungenerated areas as a darker grid so chunk boundaries are visible at high zoom. Spawn marker (yellow crosshair) is fixed at chunk (0,0). Player positions use `pos.x / pos.z` directly (not chunk-rounded), so a player at `x=125.3 z=-47.1` lands at the exact sub-chunk location, not the chunk corner. Hit-testing and the player-dot draw loop share the same coordinate transform.
+- **Map download location.** Update installer no longer writes to `user.home`; downloads now go to `defaultDataDir()`.
+
 ### Features
 - **Player Detail screen** — New dedicated screen per player with real Mojang skin bitmap (when online), pixel-art fallback (when offline), UUID with copy button, name history, first/last seen (from usercache.json + console log join events), whitelisted/operator/banned status chips, and quick actions (kick, ban with reason, OP/De-OP, whitelist toggle)
 - **World Map tab** — New "Map" tab in ServerDetailScreen. Phase A+D: visualizes which chunks have been generated in the world (region outline), plus live player position markers polled every 3 seconds via RCON (`data get entity`). Pan with drag, zoom 1×-16× per chunk cell, click a chunk to see its coords. World dir dropdown (overworld/nether/end).

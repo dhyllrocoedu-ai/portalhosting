@@ -40,6 +40,7 @@ import com.portalhost.uinotify.ToastManager
 import com.portalhost.uinotify.ToastType
 import com.portalhost.theme.AppTheme
 import com.portalhost.desktop.screens.WelcomeScreen
+import com.portalhost.desktop.util.SingleInstanceLock
 import com.portalhost.desktop.util.UninstallHelper
 import com.portalhost.desktop.window.PortalHostWindow
 import com.portalhost.desktop.window.Screen
@@ -180,6 +181,23 @@ fun DesktopApp(
 }
 
 fun main() {
+    // Acquire a single-instance lock so two PortalHost processes cannot run at
+    // the same time. This prevents the silent-update restart from spawning a
+    // second PortalHost.exe that fights with the old (still-shutting-down) one
+    // for file locks on the install directory.
+    val instanceLock = SingleInstanceLock.acquire()
+    if (instanceLock == null) {
+        System.err.println("PortalHost is already running. Exiting duplicate instance.")
+        return
+    }
+
+    // Release the lock on any JVM exit path (normal exit, exitProcess from
+    // update flow, crash). PowerShell's taskkill gives us 2-5s; releasing the
+    // lock here lets the new process acquire it instantly.
+    Runtime.getRuntime().addShutdownHook(Thread {
+        instanceLock.release()
+    })
+
     try {
         // Runs before the database is opened: if the data directory lives inside
         // the install folder, offer to move it out so an uninstall cannot wipe it.
@@ -216,6 +234,7 @@ fun main() {
     } catch (e: Throwable) {
         System.err.println("FATAL: Failed to initialize application: ${e.message}")
         e.printStackTrace(System.err)
+        instanceLock.release()
         return
     }
 
