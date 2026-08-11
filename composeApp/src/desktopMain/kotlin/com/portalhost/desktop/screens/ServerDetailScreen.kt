@@ -320,18 +320,20 @@ fun ServerDetailScreen(
             }
         }
 
-        when (tabs[safeTabIndex]) {
-            "Properties" -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
-            "Files" -> ServerFilesScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            "Worlds" -> WorldsTab(serverId = serverId)
-            "Plugins" -> PluginsTab(serverId = serverId)
-            "Mods" -> ModsTab(serverId = serverId)
-            "Datapacks" -> DatapacksTab(serverId = serverId)
-            "Backups" -> BackupsTab(serverId = serverId, backupManager = backupManager)
-            "Performance" -> PerformanceScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            "Logs" -> LogViewerScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            "RCON" -> RconScreen(serverId = serverId, onBack = { selectedTab = 0 })
-            "Map" -> WorldMapScreen(serverId = serverId, onBack = { selectedTab = 0 })
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when (tabs[safeTabIndex]) {
+                "Properties" -> PropertiesTab(config = config, state = state, serverManager = serverManager, serverId = serverId, onDeleteRequest = { showDeleteDialog = true })
+                "Files" -> ServerFilesScreen(serverId = serverId, onBack = { selectedTab = 0 })
+                "Worlds" -> WorldsTab(serverId = serverId)
+                "Plugins" -> PluginsTab(serverId = serverId)
+                "Mods" -> ModsTab(serverId = serverId)
+                "Datapacks" -> DatapacksTab(serverId = serverId)
+                "Backups" -> BackupsTab(serverId = serverId, backupManager = backupManager)
+                "Performance" -> PerformanceScreen(serverId = serverId, onBack = { selectedTab = 0 })
+                "Logs" -> LogViewerScreen(serverId = serverId, onBack = { selectedTab = 0 })
+                "RCON" -> RconScreen(serverId = serverId, onBack = { selectedTab = 0 })
+                "Map" -> WorldMapScreen(serverId = serverId, onBack = { selectedTab = 0 })
+            }
         }
     }
 }

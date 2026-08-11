@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,8 +65,8 @@ import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 
-private val ZOOM_LEVELS = listOf(2f, 4f, 8f, 16f, 32f)
-private const val DEFAULT_ZOOM_INDEX = 1
+private val ZOOM_LEVELS = listOf(1.5f, 2f, 3f, 4f, 6f, 8f, 12f, 16f, 24f, 32f)
+private const val DEFAULT_ZOOM_INDEX = 3
 private const val POLL_INTERVAL_MS = 3000L
 private const val BASE_CELL_PX = 4f
 private const val MIN_WORLD_HALF = 64
@@ -142,7 +143,12 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .clipToBounds(),
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             WorldMapTopBar(
                 title = config?.name ?: serverDir.name,
@@ -199,7 +205,12 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                     }
                 }
                 else -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(8.dp)
+                            .clipToBounds(),
+                    ) {
                         MapCanvas(
                             regions = regionIndices,
                             zoom = ZOOM_LEVELS[zoomIndex],
@@ -209,6 +220,7 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                             onChunkTapped = { selectedChunk = it },
                             selectedChunk = selectedChunk,
                             playerPositions = playerPositions,
+                            onZoomChange = { newZoom -> zoomIndex = newZoom },
                             onCenterPlayer = { name ->
                                 val pos = playerPositions[name] ?: return@MapCanvas
                                 panOffset = Offset(
@@ -303,7 +315,11 @@ private fun Toolbar(
         IconButton(onClick = onZoomOut, enabled = zoomIndex > 0) {
             Icon(Icons.Default.Remove, contentDescription = "Zoom out")
         }
-        Text("${ZOOM_LEVELS[zoomIndex].toInt()}x", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 4.dp))
+        Text(
+            formatZoomLabel(ZOOM_LEVELS[zoomIndex]),
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
         IconButton(onClick = onZoomIn, enabled = zoomIndex < ZOOM_LEVELS.lastIndex) {
             Icon(Icons.Default.Add, contentDescription = "Zoom in")
         }
@@ -316,6 +332,11 @@ private fun Toolbar(
         Spacer(modifier = Modifier.weight(1f))
         Text("$chunkCount chunks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+private fun formatZoomLabel(zoom: Float): String {
+    val rounded = (zoom * 10).toInt() / 10f
+    return if (rounded == rounded.toInt().toFloat()) "${rounded.toInt()}x" else "${rounded}x"
 }
 
 @Composable
@@ -395,6 +416,7 @@ private fun MapCanvas(
     onChunkTapped: (ChunkCoord?) -> Unit,
     selectedChunk: ChunkCoord?,
     playerPositions: Map<String, PlayerPos3>,
+    onZoomChange: (Int) -> Unit,
     onCenterPlayer: (String) -> Unit,
 ) {
     val bounds = remember(regions) { computeBounds(regions) }
@@ -415,9 +437,18 @@ private fun MapCanvas(
     Canvas(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(regions) {
-                detectTransformGestures { _, pan, zoomChange, _ ->
-                    if (zoomChange != 1f) return@detectTransformGestures
+            .clipToBounds()
+            .pointerInput(regions, zoom) {
+                detectTransformGestures { centroid, pan, zoomChange, _ ->
+                    if (zoomChange != 1f) {
+                        // Mouse wheel / pinch zoom: pick the closest discrete
+                        // zoom level so the toolbar +/- buttons and the wheel
+                        // stay in sync.
+                        val current = ZOOM_LEVELS.indexOfFirst { it == zoom }.coerceAtLeast(0)
+                        val target = if (zoomChange > 1f) current + 1 else current - 1
+                        onZoomChange(target.coerceIn(0, ZOOM_LEVELS.lastIndex))
+                        return@detectTransformGestures
+                    }
                     onPanChange(pan)
                 }
             }

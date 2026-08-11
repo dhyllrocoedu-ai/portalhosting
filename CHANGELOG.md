@@ -9,6 +9,11 @@
 - **World Map accuracy.** Map rendering now puts world (0,0) at the canvas center, computes the chunk bounding box from the actual loaded regions (with padding), and renders ungenerated areas as a darker grid so chunk boundaries are visible at high zoom. Spawn marker (yellow crosshair) is fixed at chunk (0,0). Player positions use `pos.x / pos.z` directly (not chunk-rounded), so a player at `x=125.3 z=-47.1` lands at the exact sub-chunk location, not the chunk corner. Hit-testing and the player-dot draw loop share the same coordinate transform.
 - **Map download location.** Update installer no longer writes to `user.home`; downloads now go to `defaultDataDir()`.
 
+### Hotfix (map rendering + zoom)
+- **Map content no longer overflows onto toolbar / tabs.** ServerDetailScreen wraps the tab content in `Box(modifier = Modifier.weight(1f).fillMaxWidth())` so the Map tab gets a constrained area instead of stretching over the rest of the page. The WorldMapScreen root and Canvas also add `.clipToBounds()` defensively.
+- **Decimal zoom levels.** Toolbar now exposes 10 zoom steps (1.5×, 2×, 3×, 4×, 6×, 8×, 12×, 16×, 24×, 32×) instead of the previous 5. Display label rounds to one decimal (e.g. `1.5x`, `2.5x`).
+- **Mouse scroll-wheel zoom.** Pinch / scroll gestures on the map now change zoom by stepping through `ZOOM_LEVELS` instead of being ignored. The +/- toolbar buttons and the scroll wheel stay in sync.
+
 ### Features
 - **Player Detail screen** — New dedicated screen per player with real Mojang skin bitmap (when online), pixel-art fallback (when offline), UUID with copy button, name history, first/last seen (from usercache.json + console log join events), whitelisted/operator/banned status chips, and quick actions (kick, ban with reason, OP/De-OP, whitelist toggle)
 - **World Map tab** — New "Map" tab in ServerDetailScreen. Phase A+D: visualizes which chunks have been generated in the world (region outline), plus live player position markers polled every 3 seconds via RCON (`data get entity`). Pan with drag, zoom 1×-16× per chunk cell, click a chunk to see its coords. World dir dropdown (overworld/nether/end).
