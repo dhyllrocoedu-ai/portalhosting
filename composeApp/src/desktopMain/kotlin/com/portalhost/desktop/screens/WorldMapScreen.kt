@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Terrain
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,10 +49,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
+import com.portalhost.desktop.world.AnvilChunkDecoder
 import com.portalhost.player.EntityPositionService
 import com.portalhost.player.PlayerPos3
 import com.portalhost.server.ServerManager
@@ -64,6 +71,7 @@ import org.koin.compose.koinInject
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 private val ZOOM_LEVELS = listOf(1.5f, 2f, 3f, 4f, 6f, 8f, 12f, 16f, 24f, 32f)
 private const val DEFAULT_ZOOM_INDEX = 3
@@ -90,6 +98,8 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
     var playerPositions by remember { mutableStateOf<Map<String, PlayerPos3>>(emptyMap()) }
     var showWorldDropdown by remember { mutableStateOf(false) }
     var lastError by remember { mutableStateOf<String?>(null) }
+    var showBiomes by remember { mutableStateOf(false) }
+    val biomeColors = remember { mutableStateMapOf<Long, Long>() }
 
     val serverStates by serverManager.serverStates.collectAsState()
     val state = serverStates[serverId]
@@ -143,6 +153,21 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
         }
     }
 
+    LaunchedEffect(selectedWorld, regionIndices, showBiomes) {
+        biomeColors.clear()
+        if (!showBiomes || selectedWorld == null) return@LaunchedEffect
+        val decoder = AnvilChunkDecoder()
+        withContext(Dispatchers.IO) {
+            val regionDir = File(selectedWorld, "region")
+            regionIndices.forEach { region ->
+                val file = File(regionDir, "r.${region.regionX}.${region.regionZ}.mca")
+                decoder.decodeRegion(file, region).forEach { (coord, biome) ->
+                    biomeColors[packCoord(coord.x, coord.z)] = biome.color
+                }
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -184,6 +209,8 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                     }
                 },
                 chunkCount = regionIndices.sumOf { it.chunks.values.count { c -> c.generated } },
+                biomesEnabled = showBiomes,
+                onToggleBiomes = { showBiomes = !showBiomes },
             )
             when {
                 loading -> {
@@ -221,6 +248,7 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                             selectedChunk = selectedChunk,
                             playerPositions = playerPositions,
                             onZoomChange = { newZoom -> zoomIndex = newZoom },
+                            biomeColors = biomeColors,
                             onCenterPlayer = { name ->
                                 val pos = playerPositions[name] ?: return@MapCanvas
                                 panOffset = Offset(
@@ -306,6 +334,8 @@ private fun Toolbar(
     onCenter: () -> Unit,
     onRefresh: () -> Unit,
     chunkCount: Int,
+    biomesEnabled: Boolean = false,
+    onToggleBiomes: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
@@ -328,6 +358,13 @@ private fun Toolbar(
         }
         IconButton(onClick = onRefresh) {
             Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+        }
+        IconButton(onClick = onToggleBiomes) {
+            Icon(
+                Icons.Default.Terrain,
+                contentDescription = "Toggle biomes",
+                tint = if (biomesEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(modifier = Modifier.weight(1f))
         Text("$chunkCount chunks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -362,7 +399,7 @@ private fun MapLegend(modifier: Modifier = Modifier, playerCount: Int) {
 @Composable
 private fun LegendRow(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        androidx.compose.foundation.Canvas(modifier = Modifier.size(10.dp)) {
+        Canvas(modifier = Modifier.size(10.dp)) {
             drawRect(color = color)
         }
         Spacer(Modifier.width(6.dp))
@@ -417,11 +454,10 @@ private fun MapCanvas(
     selectedChunk: ChunkCoord?,
     playerPositions: Map<String, PlayerPos3>,
     onZoomChange: (Int) -> Unit,
+    biomeColors: Map<Long, Long> = emptyMap(),
     onCenterPlayer: (String) -> Unit,
 ) {
     val bounds = remember(regions) { computeBounds(regions) }
-    val chunkSpanX = bounds.maxChunkX - bounds.minChunkX + 1
-    val chunkSpanZ = bounds.maxChunkZ - bounds.minChunkZ + 1
     val generated = remember(regions) {
         val set = mutableSetOf<Long>()
         regions.forEach { region ->
@@ -433,129 +469,165 @@ private fun MapCanvas(
         }
         set
     }
+    var playerMarkers by remember { mutableStateOf<List<PlayerScreenPos>>(emptyList()) }
 
-    Canvas(
-        modifier = Modifier
-            .fillMaxSize()
-            .clipToBounds()
-            .pointerInput(regions, zoom) {
-                detectTransformGestures { centroid, pan, zoomChange, _ ->
-                    if (zoomChange != 1f) {
-                        // Mouse wheel / pinch zoom: pick the closest discrete
-                        // zoom level so the toolbar +/- buttons and the wheel
-                        // stay in sync.
-                        val current = ZOOM_LEVELS.indexOfFirst { it == zoom }.coerceAtLeast(0)
-                        val target = if (zoomChange > 1f) current + 1 else current - 1
-                        onZoomChange(target.coerceIn(0, ZOOM_LEVELS.lastIndex))
-                        return@detectTransformGestures
+    Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .clipToBounds()
+                .pointerInput(regions, zoom) {
+                    detectTransformGestures { _, pan, zoomChange, _ ->
+                        if (zoomChange != 1f) {
+                            // Trackpad pinch zoom
+                            val current = ZOOM_LEVELS.indexOfFirst { it == zoom }.coerceAtLeast(0)
+                            val target = if (zoomChange > 1f) current + 1 else current - 1
+                            onZoomChange(target.coerceIn(0, ZOOM_LEVELS.lastIndex))
+                            return@detectTransformGestures
+                        }
+                        onPanChange(pan)
                     }
-                    onPanChange(pan)
+                }
+                .pointerInput(regions, zoom) {
+                    // Mouse-wheel zoom: scroll up = zoom in, scroll down = zoom out.
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type != PointerEventType.Scroll) continue
+                            val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                            if (delta == 0f) continue
+                            val current = ZOOM_LEVELS.indexOfFirst { it == zoom }.coerceAtLeast(0)
+                            val target = if (delta < 0f) current + 1 else current - 1
+                            onZoomChange(target.coerceIn(0, ZOOM_LEVELS.lastIndex))
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+                .pointerInput(regions, zoom) {
+                    detectTapGestures(
+                        onTap = { offset ->
+                            val coord = hitTest(offset, zoom, panOffset, bounds, size.toSize())
+                            onChunkTapped(coord)
+                        },
+                        onLongPress = { offset ->
+                            val name = hitTestPlayer(offset, zoom, panOffset, playerPositions, size.toSize())
+                            if (name != null) onCenterPlayer(name)
+                        },
+                    )
+                }
+        ) {
+            onCanvasSize(size)
+            drawRect(color = Color(0xFF0E141B), size = size)
+
+            val cellPx = BASE_CELL_PX * zoom
+            if (cellPx < 0.5f) return@Canvas
+
+            // World (0,0) sits at the center of the canvas at default pan.
+            // Each chunkX step moves +cellPx on screen. North (-Z in Minecraft)
+            // maps to screen up (negative Y).
+            val worldOriginX = size.width / 2f + panOffset.x
+            val worldOriginY = size.height / 2f + panOffset.y
+
+            // Ungenerated grid background so empty areas are not pure black.
+            val ungeneratedColor = Color(0xFF1B2530)
+            val visibleMinChunkX = bounds.minChunkX + ((-worldOriginX) / cellPx).toInt() - 1
+            val visibleMaxChunkX = bounds.maxChunkX + ((size.width - worldOriginX) / cellPx).toInt() + 1
+            val visibleMinChunkZ = bounds.minChunkZ + ((-worldOriginY) / cellPx).toInt() - 1
+            val visibleMaxChunkZ = bounds.maxChunkZ + ((size.height - worldOriginY) / cellPx).toInt() + 1
+
+            val startChunkX = max(bounds.minChunkX, visibleMinChunkX)
+            val endChunkX = min(bounds.maxChunkX, visibleMaxChunkX)
+            val startChunkZ = max(bounds.minChunkZ, visibleMinChunkZ)
+            val endChunkZ = min(bounds.maxChunkZ, visibleMaxChunkZ)
+
+            if (cellPx >= 4f) {
+                for (cz in startChunkZ..endChunkZ) {
+                    for (cx in startChunkX..endChunkX) {
+                        if (!generated.contains(packCoord(cx, cz))) {
+                            val sx = worldOriginX + cx * cellPx
+                            val sy = worldOriginY + cz * cellPx
+                            drawRect(
+                                color = ungeneratedColor,
+                                topLeft = Offset(sx, sy),
+                                size = Size(cellPx - 1f, cellPx - 1f),
+                            )
+                        }
+                    }
                 }
             }
-            .pointerInput(regions, zoom) {
-                detectTapGestures(
-                    onTap = { offset ->
-                        val coord = hitTest(offset, zoom, panOffset, bounds, size.toSize())
-                        onChunkTapped(coord)
-                    },
-                    onLongPress = { offset ->
-                        val name = hitTestPlayer(offset, zoom, panOffset, playerPositions, size.toSize())
-                        if (name != null) onCenterPlayer(name)
-                    },
-                )
-            }
-    ) {
-        onCanvasSize(size)
-        drawRect(color = Color(0xFF0E141B), size = size)
 
-        val cellPx = BASE_CELL_PX * zoom
-        if (cellPx < 0.5f) return@Canvas
-
-        // World (0,0) sits at the center of the canvas at default pan.
-        // Each chunkX step moves +cellPx on screen. North (-Z in Minecraft)
-        // maps to screen up (negative Y).
-        val worldOriginX = size.width / 2f + panOffset.x
-        val worldOriginY = size.height / 2f + panOffset.y
-
-        // Ungenerated grid background so empty areas are not pure black.
-        val ungeneratedColor = Color(0xFF1B2530)
-        val visibleMinChunkX = bounds.minChunkX + ((-worldOriginX) / cellPx).toInt() - 1
-        val visibleMaxChunkX = bounds.maxChunkX + ((size.width - worldOriginX) / cellPx).toInt() + 1
-        val visibleMinChunkZ = bounds.minChunkZ + ((-worldOriginY) / cellPx).toInt() - 1
-        val visibleMaxChunkZ = bounds.maxChunkZ + ((size.height - worldOriginY) / cellPx).toInt() + 1
-
-        val startChunkX = max(bounds.minChunkX, visibleMinChunkX)
-        val endChunkX = min(bounds.maxChunkX, visibleMaxChunkX)
-        val startChunkZ = max(bounds.minChunkZ, visibleMinChunkZ)
-        val endChunkZ = min(bounds.maxChunkZ, visibleMaxChunkZ)
-
-        if (cellPx >= 4f) {
+            // Generated chunks
             for (cz in startChunkZ..endChunkZ) {
                 for (cx in startChunkX..endChunkX) {
-                    if (!generated.contains(packCoord(cx, cz))) {
-                        val sx = worldOriginX + cx * cellPx
-                        val sy = worldOriginY + cz * cellPx
+                    if (!generated.contains(packCoord(cx, cz))) continue
+                    val sx = worldOriginX + cx * cellPx
+                    val sy = worldOriginY + cz * cellPx
+                    val biomeArgb = biomeColors[packCoord(cx, cz)]
+                    drawRect(
+                        color = if (biomeArgb != null) Color(biomeArgb.toULong()) else Color(0xFF4A8FCC).copy(alpha = 0.7f),
+                        topLeft = Offset(sx, sy),
+                        size = Size(cellPx - 1f, cellPx - 1f),
+                    )
+                    if (selectedChunk != null && selectedChunk.x == cx && selectedChunk.z == cz) {
                         drawRect(
-                            color = ungeneratedColor,
+                            color = Color(0xFFFFCC00),
                             topLeft = Offset(sx, sy),
                             size = Size(cellPx - 1f, cellPx - 1f),
+                            style = Stroke(width = 2f),
                         )
                     }
                 }
             }
+
+            // Spawn marker at world origin (chunk 0,0)
+            if (generated.contains(packCoord(0, 0)) || cellPx > 8f) {
+                val spawnSize = max(cellPx, 6f)
+                drawRect(
+                    color = Color(0xFFFFCC00),
+                    topLeft = Offset(worldOriginX - spawnSize / 2f, worldOriginY - spawnSize / 2f),
+                    size = Size(spawnSize, spawnSize),
+                    style = Stroke(width = 2.5f),
+                )
+                drawLine(
+                    color = Color(0xFFFFCC00),
+                    start = Offset(worldOriginX - spawnSize, worldOriginY),
+                    end = Offset(worldOriginX + spawnSize, worldOriginY),
+                    strokeWidth = 1.5f,
+                )
+                drawLine(
+                    color = Color(0xFFFFCC00),
+                    start = Offset(worldOriginX, worldOriginY - spawnSize),
+                    end = Offset(worldOriginX, worldOriginY + spawnSize),
+                    strokeWidth = 1.5f,
+                )
+            }
+
+            // Axis tick marks every 16 chunks at higher zoom levels.
+            if (cellPx >= 8f) {
+                drawAxisTicks(worldOriginX, worldOriginY, cellPx)
+            }
+
+            playerMarkers = drawPlayerMarkers(playerPositions, cellPx, worldOriginX, worldOriginY, size)
         }
 
-        // Generated chunks
-        for (cz in startChunkZ..endChunkZ) {
-            for (cx in startChunkX..endChunkX) {
-                if (!generated.contains(packCoord(cx, cz))) continue
-                val sx = worldOriginX + cx * cellPx
-                val sy = worldOriginY + cz * cellPx
-                drawRect(
-                    color = Color(0xFF4A8FCC).copy(alpha = 0.7f),
-                    topLeft = Offset(sx, sy),
-                    size = Size(cellPx - 1f, cellPx - 1f),
+        // Player name labels (Compose Text overlay for cross-platform font rendering).
+        if (ZOOM_LEVELS.indexOf(zoom) >= 2) {
+            playerMarkers.forEach { marker ->
+                Text(
+                    text = marker.name,
+                    color = Color(0xFFFFFFFF),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .offset { IntOffset((marker.x + 12f).roundToInt(), (marker.z - 18f).roundToInt()) }
+                        .background(
+                            color = Color(0xCC000000),
+                            shape = RoundedCornerShape(4.dp),
+                        )
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
                 )
-                if (selectedChunk != null && selectedChunk.x == cx && selectedChunk.z == cz) {
-                    drawRect(
-                        color = Color(0xFFFFCC00),
-                        topLeft = Offset(sx, sy),
-                        size = Size(cellPx - 1f, cellPx - 1f),
-                        style = Stroke(width = 2f),
-                    )
-                }
             }
         }
-
-        // Spawn marker at world origin (chunk 0,0)
-        if (generated.contains(packCoord(0, 0)) || cellPx > 8f) {
-            val spawnSize = max(cellPx, 6f)
-            drawRect(
-                color = Color(0xFFFFCC00),
-                topLeft = Offset(worldOriginX - spawnSize / 2f, worldOriginY - spawnSize / 2f),
-                size = Size(spawnSize, spawnSize),
-                style = Stroke(width = 2.5f),
-            )
-            drawLine(
-                color = Color(0xFFFFCC00),
-                start = Offset(worldOriginX - spawnSize, worldOriginY),
-                end = Offset(worldOriginX + spawnSize, worldOriginY),
-                strokeWidth = 1.5f,
-            )
-            drawLine(
-                color = Color(0xFFFFCC00),
-                start = Offset(worldOriginX, worldOriginY - spawnSize),
-                end = Offset(worldOriginX, worldOriginY + spawnSize),
-                strokeWidth = 1.5f,
-            )
-        }
-
-        // Axis tick marks every 16 chunks at higher zoom levels.
-        if (cellPx >= 8f) {
-            drawAxisTicks(worldOriginX, worldOriginY, cellPx)
-        }
-
-        drawPlayerMarkers(playerPositions, cellPx, worldOriginX, worldOriginY, size)
     }
 }
 
@@ -568,20 +640,65 @@ private fun DrawScope.drawPlayerMarkers(
     worldOriginX: Float,
     worldOriginY: Float,
     canvasSize: Size,
-) {
+): List<PlayerScreenPos> {
+    val result = mutableListOf<PlayerScreenPos>()
     positions.forEach { (name, pos) ->
-        // pos is in world blocks. Convert to chunks (16 blocks per chunk) then
-        // to screen pixels. 1 block = cellPx / 16 px at the current zoom.
         val blockToPx = cellPx / 16f
         val x = worldOriginX + pos.x.toFloat() * blockToPx
         val z = worldOriginY + pos.z.toFloat() * blockToPx
-        if (x < -8f || x > canvasSize.width + 8f) return@forEach
-        if (z < -8f || z > canvasSize.height + 8f) return@forEach
-        // Glow ring
-        drawCircle(color = Color(0xFF00E5FF).copy(alpha = 0.35f), radius = 8f, center = Offset(x, z))
-        drawCircle(color = Color(0xFF00E5FF), radius = 4f, center = Offset(x, z))
+        if (x < -16f || x > canvasSize.width + 16f) return@forEach
+        if (z < -16f || z > canvasSize.height + 16f) return@forEach
+
+        // Outer halo (semi-transparent white) for visibility on any background.
+        drawCircle(
+            color = Color(0xFFFFFFFF).copy(alpha = 0.30f),
+            radius = 14f,
+            center = Offset(x, z),
+        )
+        // White outer ring.
+        drawCircle(
+            color = Color(0xFFFFFFFF),
+            radius = 9f,
+            center = Offset(x, z),
+            style = Stroke(width = 2.5f),
+        )
+        // Solid magenta core (high contrast on plains/desert/forest/snow).
+        drawCircle(
+            color = Color(0xFFFF1FB0),
+            radius = 6f,
+            center = Offset(x, z),
+        )
+        // Direction-of-facing tick (4 cardinal indicators).
+        drawLine(
+            color = Color(0xFFFFFFFF),
+            start = Offset(x - 10f, z),
+            end = Offset(x - 6f, z),
+            strokeWidth = 1.5f,
+        )
+        drawLine(
+            color = Color(0xFFFFFFFF),
+            start = Offset(x + 6f, z),
+            end = Offset(x + 10f, z),
+            strokeWidth = 1.5f,
+        )
+        drawLine(
+            color = Color(0xFFFFFFFF),
+            start = Offset(x, z - 10f),
+            end = Offset(x, z - 6f),
+            strokeWidth = 1.5f,
+        )
+        drawLine(
+            color = Color(0xFFFFFFFF),
+            start = Offset(x, z + 6f),
+            end = Offset(x, z + 10f),
+            strokeWidth = 1.5f,
+        )
+        result.add(PlayerScreenPos(name = name, x = x, z = z))
     }
+    return result
 }
+
+data class PlayerScreenPos(val name: String, val x: Float, val z: Float)
 
 private fun DrawScope.drawAxisTicks(worldOriginX: Float, worldOriginY: Float, cellPx: Float) {
     val tickColor = Color(0xFF2A3744)

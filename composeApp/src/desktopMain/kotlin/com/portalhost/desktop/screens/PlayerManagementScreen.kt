@@ -24,12 +24,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.GppBad
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -45,6 +47,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,11 +65,15 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import com.portalhost.filesystem.defaultDataDir
 import com.portalhost.server.ServerManager
 import com.portalhost.model.ServerStatus
 import com.portalhost.player.BannedIpEntry
 import com.portalhost.player.BannedPlayerEntry
+import com.portalhost.player.MojangSkinService
+import com.portalhost.player.NameToUuidResolver
 import com.portalhost.player.OpEntry
+import com.portalhost.player.SkinRenderCache
 import com.portalhost.player.WhitelistEntry
 import org.koin.compose.koinInject
 import java.io.File
@@ -125,6 +133,38 @@ private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String, onO
     val serverStates by serverManager.serverStates.collectAsState()
     val state = serverStates[serverId]
     val players = state?.players ?: emptyList()
+    val serverDir = serverManager.getServerDir(serverId)
+
+    val resolver = remember { NameToUuidResolver() }
+    val skinService = remember { MojangSkinService() }
+    val skinCache = remember { SkinRenderCache(File(defaultDataDir(), "skins")) }
+    var uuids by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var skins by remember { mutableStateOf<Map<String, ImageBitmap?>>(emptyMap()) }
+
+    val playersKey = players.joinToString(",")
+    LaunchedEffect(playersKey) {
+        val missing = players.filter { it !in uuids }
+        if (missing.isEmpty()) return@LaunchedEffect
+        val nextUuids = uuids.toMutableMap()
+        val nextSkins = skins.toMutableMap()
+        for (name in missing) {
+            val uuid = resolver.resolve(name, serverDir)
+            if (uuid == null) continue
+            nextUuids[name] = uuid
+            val url = skinService.fetchSkinUrl(uuid)
+            if (url != null) {
+                nextSkins[name] = skinCache.load(uuid, url)
+            }
+        }
+        uuids = nextUuids
+        skins = nextSkins
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            skinService.close()
+            resolver.close()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
@@ -151,8 +191,9 @@ private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String, onO
         } else {
             LazyColumn {
                 items(players, key = { it }) { player ->
-                    PlayerActionCard(
+                    PlayerRow(
                         player = player,
+                        skinBitmap = skins[player],
                         onCommand = { cmd ->
                             val process = serverManager.getProcessForServer(serverId)
                             if (process != null) {
@@ -164,11 +205,10 @@ private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String, onO
                             }
                         },
                         onOpenDetail = {
-                            serverManager.servers.value[serverId]?.let { cfg ->
-                                val uuid = java.util.UUID.nameUUIDFromBytes(player.toByteArray()).toString()
-                                onOpenPlayer(uuid)
-                            }
-                        }
+                            val uuid = uuids[player]
+                                ?: java.util.UUID.nameUUIDFromBytes(player.toByteArray()).toString()
+                            onOpenPlayer(uuid)
+                        },
                     )
                 }
             }
@@ -177,85 +217,53 @@ private fun OnlinePlayersTab(serverManager: ServerManager, serverId: String, onO
 }
 
 @Composable
-private fun PlayerActionCard(
+private fun PlayerRow(
     player: String,
+    skinBitmap: ImageBitmap?,
     onCommand: (String) -> Unit,
     onOpenDetail: () -> Unit,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
     ) {
         Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable(onClick = onOpenDetail)) {
-                MinecraftHeadIcon(player = player, size = 24.dp)
-                Spacer(Modifier.width(12.dp))
+            PlayerHeadIcon(playerName = player, skinBitmap = skinBitmap, size = 28.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f).clickable(onClick = onOpenDetail)) {
                 Text(player, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                ActionButton(
-                    label = "Kick",
-                    icon = Icons.Default.Block,
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    onClick = { onCommand("/kick $player") }
-                )
-                ActionButton(
-                    label = "Ban",
-                    icon = Icons.Default.GppBad,
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    onClick = { onCommand("/ban $player") }
-                )
-                ActionButton(
-                    label = "OP",
-                    icon = Icons.Default.Shield,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    onClick = { onCommand("/op $player") }
-                )
-                ActionButton(
-                    label = "De-OP",
-                    icon = Icons.Default.PersonOff,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    onClick = { onCommand("/deop $player") }
-                )
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Player actions")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Kick") },
+                        leadingIcon = { Icon(Icons.Default.Block, contentDescription = null) },
+                        onClick = { menuOpen = false; onCommand("/kick $player") },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Ban") },
+                        leadingIcon = { Icon(Icons.Default.GppBad, contentDescription = null) },
+                        onClick = { menuOpen = false; onCommand("/ban $player") },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("OP") },
+                        leadingIcon = { Icon(Icons.Default.Shield, contentDescription = null) },
+                        onClick = { menuOpen = false; onCommand("/op $player") },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("De-OP") },
+                        leadingIcon = { Icon(Icons.Default.PersonOff, contentDescription = null) },
+                        onClick = { menuOpen = false; onCommand("/deop $player") },
+                    )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun ActionButton(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.height(28.dp).padding(horizontal = 8.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = color,
-            contentColor = contentColor,
-            disabledContainerColor = color.copy(alpha = 0.38f),
-            disabledContentColor = contentColor.copy(alpha = 0.38f)
-        ),
-        shape = MaterialTheme.shapes.small
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium)
         }
     }
 }

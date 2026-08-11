@@ -31,6 +31,11 @@
 - `PlayerProfileRepositoryTest` — UUID normalization (dashes, uppercase, invalid)
 - `MojangSkinServiceTest` — MockEngine fixtures for 200 OK and 429 responses
 
+### Hotfix (biome-colored world map + player management rework)
+- **Biome-colored World Map.** The Map tab now paints each generated chunk with its actual biome. `NbtParser` (compact NBT binary reader with bounds checks + 32 MB cap), `ChunkBiomeReader` (Anvil payload decoder — gzip/zlib/raw, modern paletted `sections[].biomes` and legacy `Level.Biomes` int/byte arrays, 50-entry legacy biome name map), and `AnvilChunkDecoder` (per-region file cache keyed on `path:lastModified:x:z`) decode `.mca` chunks on `Dispatchers.IO`. The new Terrain toolbar toggle switches between biome colors and the flat region-outline view; ungenerated chunks render as a darker grid; modded/unmapped biomes fall back to neutral gray.
+- **Player Management rework.** The Online Players tab now resolves real Mojang UUIDs (`NameToUuidResolver` — usercache.json first, `api.mojang.com` fallback) and renders real skin heads via `sessionserver.mojang.com` (per-UUID dedupe, 429 handled). Each player row has a ⋮ overflow menu with Kick / Ban / OP / De-OP; clicking the row opens the existing Player Detail screen.
+- **Biome tests.** `NbtParserTest` (root compounds, byte/int arrays, nested list of compounds, malformed input), `ChunkBiomeReaderTest` (legacy `Level.Biomes`, modern paletted containers, uncompressed payloads, garbage input), and `BiomePaletteTest` (vanilla biome→color mapping + neutral fallback). Full desktop suite: 27/27 green.
+
 ## v5.0.0--desktopv2 (2026-07-17)
 
 ### Features
