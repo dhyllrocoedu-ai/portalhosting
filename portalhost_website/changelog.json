@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.70-mobilev2",
+    "date": "2026-08-14",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.70-mobilev2 (Java runtime download fix)</strong></p><ul><li><strong>Runtime download 404 fixed.</strong> The in-app Java runtime install pointed at a wrong file name &mdash; <code>openjdk-21.0.12_aarch64.deb</code> instead of the real Termux package <code>openjdk-21_21.0.12_aarch64.deb</code> (Debian names are <code>&lt;package&gt;_&lt;version&gt;_&lt;arch&gt;.deb</code>). Installing the runtime now finds the package on the Termux mirror and succeeds.</li><li><strong>Fresh installs on arm64/x86_64/arm/x86 all work.</strong> The fix applies to every supported ABI since they all share the same filename pattern.</li></ul>"
+  },
+  {
     "version": "5.1.0",
     "date": "2026-08-11",
     "platform": "desktop",

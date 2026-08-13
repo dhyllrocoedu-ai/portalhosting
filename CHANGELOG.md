@@ -1,5 +1,10 @@
 # Changelog
 
+## v5.0.70--mobilev2 (2026-08-14)
+
+### Bug Fix
+- **Java runtime download 404 fixed.** The in-app Java runtime install requested `openjdk-21.0.12_aarch64.deb`, but Debian package filenames are `<package>_<version>_<arch>.deb` — the real file is `openjdk-21_21.0.12_aarch64.deb`. `JavaRuntimeManager` now builds the correct name (applies to all ABIs: arm64/x86_64/arm/x86). Fresh installs of the Termux/bionic JDK now succeed instead of failing with "Download failed: HTTP 404".
+
 ## v5.1.0--desktopv2 (2026-08-11)
 
 ### Hotfix (app won't reopen after restart)

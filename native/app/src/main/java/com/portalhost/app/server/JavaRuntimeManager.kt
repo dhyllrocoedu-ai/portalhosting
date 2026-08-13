@@ -240,7 +240,7 @@ class JavaRuntimeManager(private val context: Context) {
 
     private fun jdkAssetForAbi(abi: String): Pair<String, String> {
         val version = TERMUX_JDK_VERSION
-        val debName = "openjdk-${version}_${abi}.deb"
+        val debName = "openjdk-21_${version}_${abi}.deb"
         return version to "$TERMUX_JDK_BASE_URL/$debName"
     }
 
