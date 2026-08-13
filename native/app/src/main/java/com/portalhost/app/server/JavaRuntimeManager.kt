@@ -65,7 +65,7 @@ class JavaRuntimeManager(private val context: Context) {
      *     └── data.tar.xz     (the JDK files, ~100 MB compressed)
      *
      * The data tarball extracts to paths under
-     *   data/data/com.termux/files/usr/lib/jvm/openjdk-21/
+     *   data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/
      * so we relocate those to our app's filesDir/runtime/jdk-21/.
      */
     suspend fun install(onProgress: ((Float) -> Unit)? = null): Result<Unit> = withContext(Dispatchers.IO) {
@@ -161,7 +161,7 @@ class JavaRuntimeManager(private val context: Context) {
             Log.i(TAG, "Decompressed to ${dataTar.length()} bytes of tar")
 
             // Extract the .tar using the system tar binary. The paths inside the
-            // tarball look like `./data/data/com.termux/files/usr/lib/jvm/openjdk-21/...`.
+            // tarball look like `./data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/...`.
             emit(JdkInstallPhase.EXTRACTING, "Extracting OpenJDK 21...", 0.92f)
             val tarProc = ProcessBuilder(
                 "/system/bin/tar", "-xf", dataTar.absolutePath
@@ -172,20 +172,23 @@ class JavaRuntimeManager(private val context: Context) {
                 throw Exception("tar extraction failed ($tarExit): $err")
             }
 
-            // Find the actual openjdk-21 root inside the extracted tree and move it
-            // into our runtime dir. Termux's deb puts it at
-            //   data/data/com.termux/files/usr/lib/jvm/openjdk-21/
+            // Find the actual JDK root inside the extracted tree and move it into our
+            // runtime dir. Termux's deb puts the JDK at
+            //   data/data/com.termux/files/usr/lib/jvm/java-21-openjdk/
+            // (older packages used `openjdk-21`), so match on the bin/java marker rather
+            // than the directory name to avoid grabbing the docs dir (usr/share/doc/...).
             val extractedRoot = tempDir.walkTopDown().firstOrNull { d ->
-                d.isDirectory && d.name == "openjdk-21" &&
-                    d.absolutePath.contains("com.termux") &&
+                d.isDirectory && File(d, "bin/java").isFile
+            } ?: tempDir.walkTopDown().firstOrNull { d ->
+                d.isDirectory && d.name == "java-21-openjdk" &&
                     d.absolutePath.contains("usr/lib/jvm")
             } ?: tempDir.walkTopDown().firstOrNull { d ->
                 d.isDirectory && d.name == "openjdk-21"
             }
             if (extractedRoot == null) {
-                throw Exception("openjdk-21 root directory not found in extracted tarball")
+                throw Exception("JDK root (bin/java) not found in extracted tarball")
             }
-            Log.i(TAG, "Found openjdk-21 root at ${extractedRoot.absolutePath}")
+            Log.i(TAG, "Found JDK root at ${extractedRoot.absolutePath}")
 
             runtimeDir.deleteRecursively()
             runtimeDir.mkdirs()
