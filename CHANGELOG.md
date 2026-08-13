@@ -1,14 +1,10 @@
 # Changelog
 
-## v5.0.71--mobilev2 (2026-08-14)
-
-### Bug Fix
-- **Java runtime install no longer aborts on package symlinks.** After the v5.0.70 download fix, the runtime install failed at extraction with "The source file doesn't exist." — the Termux `openjdk-21` package ships a few symlinks (under `legal/`/docs) whose targets live elsewhere in the .deb tree and don't exist after extracting just the JDK root. Those are documentation files, not needed at runtime, so `JavaRuntimeManager` now copies with an error handler that skips unreadable/broken entries instead of aborting. Version bumped to 5.0.71 so in-app update checks (numeric compare) offer this build to 5.0.70 installs.
-
 ## v5.0.70--mobilev2 (2026-08-14)
 
-### Bug Fix
+### Bug Fixes
 - **Java runtime download 404 fixed.** The in-app Java runtime install requested `openjdk-21.0.12_aarch64.deb`, but Debian package filenames are `<package>_<version>_<arch>.deb` — the real file is `openjdk-21_21.0.12_aarch64.deb`. `JavaRuntimeManager` now builds the correct name (applies to all ABIs: arm64/x86_64/arm/x86). Fresh installs of the Termux/bionic JDK now succeed instead of failing with "Download failed: HTTP 404".
+- **Java runtime install no longer aborts on package symlinks.** Once the download succeeds, the runtime install failed at extraction with "The source file doesn't exist." — the Termux `openjdk-21` package ships a few symlinks (under `legal/`/docs) whose targets live elsewhere in the .deb tree and don't exist after extracting just the JDK root. Those are documentation files, not needed at runtime, so `JavaRuntimeManager` copies with an error handler that skips unreadable/broken entries instead of aborting.
 
 ## v5.1.0--desktopv2 (2026-08-11)
 

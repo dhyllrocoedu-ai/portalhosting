@@ -1,17 +1,10 @@
 [
   {
-    "version": "5.0.71-mobilev2",
-    "date": "2026-08-14",
-    "platform": "mobile",
-    "prerelease": false,
-    "notes": "<p><strong>Android v5.0.71-mobilev2 (runtime extraction fix)</strong></p><ul><li><strong>Runtime install no longer aborts on package symlinks.</strong> After the download fix (v5.0.70), the runtime install failed at extraction with &ldquo;The source file doesn&rsquo;t exist.&rdquo; &mdash; the Termux <code>openjdk-21</code> package ships a few symlinks (under <code>legal/</code>/docs) whose targets live elsewhere in the .deb tree. Those are documentation files, not needed at runtime, so the JDK copy now skips unreadable/broken entries and completes the install.</li><li><strong>Existing 5.0.70 installs can update in-app.</strong> Version bumped to 5.0.71 so the in-app update check offers this build (numeric version compare).</li></ul>"
-  },
-  {
     "version": "5.0.70-mobilev2",
     "date": "2026-08-14",
     "platform": "mobile",
     "prerelease": false,
-    "notes": "<p><strong>Android v5.0.70-mobilev2 (Java runtime download fix)</strong></p><ul><li><strong>Runtime download 404 fixed.</strong> The in-app Java runtime install pointed at a wrong file name &mdash; <code>openjdk-21.0.12_aarch64.deb</code> instead of the real Termux package <code>openjdk-21_21.0.12_aarch64.deb</code> (Debian names are <code>&lt;package&gt;_&lt;version&gt;_&lt;arch&gt;.deb</code>). Installing the runtime now finds the package on the Termux mirror and succeeds.</li><li><strong>Fresh installs on arm64/x86_64/arm/x86 all work.</strong> The fix applies to every supported ABI since they all share the same filename pattern.</li></ul>"
+    "notes": "<p><strong>Android v5.0.70-mobilev2 (Java runtime install fixes)</strong></p><ul><li><strong>Runtime download 404 fixed.</strong> The in-app Java runtime install pointed at a wrong file name &mdash; <code>openjdk-21.0.12_aarch64.deb</code> instead of the real Termux package <code>openjdk-21_21.0.12_aarch64.deb</code> (Debian names are <code>&lt;package&gt;_&lt;version&gt;_&lt;arch&gt;.deb</code>). Installing the runtime now finds the package on the Termux mirror and succeeds.</li><li><strong>Runtime install no longer aborts on package symlinks.</strong> After the download succeeds, the runtime install failed at extraction with &ldquo;The source file doesn&rsquo;t exist.&rdquo; &mdash; the Termux <code>openjdk-21</code> package ships a few symlinks (under <code>legal/</code>/docs) whose targets live elsewhere in the .deb tree. Those are documentation files, not needed at runtime, so the JDK copy now skips unreadable/broken entries and completes the install.</li><li><strong>Fresh installs on arm64/x86_64/arm/x86 all work.</strong> The fixes apply to every supported ABI since they all share the same filename pattern.</li></ul>"
   },
   {
     "version": "5.1.0",
