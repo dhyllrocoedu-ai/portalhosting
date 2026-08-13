@@ -1,5 +1,10 @@
 # Changelog
 
+## v5.0.71--mobilev2 (2026-08-14)
+
+### Bug Fix
+- **Java runtime install no longer aborts on package symlinks.** After the v5.0.70 download fix, the runtime install failed at extraction with "The source file doesn't exist." — the Termux `openjdk-21` package ships a few symlinks (under `legal/`/docs) whose targets live elsewhere in the .deb tree and don't exist after extracting just the JDK root. Those are documentation files, not needed at runtime, so `JavaRuntimeManager` now copies with an error handler that skips unreadable/broken entries instead of aborting. Version bumped to 5.0.71 so in-app update checks (numeric compare) offer this build to 5.0.70 installs.
+
 ## v5.0.70--mobilev2 (2026-08-14)
 
 ### Bug Fix

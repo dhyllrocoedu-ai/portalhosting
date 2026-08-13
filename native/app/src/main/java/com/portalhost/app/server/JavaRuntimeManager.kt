@@ -189,7 +189,18 @@ class JavaRuntimeManager(private val context: Context) {
 
             runtimeDir.deleteRecursively()
             runtimeDir.mkdirs()
-            extractedRoot.copyRecursively(runtimeDir, overwrite = true)
+            // Termux packages ship a few symlinks (e.g. under legal/) whose targets
+            // live elsewhere in the .deb tree and do not exist after extracting just
+            // the JDK root. Those are doc files, not needed at runtime, so skip them
+            // instead of aborting the whole install with "The source file doesn't exist."
+            extractedRoot.copyRecursively(
+                runtimeDir,
+                overwrite = true,
+                onError = { file, e ->
+                    Log.w(TAG, "Skipping ${file.absolutePath} during JDK copy: ${e.message}")
+                    kotlin.io.OnErrorAction.SKIP
+                }
+            )
 
             emit(JdkInstallPhase.VERIFYING, "Verifying install...", 0.97f)
             javaBinary.setExecutable(true)
