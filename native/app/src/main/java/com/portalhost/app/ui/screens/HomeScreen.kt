@@ -139,6 +139,7 @@ fun HomeScreen(
                     serverConfigs = serverConfigs,
                     serverState = serverState,
                     statusColor = statusColor,
+                    networkInfo = networkInfo,
                     repository = repository,
                     onSelectServer = onSelectServer,
                     onCreateServer = onCreateServer,
@@ -222,6 +223,9 @@ fun HomeScreen(
                     maxPlayers = maxPlayers,
                     onOpenPerformance = onOpenPerformance
                 )
+
+                // Storage
+                StorageCard(storageStats = storageStats)
 
                 // Console
                 ConsoleCard(

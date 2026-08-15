@@ -3,7 +3,9 @@ package com.portalhost.app.ui.screens.home
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,8 +21,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
 import com.portalhost.app.ui.model.ServerConfig
@@ -42,6 +46,7 @@ fun ServerCard(
     serverConfigs: List<ServerConfig>,
     serverState: ServerState,
     statusColor: Color,
+    networkInfo: NetworkInfo,
     repository: ServerRepository,
     onSelectServer: (String) -> Unit,
     onCreateServer: () -> Unit,
@@ -51,6 +56,11 @@ fun ServerCard(
     onRestart: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+
+    val isRunning = serverState.status == ServerStatus.ONLINE || serverState.status == ServerStatus.STARTING
+    val connectionAddress = if (isRunning && networkInfo.localIp != "Unknown")
+        "${networkInfo.localIp}:${activeServer?.port ?: 25565}"
+    else "Server not running"
 
     val serverDir = activeServer?.let { repository.getServerDir(it.id) }
     val serverIcon = remember(serverDir?.absolutePath) { loadServerIcon(serverDir) }
@@ -167,8 +177,29 @@ fun ServerCard(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Lan,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = connectionAddress,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isRunning) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

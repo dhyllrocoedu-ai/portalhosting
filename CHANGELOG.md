@@ -3,14 +3,17 @@
 ## v5.0.71--mobilev2 (2026-08-15)
 
 ### Bug Fixes
-- **CANNOT LINK EXECUTABLE fix.** The Termux OpenJDK 21 `.deb` ships `libz.so.1`, `libcrypto.so.3`, `libssl.so.3`, `libandroid-shmem.so`, and `libandroid-spawn.so` inside hidden `..dist/` directories (RTDLib-trimmed dependencies) that were not being moved into `runtimeDir/lib/`. After extraction, `libjli.so` could not resolve `libz.so.1` and the JVM aborted with "CANNOT LINK EXECUTABLE" from the `bin/java` ELF. `fixupLibraries()` is now active on every server start (and at install time): it relocates `.so` files found anywhere in the extracted tree into `runtimeDir/lib/`, copies `libcrypto.so.3` and `libssl.so.3` from `/system/lib64/`, and downloads `libz.so.1`, `libandroid-shmem.so`, and `libandroid-spawn.so` from their respective Termux `.deb` packages when missing. Libraries removed or corrupted after install are restored before each `bin/java` invocation.
-- **v5.0.70 fixes preserved.** The 404 filename fix and symlink-skip extraction remain unchanged.
+- **Upload/Download no longer stuck at 0 B/s.** `ProcessMonitor.measureNetworkRate()` used to sum per-interface counters from `/proc/net/dev`, which reports 0 for these interfaces on many Android devices — so the dashboard always showed 0 B/s up and down. Network rate is now measured per-UID via `TrafficStats.getUidRxBytes()/getUidTxBytes()` using the server process UID read from `/proc/<pid>/status`, giving real throughput on the live stats grid.
+- **Storage card added to the dashboard.** A live used/total storage card now sits between the performance card and the console preview, mirroring the desktop dashboard.
+
+### Improvements
+- **Live IP address on the server card.** The home server card now shows the LAN connection address (`<localIp>:<port>`) whenever the server is running (e.g. `192.168.1.10:25565`), and "Server not running" otherwise.
+- **CPU % rounded.** The live stats grid now shows whole-number CPU percentages instead of long decimals.
 
 ## v5.0.70--mobilev2 (2026-08-14)
 
-### Bug Fixes
+### Bug Fix
 - **Java runtime download 404 fixed.** The in-app Java runtime install requested `openjdk-21.0.12_aarch64.deb`, but Debian package filenames are `<package>_<version>_<arch>.deb` — the real file is `openjdk-21_21.0.12_aarch64.deb`. `JavaRuntimeManager` now builds the correct name (applies to all ABIs: arm64/x86_64/arm/x86). Fresh installs of the Termux/bionic JDK now succeed instead of failing with "Download failed: HTTP 404".
-- **Java runtime install no longer aborts on package symlinks.** Once the download succeeds, the runtime install failed at extraction with "The source file doesn't exist." — the Termux `openjdk-21` package ships a few symlinks (under `legal/`/docs) whose targets live elsewhere in the .deb tree and don't exist after extracting just the JDK root. Those are documentation files, not needed at runtime, so `JavaRuntimeManager` copies with an error handler that skips unreadable/broken entries instead of aborting.
 
 ## v5.1.0--desktopv2 (2026-08-11)
 

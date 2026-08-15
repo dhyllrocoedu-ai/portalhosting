@@ -1,5 +1,6 @@
 package com.portalhost.app.server
 
+import android.net.TrafficStats
 import android.util.Log
 import java.io.File
 import kotlin.math.roundToInt
@@ -40,7 +41,7 @@ class ProcessMonitor {
         val pid = getPid(process)
         val cpuPercent = if (pid != null) measureCpu(pid) else 0f
         val ramBytes = if (pid != null) readRss(pid) else 0L
-        val (rxRate, txRate) = measureNetworkRate()
+        val (rxRate, txRate) = measureNetworkRate(process)
 
         return ProcessStats(
             cpuPercent = cpuPercent,
@@ -113,50 +114,29 @@ class ProcessMonitor {
         }
     }
 
-    private fun measureNetworkRate(): Pair<Long, Long> {
+    private fun measureNetworkRate(process: Process?): Pair<Long, Long> {
         return try {
-            var rx: Long
-            var tx: Long
-            val netFile = File("/proc/net/dev")
-            if (netFile.exists()) {
-                var rxTotal = 0L
-                var txTotal = 0L
-                netFile.readLines().forEach { line ->
-                    if (line.contains(":") && !line.contains("Inter-|") && !line.contains(" face")) {
-                        val parts = line.trim().split("\\s+".toRegex())
-                        if (parts.size >= 10) {
-                            val iface = parts[0].removeSuffix(":")
-                            if (iface == "lo") return@forEach
-                            rxTotal += parts[1].toLongOrNull() ?: 0
-                            txTotal += parts[9].toLongOrNull() ?: 0
-                        }
-                    }
-                }
-                rx = rxTotal
-                tx = txTotal
-            } else {
-                val ts = android.net.TrafficStats::class.java
-                rx = ts.getDeclaredMethod("getTotalRxBytes").invoke(null) as Long
-                tx = ts.getDeclaredMethod("getTotalTxBytes").invoke(null) as Long
-            }
             val now = System.nanoTime()
             val elapsedNs = now - lastNetTime
             if (lastNetTime == 0L || elapsedNs <= 0) {
-                lastNetRx = rx
-                lastNetTx = tx
-                lastNetTime = now
+                lastNetRx = 0L; lastNetTx = 0L; lastNetTime = now
                 return 0L to 0L
             }
+            val pidField = process?.javaClass?.getDeclaredField("pid")?.apply { isAccessible = true }
+            val pid = pidField?.getInt(process)
+            val serverUid = pid?.let {
+                File("/proc/$it/status").readLines()
+                    .firstOrNull { l -> l.startsWith("Uid:") }
+                    ?.split("\\s+".toRegex())?.getOrNull(1)?.toIntOrNull()
+            }
+            val rx = serverUid?.let { TrafficStats.getUidRxBytes(it) } ?: 0L
+            val tx = serverUid?.let { TrafficStats.getUidTxBytes(it) } ?: 0L
             val elapsedSec = elapsedNs / 1_000_000_000.0
-            val rxRate = if (elapsedSec > 0) ((rx - lastNetRx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
-            val txRate = if (elapsedSec > 0) ((tx - lastNetTx) / elapsedSec).toLong().coerceAtLeast(0) else 0L
-            lastNetRx = rx
-            lastNetTx = tx
-            lastNetTime = now
+            val rxRate = if (elapsedSec > 0) ((rx - lastNetRx) / elapsedSec).toLong().coerceAtLeast(0L) else 0L
+            val txRate = if (elapsedSec > 0) ((tx - lastNetTx) / elapsedSec).toLong().coerceAtLeast(0L) else 0L
+            lastNetRx = rx; lastNetTx = tx; lastNetTime = now
             rxRate to txRate
-        } catch (_: Exception) {
-            0L to 0L
-        }
+        } catch (_: Exception) { 0L to 0L }
     }
 
     fun parseTps(line: String): Float? {

@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.portalhost.app.server.ProcessStats
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
+import kotlin.math.roundToInt
 
 @Composable
 fun PerformanceCard(
@@ -43,7 +44,7 @@ fun PerformanceCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val live = serverState.status == ServerStatus.ONLINE || serverState.status == ServerStatus.STARTING
-                StatMiniCard(value = if (live) "${processStats.cpuPercent}%" else "—", label = "CPU")
+                StatMiniCard(value = if (live) "${processStats.cpuPercent.roundToInt()}%" else "—", label = "CPU")
                 StatMiniCard(value = if (live) processStats.ramFormatted else "—", label = "RAM")
                 StatMiniCard(value = if (live) formatTps(processStats.tps) else "—", label = "TPS")
             }
