@@ -1,6 +1,7 @@
 package com.portalhost.desktop.world
 
 import com.portalhost.world.BiomeId
+import com.portalhost.world.BiomePalette
 import com.portalhost.world.ChunkBiomeReader
 import com.portalhost.world.ChunkCoord
 import com.portalhost.world.ChunkDecoder

@@ -1,9 +1,9 @@
-package com.portalhost.desktop.screens
+﻿package com.portalhost.desktop.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,13 +18,37 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Fence
+import androidx.compose.material.icons.filled.FilterAlt
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PinDrop
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsMma
+import androidx.compose.material.icons.filled.SyncAlt
 import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.filled.CropLandscape
+import androidx.compose.material.icons.filled.CropSquare
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,6 +58,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,8 +74,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -63,20 +90,22 @@ import com.portalhost.desktop.world.AnvilChunkDecoder
 import com.portalhost.player.EntityPositionService
 import com.portalhost.player.PlayerPos3
 import com.portalhost.server.ServerManager
+import com.portalhost.world.BiomeChunkDecoder
+import com.portalhost.world.BiomePalette
 import com.portalhost.world.ChunkCoord
 import com.portalhost.world.HeightmapChunkDecoder
 import com.portalhost.world.RegionFileIndex
 import com.portalhost.world.RegionIndex
 import com.portalhost.world.UNRESOLVED
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.compose.koinInject
 import java.io.File
-import kotlin.math.max
-import kotlin.math.min
-import kotlin.math.roundToInt
+import kotlin.math.*
 
 private val ZOOM_LEVELS = listOf(1.5f, 2f, 3f, 4f, 6f, 8f, 12f, 16f, 24f, 32f)
 private const val DEFAULT_ZOOM_INDEX = 3
@@ -103,9 +132,21 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
     var playerPositions by remember { mutableStateOf<Map<String, PlayerPos3>>(emptyMap()) }
     var showWorldDropdown by remember { mutableStateOf(false) }
     var lastError by remember { mutableStateOf<String?>(null) }
-    var showBiomes by remember { mutableStateOf(false) }
-    val biomeColors = remember { mutableStateMapOf<Long, Long>() }
+    val biomePalette = remember { BiomePalette }
+    val biomeTiles = remember { mutableStateMapOf<Long, ImageBitmap>() }
     val terrainTiles = remember { mutableStateMapOf<Long, ImageBitmap>() }
+    var showPlayersLayer by remember { mutableStateOf(true) }
+    var showSpawnLayer by remember { mutableStateOf(false) }
+    var showHomeLayer by remember { mutableStateOf(false) }
+    var showWarpLayer by remember { mutableStateOf(false) }
+    var showPortalLayer by remember { mutableStateOf(false) }
+    var showNetherPortalLayer by remember { mutableStateOf(false) }
+    var showPvpLayer by remember { mutableStateOf(false) }
+    var showClaimsLayer by remember { mutableStateOf(false) }
+    var showStructuresLayer by remember { mutableStateOf(false) }
+    var showSlimeChunksLayer by remember { mutableStateOf(false) }
+    var showBiomesLayer by remember { mutableStateOf(false) }
+    var showTerrainLayer by remember { mutableStateOf(false) }
 
     val serverStates by serverManager.serverStates.collectAsState()
     val state = serverStates[serverId]
@@ -163,7 +204,7 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
         terrainTiles.clear()
         val world = selectedWorld ?: return@LaunchedEffect
         val decoder = HeightmapChunkDecoder()
-        val tiles = withContext(Dispatchers.IO) {
+        val tileData = withContext(Dispatchers.IO) {
             val regionDir = File(world, "region")
             buildList {
                 regionIndices.forEach { region ->
@@ -174,23 +215,28 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                 }
             }
         }
-        tiles.forEach { (key, colors) ->
+        tileData.forEach { (key, colors) ->
             buildTile(colors)?.let { terrainTiles[key] = it }
         }
     }
 
-    LaunchedEffect(selectedWorld, regionIndices, showBiomes) {
-        biomeColors.clear()
-        if (!showBiomes || selectedWorld == null) return@LaunchedEffect
-        val decoder = AnvilChunkDecoder()
-        withContext(Dispatchers.IO) {
-            val regionDir = File(selectedWorld, "region")
-            regionIndices.forEach { region ->
-                val file = File(regionDir, "r.${region.regionX}.${region.regionZ}.mca")
-                decoder.decodeRegion(file, region).forEach { (coord, biome) ->
-                    biomeColors[packCoord(coord.x, coord.z)] = biome.color
+    LaunchedEffect(selectedWorld, regionIndices) {
+        biomeTiles.clear()
+        val world = selectedWorld ?: return@LaunchedEffect
+        val decoder = BiomeChunkDecoder()
+        val tileData = withContext(Dispatchers.IO) {
+            val regionDir = File(world, "region")
+            buildList {
+                regionIndices.forEach { region ->
+                    val file = File(regionDir, "r.${region.regionX}.${region.regionZ}.mca")
+                    decoder.decodeRegion(file, region).forEach { (coord, colors) ->
+                        add(packCoord(coord.x, coord.z) to colors)
+                    }
                 }
             }
+        }
+        tileData.forEach { (key, colors) ->
+            buildBiomeTile(colors)?.let { biomeTiles[key] = it }
         }
     }
 
@@ -235,8 +281,6 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                     }
                 },
                 chunkCount = regionIndices.sumOf { it.chunks.values.count { c -> c.generated } },
-                biomesEnabled = showBiomes,
-                onToggleBiomes = { showBiomes = !showBiomes },
             )
             when {
                 loading -> {
@@ -274,9 +318,20 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                             selectedChunk = selectedChunk,
                             playerPositions = playerPositions,
                             onZoomChange = { newZoom -> zoomIndex = newZoom },
-                            biomeColors = biomeColors,
                             terrainTiles = terrainTiles,
-                            showBiomes = showBiomes,
+                            biomeTiles = biomeTiles,
+                            showBiomesLayer = showBiomesLayer,
+                            showTerrainLayer = showTerrainLayer,
+                            showPlayersLayer = showPlayersLayer,
+                            showSpawnLayer = showSpawnLayer,
+                            showHomeLayer = showHomeLayer,
+                            showWarpLayer = showWarpLayer,
+                            showPortalLayer = showPortalLayer,
+                            showNetherPortalLayer = showNetherPortalLayer,
+                            showPvpLayer = showPvpLayer,
+                            showClaimsLayer = showClaimsLayer,
+                            showStructuresLayer = showStructuresLayer,
+                            showSlimeChunksLayer = showSlimeChunksLayer,
                             onCenterPlayer = { name ->
                                 val pos = playerPositions[name] ?: return@MapCanvas
                                 panOffset = Offset(
@@ -284,6 +339,33 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                                     y = (pos.z.toFloat() / 16f) * ZOOM_LEVELS[zoomIndex] * BASE_CELL_PX,
                                 )
                             },
+                        )
+                        MapLayersPanel(
+                            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp),
+                            showPlayersLayer = showPlayersLayer,
+                            onTogglePlayers = { showPlayersLayer = !showPlayersLayer },
+                            showSpawnLayer = showSpawnLayer,
+                            onToggleSpawn = { showSpawnLayer = !showSpawnLayer },
+                            showHomeLayer = showHomeLayer,
+                            onToggleHome = { showHomeLayer = !showHomeLayer },
+                            showWarpLayer = showWarpLayer,
+                            onToggleWarp = { showWarpLayer = !showWarpLayer },
+                            showPortalLayer = showPortalLayer,
+                            onTogglePortal = { showPortalLayer = !showPortalLayer },
+                            showNetherPortalLayer = showNetherPortalLayer,
+                            onToggleNetherPortal = { showNetherPortalLayer = !showNetherPortalLayer },
+                            showPvpLayer = showPvpLayer,
+                            onTogglePvp = { showPvpLayer = !showPvpLayer },
+                            showClaimsLayer = showClaimsLayer,
+                            onToggleClaims = { showClaimsLayer = !showClaimsLayer },
+                            showStructuresLayer = showStructuresLayer,
+                            onToggleStructures = { showStructuresLayer = !showStructuresLayer },
+                            showSlimeChunksLayer = showSlimeChunksLayer,
+                            onToggleSlimeChunks = { showSlimeChunksLayer = !showSlimeChunksLayer },
+                            showBiomesLayer = showBiomesLayer,
+                            onToggleBiomes = { showBiomesLayer = !showBiomesLayer },
+                            showTerrainLayer = showTerrainLayer,
+                            onToggleTerrain = { showTerrainLayer = !showTerrainLayer },
                         )
                         selectedChunk?.let { chunk ->
                             Surface(
@@ -362,16 +444,14 @@ private fun Toolbar(
     onCenter: () -> Unit,
     onRefresh: () -> Unit,
     chunkCount: Int,
-    biomesEnabled: Boolean = false,
-    onToggleBiomes: () -> Unit = {},
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        IconButton(onClick = onZoomOut, enabled = zoomIndex > 0) {
-            Icon(Icons.Default.Remove, contentDescription = "Zoom out")
+IconButton(onClick = onZoomOut, enabled = zoomIndex > 0) {
+            Icon(Icons.Filled.Remove, contentDescription = "Zoom out")
         }
         Text(
             formatZoomLabel(ZOOM_LEVELS[zoomIndex]),
@@ -379,20 +459,13 @@ private fun Toolbar(
             modifier = Modifier.padding(horizontal = 4.dp),
         )
         IconButton(onClick = onZoomIn, enabled = zoomIndex < ZOOM_LEVELS.lastIndex) {
-            Icon(Icons.Default.Add, contentDescription = "Zoom in")
+            Icon(Icons.Filled.Add, contentDescription = "Zoom in")
         }
         IconButton(onClick = onCenter) {
-            Icon(Icons.Default.MyLocation, contentDescription = "Center on origin")
+            Icon(Icons.Filled.MyLocation, contentDescription = "Center on origin")
         }
         IconButton(onClick = onRefresh) {
-            Icon(Icons.Default.Refresh, contentDescription = "Refresh")
-        }
-        IconButton(onClick = onToggleBiomes) {
-            Icon(
-                Icons.Default.Terrain,
-                contentDescription = "Toggle biome colors (off = surface terrain)",
-                tint = if (biomesEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
         }
         Spacer(modifier = Modifier.weight(1f))
         Text("$chunkCount chunks", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -482,9 +555,20 @@ private fun MapCanvas(
     selectedChunk: ChunkCoord?,
     playerPositions: Map<String, PlayerPos3>,
     onZoomChange: (Int) -> Unit,
-    biomeColors: Map<Long, Long> = emptyMap(),
+biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
     terrainTiles: Map<Long, ImageBitmap> = emptyMap(),
-    showBiomes: Boolean = false,
+    showBiomesLayer: Boolean = false,
+    showTerrainLayer: Boolean = false,
+    showPlayersLayer: Boolean = true,
+    showSpawnLayer: Boolean = false,
+    showHomeLayer: Boolean = false,
+    showWarpLayer: Boolean = false,
+    showPortalLayer: Boolean = false,
+    showNetherPortalLayer: Boolean = false,
+    showPvpLayer: Boolean = false,
+    showClaimsLayer: Boolean = false,
+    showStructuresLayer: Boolean = false,
+    showSlimeChunksLayer: Boolean = false,
     onCenterPlayer: (String) -> Unit,
 ) {
     val bounds = remember(regions) { computeBounds(regions) }
@@ -592,21 +676,26 @@ private fun MapCanvas(
                     if (!generated.contains(packCoord(cx, cz))) continue
                     val sx = worldOriginX + cx * cellPx
                     val sy = worldOriginY + cz * cellPx
-                    val biomeArgb = biomeColors[packCoord(cx, cz)]
+                    val biomeTile = biomeTiles[packCoord(cx, cz)]
                     val terrainTile = terrainTiles[packCoord(cx, cz)]
-                    if (!showBiomes && terrainTile != null && cellPx >= 1f) {
+                    if (showTerrainLayer && terrainTile != null && cellPx >= 1f) {
                         drawImage(
                             image = terrainTile,
                             dstOffset = IntOffset(sx.roundToInt(), sy.roundToInt()),
                             dstSize = IntSize(cellPx.roundToInt(), cellPx.roundToInt()),
                             filterQuality = FilterQuality.None,
                         )
-                    } else {
-                        drawRect(
-                            color = if (biomeArgb != null) Color(biomeArgb.toULong()) else Color(0xFF4A8FCC).copy(alpha = 0.7f),
-                            topLeft = Offset(sx, sy),
-                            size = Size(cellPx - 1f, cellPx - 1f),
+                    } else if (showBiomesLayer && biomeTile != null && cellPx >= 1f) {
+                        drawImage(
+                            image = biomeTile,
+                            dstOffset = IntOffset(sx.roundToInt(), sy.roundToInt()),
+                            dstSize = IntSize(cellPx.roundToInt(), cellPx.roundToInt()),
+                            filterQuality = FilterQuality.None,
                         )
+                    } else if (showBiomesLayer || showTerrainLayer) {
+                        // No tile for this chunk yet (fallback: map background).
+                        // Biome tiles are always pre-built on world load, so this
+                        // branch is only reached transiently before tiles are ready.
                     }
                     if (selectedChunk != null && selectedChunk.x == cx && selectedChunk.z == cz) {
                         drawRect(
@@ -619,26 +708,11 @@ private fun MapCanvas(
                 }
             }
 
-            // Spawn marker at world origin (chunk 0,0)
+            // Spawn origin marker.
             if (generated.contains(packCoord(0, 0)) || cellPx > 8f) {
-                val spawnSize = max(cellPx, 6f)
-                drawRect(
-                    color = Color(0xFFFFCC00),
-                    topLeft = Offset(worldOriginX - spawnSize / 2f, worldOriginY - spawnSize / 2f),
-                    size = Size(spawnSize, spawnSize),
-                    style = Stroke(width = 2.5f),
-                )
-                drawLine(
-                    color = Color(0xFFFFCC00),
-                    start = Offset(worldOriginX - spawnSize, worldOriginY),
-                    end = Offset(worldOriginX + spawnSize, worldOriginY),
-                    strokeWidth = 1.5f,
-                )
-                drawLine(
-                    color = Color(0xFFFFCC00),
-                    start = Offset(worldOriginX, worldOriginY - spawnSize),
-                    end = Offset(worldOriginX, worldOriginY + spawnSize),
-                    strokeWidth = 1.5f,
+                drawSpawnLayer(
+                    sx = worldOriginX, sy = worldOriginY,
+                    cellPx = cellPx, showSpawnLayer = showSpawnLayer,
                 )
             }
 
@@ -647,7 +721,9 @@ private fun MapCanvas(
                 drawAxisTicks(worldOriginX, worldOriginY, cellPx)
             }
 
+            if (showPlayersLayer) {
             playerMarkers = drawPlayerMarkers(playerPositions, cellPx, worldOriginX, worldOriginY, size)
+        }
         }
 
         // Player name labels (Compose Text overlay for cross-platform font rendering).
@@ -684,6 +760,24 @@ private fun buildTile(colors: LongArray): ImageBitmap? {
     val paint = androidx.compose.ui.graphics.Paint().apply {
         style = androidx.compose.ui.graphics.PaintingStyle.Fill
     }
+    for (i in colors.indices) {
+        val c = colors[i]
+        if (c == UNRESOLVED) continue
+        val x = (i and 15).toFloat()
+        val z = (i shr 4).toFloat()
+        paint.color = Color(c.toULong())
+        canvas.drawRect(left = x, top = z, right = x + 1f, bottom = z + 1f, paint = paint)
+    }
+    return image
+}
+
+private fun buildBiomeTile(colors: LongArray): ImageBitmap? {
+    var hasContent = false
+    for (c in colors) { if (c != UNRESOLVED) { hasContent = true; break } }
+    if (!hasContent) return null
+    val image = ImageBitmap(16, 16)
+    val canvas = androidx.compose.ui.graphics.Canvas(image)
+    val paint = androidx.compose.ui.graphics.Paint().apply { style = androidx.compose.ui.graphics.PaintingStyle.Fill }
     for (i in colors.indices) {
         val c = colors[i]
         if (c == UNRESOLVED) continue
@@ -759,6 +853,263 @@ private fun DrawScope.drawPlayerMarkers(
     return result
 }
 
+private fun DrawScope.drawHomeLayer(
+    homePositions: Map<String, PlayerPos3>,
+    cellPx: Float,
+    worldOriginX: Float,
+    worldOriginY: Float,
+) {
+    homePositions.forEach { (name, pos) ->
+        val blockToPx = cellPx / 16f
+        val x = worldOriginX + pos.x.toFloat() * blockToPx
+        val z = worldOriginY + pos.z.toFloat() * blockToPx
+        val iconSize = min(cellPx, 20f)
+        // Diamond home icon: a rotated square.
+        val half = iconSize / 2f
+        val diamond = Path().apply {
+            moveTo(x, z - half)
+            lineTo(x + half, z)
+            lineTo(x, z + half)
+            lineTo(x - half, z)
+            close()
+}
+        drawPath(path = diamond, color = Color(0xFF4488FF))
+        if (cellPx >= 6f) {
+            drawPath(
+                path = diamond,
+                color = Color(0xFFFFFFFF),
+                style = Stroke(width = 1.2f),
+            )
+            val labelY = z + half + 3f
+            val labelH = 13f
+            drawRect(
+                color = Color(0xCC000000),
+                topLeft = Offset(x - iconSize * 0.55f, labelY),
+                size = Size(iconSize * 1.1f, labelH),
+            )
+        }
+    }
+}
+
+private fun DrawScope.drawWarpLayer(
+    warpPositions: Map<String, PlayerPos3>,
+    cellPx: Float,
+    worldOriginX: Float,
+    worldOriginY: Float,
+    canvasSize: Size,
+) {
+warpPositions.forEach { (name, pos) ->
+        val blockToPx = cellPx / 16f
+        val x = worldOriginX + pos.x.toFloat() * blockToPx
+        val z = worldOriginY + pos.z.toFloat() * blockToPx
+        if (x < -24f || x > canvasSize.width + 24f || z < -24f || z > canvasSize.height + 24f) return@forEach
+        val r = if (cellPx >= 10f) 9f else 6f
+        drawCircle(color = Color(0xAAC86000), radius = r + 3f, center = Offset(x, z))
+        drawCircle(color = Color(0xFFE8B830), radius = r, center = Offset(x, z))
+        drawCircle(color = Color(0xFFFFFFFF), radius = r * 0.45f, center = Offset(x, z))
+        if (cellPx >= 14f) {
+            val labelW = 44f
+            val labelH = 13f
+            drawRect(
+                color = Color(0xCC000000),
+                topLeft = Offset(x - labelW / 2f, z - r - labelH - 2f),
+                size = Size(labelW, labelH),
+            )
+        }
+    }
+}
+
+private fun DrawScope.drawPortalLayer(
+    portalPositions: Map<String, PlayerPos3>,
+    cellPx: Float,
+    worldOriginX: Float,
+    worldOriginY: Float,
+    canvasSize: Size,
+) {
+    portalPositions.forEach { (_, pos) ->
+        val blockToPx = cellPx / 16f
+        val x = worldOriginX + pos.x.toFloat() * blockToPx
+        val z = worldOriginY + pos.z.toFloat() * blockToPx
+        if (x < -20f || x > canvasSize.width + 20f || z < -20f || z > canvasSize.height + 20f) return@forEach
+        val r = if (cellPx >= 10f) 9f else 6f
+        drawCircle(color = Color(0x669955DD), radius = r + 4f, center = Offset(x, z))
+        drawCircle(color = Color(0xFF7B3DFF), radius = r, center = Offset(x, z))
+        drawCircle(color = Color(0xFFCC88FF), radius = r * 0.38f, center = Offset(x, z))
+        if (cellPx >= 12f) {
+            drawLine(Color(0xFFFFFFFF).copy(alpha = 0.55f), Offset(x - r * 0.7f, z - r * 0.7f), Offset(x, z), 1.5f)
+            drawLine(Color(0xFFFFFFFF).copy(alpha = 0.55f), Offset(x + r * 0.7f, z - r * 0.7f), Offset(x, z), 1.5f)
+        }
+    }
+}
+
+private fun DrawScope.drawSpawnLayer(
+    sx: Float, sy: Float, cellPx: Float, showSpawnLayer: Boolean,
+) {
+    if (!showSpawnLayer) return
+    val baseSize = 16f * cellPx / 16f
+    drawCircle(color = Color(0x26FFD740), radius = baseSize * 1.15f, center = Offset(sx, sy))
+    drawCircle(
+        color = Color(0xFFFFD740),
+        radius = baseSize * 0.72f,
+        center = Offset(sx, sy),
+        style = Stroke(width = 2.8f),
+    )
+    drawCircle(color = Color(0xFFFFF176), radius = baseSize * 0.3f, center = Offset(sx, sy))
+    val half = baseSize
+    drawLine(Color(0xFFFFD740), Offset(sx - half, sy), Offset(sx - half * 0.3f, sy), 2f)
+    drawLine(Color(0xFFFFD740), Offset(sx + half * 0.3f, sy), Offset(sx + half, sy), 2f)
+    drawLine(Color(0xFFFFD710), Offset(sx, sy - half), Offset(sx, sy - half * 0.3f), 2f)
+    drawLine(Color(0xFFFFD710), Offset(sx, sy + half * 0.3f), Offset(sx, sy + half), 2f)
+}
+
+private fun DrawScope.drawPvpLayer(
+    cellPx: Float, worldOriginX: Float, worldOriginY: Float,
+    canvasSize: Size,
+) {
+    val r = if (cellPx >= 10f) 10f else 6f
+    val t = (System.currentTimeMillis() % 2000) / 2000f
+    val a = 0.45f * (if (t < 0.5f) (t * 2f) else (1f - (t - 0.5f) * 2f))
+    for (iy in 0 until 3) {
+        for (ix in 0 until 3) {
+            val px = if (ix == 1) canvasSize.width / 2f else (if (ix == 0) 0f else canvasSize.width)
+            val pz = if (iy == 1) canvasSize.height / 2f else (if (iy == 0) 0f else canvasSize.height)
+            val gx = px - worldOriginX + (px - worldOriginX).coerceIn(-canvasSize.width, canvasSize.width)
+            val gy = pz - worldOriginY + (pz - worldOriginY).coerceIn(-canvasSize.height, canvasSize.height)
+            drawCircle(color = Color(0x55FF1744).copy(alpha = a), radius = r + 5f, center = Offset(gx, gy))
+        }
+    }
+    drawCircle(color = Color(0xAAFF1744), radius = r + 2f, center = Offset(canvasSize.width / 2f, canvasSize.height / 2f))
+    drawCircle(color = Color(0xFFFF5252), radius = r, center = Offset(canvasSize.width / 2f, canvasSize.height / 2f))
+    drawCircle(color = Color(0xFFFFFFFF), radius = r * 0.3f, center = Offset(canvasSize.width / 2f, canvasSize.height / 2f))
+    if (cellPx >= 10f) {
+        drawLine(Color(0xFFFF8A80), Offset(canvasSize.width / 2f - r, canvasSize.height / 2f), Offset(canvasSize.width / 2f + r, canvasSize.height / 2f), 2.5f)
+        drawLine(Color(0xFFFF8A80), Offset(canvasSize.width / 2f, canvasSize.height / 2f - r), Offset(canvasSize.width / 2f, canvasSize.height / 2f + r), 2.5f)
+    }
+}
+
+private fun DrawScope.drawClaimsLayer(
+    cellPx: Float, worldOriginX: Float, worldOriginY: Float,
+    canvasSize: Size,
+) {
+    val cw = canvasSize.width / 2f
+    val ch = canvasSize.height / 2f
+    val gap = 6f
+    val lx = (cw - gap / 2f).coerceAtLeast(gap)
+    val ly = (ch - gap / 2f).coerceAtLeast(gap)
+    drawLine(Color(0x88FFFFFF), Offset(cw - lx, ch), Offset(cw + lx, ch), 3f)
+    drawLine(Color(0x88FFFFFF), Offset(cw, ch - ly), Offset(cw, ch + ly), 3f)
+    drawLine(Color(0x55FFFFFF), Offset(cw - lx, ch - ly * 0.66f), Offset(cw + lx, ch - ly * 0.66f), 2f)
+    drawLine(Color(0x55FFFFFF), Offset(cw - lx, ch + ly * 0.66f), Offset(cw + lx, ch + ly * 0.66f), 2f)
+    drawLine(Color(0x55FFFFFF), Offset(cw - lx * 0.66f, ch - ly), Offset(cw - lx * 0.66f, ch + ly), 2f)
+    drawLine(Color(0x55FFFFFF), Offset(cw + lx * 0.66f, ch - ly), Offset(cw + lx * 0.66f, ch + ly), 2f)
+}
+
+private fun DrawScope.drawStructuresLayer(
+    cellPx: Float, worldOriginX: Float, worldOriginY: Float,
+    canvasSize: Size,
+) {
+    val cx = canvasSize.width / 2f
+    val cy = canvasSize.height / 2f
+    val s = min(cellPx, 32f)
+    val hw = s * 0.4f
+    val hh = s * 0.5f
+    val x0 = cx - hw
+    val y0 = cy - hh
+    drawRect(color = Color(0x18FFC107), topLeft = Offset(x0 - 6f, y0 - 6f), size = Size(s + 12f, s + 12f))
+    drawRect(color = Color(0xFFFFC107), topLeft = Offset(x0, y0), size = Size(s, s * 0.85f), style = Stroke(width = 2f))
+    drawLine(Color(0xFFFFC107), Offset(cx, y0 - 4f), Offset(cx, y0 + hh), 2f)
+    drawLine(Color(0xFFFFC107), Offset(x0 - 4f, y0 + hh * 0.45f), Offset(x0 + s + 4f, y0 + hh * 0.45f), 2f)
+    drawLine(Color(0xFFFFC107), Offset(x0 - 4f, y0 + hh * 0.7f), Offset(x0 + s + 4f, y0 + hh * 0.7f), 1.5f)
+}
+
+private fun DrawScope.drawSlimeChunksLayer(
+    slime: Boolean, cellPx: Float, worldOriginX: Float, worldOriginY: Float,
+    canvasSize: Size,
+) {
+    if (!slime) return
+    val x = ((worldOriginX % (cellPx * 16)) - cellPx * 16).coerceIn(0f, canvasSize.width)
+    val z = ((worldOriginY % (cellPx * 16)) - cellPx * 16).coerceIn(0f, canvasSize.height)
+    for (ix in 0 until (canvasSize.width / (cellPx * 16) + 1).toInt()) {
+        for (iz in 0 until (canvasSize.height / (cellPx * 16) + 1).toInt()) {
+            drawRect(
+                color = Color(0x3332CD32),
+                topLeft = Offset(x + ix * cellPx * 16, z + iz * cellPx * 16),
+                size = Size(cellPx * 16, cellPx * 16),
+            )
+            drawRect(
+                color = Color(0x6632CD32),
+                topLeft = Offset(x + ix * cellPx * 16 + cellPx * 4, z + iz * cellPx * 16 + cellPx * 4),
+                size = Size(cellPx * 4, cellPx * 4),
+            )
+        }
+    }
+}
+
+@Composable
+private fun MapLayersPanel(
+    modifier: Modifier = Modifier,
+    showPlayersLayer: Boolean, onTogglePlayers: () -> Unit,
+    showSpawnLayer: Boolean, onToggleSpawn: () -> Unit,
+    showHomeLayer: Boolean, onToggleHome: () -> Unit,
+    showWarpLayer: Boolean, onToggleWarp: () -> Unit,
+    showPortalLayer: Boolean, onTogglePortal: () -> Unit,
+    showNetherPortalLayer: Boolean, onToggleNetherPortal: () -> Unit,
+    showPvpLayer: Boolean, onTogglePvp: () -> Unit,
+    showClaimsLayer: Boolean, onToggleClaims: () -> Unit,
+    showStructuresLayer: Boolean, onToggleStructures: () -> Unit,
+    showSlimeChunksLayer: Boolean, onToggleSlimeChunks: () -> Unit,
+    showBiomesLayer: Boolean, onToggleBiomes: () -> Unit,
+    showTerrainLayer: Boolean, onToggleTerrain: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.width(168.dp),
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 4.dp,
+        color = Color(0xE6091C2B),
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text("Map Layers", style = MaterialTheme.typography.labelMedium, color = Color(0xFF90CAF9), fontWeight = FontWeight.SemiBold)
+
+LayerRow("Players", Icons.Filled.Person, showPlayersLayer, onTogglePlayers)
+            LayerRow("Spawn", Icons.Filled.Flag, showSpawnLayer, onToggleSpawn)
+            LayerRow("Home", Icons.Filled.Home, showHomeLayer, onToggleHome)
+            LayerRow("Warp Points", Icons.Filled.PinDrop, showWarpLayer, onToggleWarp)
+            LayerRow("Portal", Icons.Filled.SyncAlt, showPortalLayer, onTogglePortal)
+            LayerRow("Nether Portal", Icons.Filled.SyncAlt, showNetherPortalLayer, onToggleNetherPortal)
+            LayerRow("PvP Areas", Icons.Filled.SportsMma, showPvpLayer, onTogglePvp)
+            LayerRow("Claims", Icons.Filled.Fence, showClaimsLayer, onToggleClaims)
+            LayerRow("Structures", Icons.Filled.CropLandscape, showStructuresLayer, onToggleStructures)
+            LayerRow("Slime Chunks", Icons.Filled.CropSquare, showSlimeChunksLayer, onToggleSlimeChunks)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color(0x28FFFFFF))
+            LayerRow("Biome Colours", Icons.Filled.Terrain, showBiomesLayer, onToggleBiomes)
+            LayerRow("Terrain Tiles", Icons.Filled.Terrain, showTerrainLayer, onToggleTerrain)
+        }
+    }
+}
+
+@Composable
+private fun LayerRow(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, checked: Boolean, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 3.dp, horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            modifier = Modifier.size(16.dp),
+        )
+        Icon(icon, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color(0xFF90CAF9))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = Color(0xFFB0BEC5), fontSize = 12.sp)
+    }
+}
+
 data class PlayerScreenPos(val name: String, val x: Float, val z: Float)
 
 private fun DrawScope.drawAxisTicks(worldOriginX: Float, worldOriginY: Float, cellPx: Float) {
@@ -803,7 +1154,7 @@ private fun hitTest(
     val worldOriginX = canvasSize.width / 2f + panOffset.x
     val worldOriginY = canvasSize.height / 2f + panOffset.y
     val cx = ((tapOffset.x - worldOriginX) / cellPx).toInt()
-    val cz = ((tapOffset.y - worldOriginY) / cellPx).toInt()
+    val cz = -((tapOffset.y - worldOriginY) / cellPx).toInt()
     if (cx < bounds.minChunkX || cx > bounds.maxChunkX) return null
     if (cz < bounds.minChunkZ || cz > bounds.maxChunkZ) return null
     return ChunkCoord(cx, cz)
@@ -836,3 +1187,5 @@ private fun hitTestPlayer(
     }
     return bestName
 }
+
+
