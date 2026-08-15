@@ -4,6 +4,7 @@ import com.portalhost.world.BiomeId
 import com.portalhost.world.ChunkBiomeReader
 import com.portalhost.world.ChunkCoord
 import com.portalhost.world.ChunkDecoder
+import com.portalhost.world.RegionChunkReader
 import com.portalhost.world.RegionIndex
 import java.io.File
 import java.io.RandomAccessFile
@@ -64,27 +65,6 @@ class AnvilChunkDecoder : ChunkDecoder {
         return CachedBiome(name = name, color = BiomePalette.argbFor(name))
     }
 
-    private fun readPayload(raf: RandomAccessFile, sectorOffset: Int, sectorCount: Int): ByteArray? {
-        if (sectorOffset <= 0 || sectorCount <= 0) return null
-        val position = sectorOffset.toLong() * SECTOR_BYTES
-        if (position < 0 || position + 4 > raf.length()) return null
-        raf.seek(position)
-        val lengthBuf = ByteArray(4)
-        raf.readFully(lengthBuf)
-        val length =
-            ((lengthBuf[0].toInt() and 0xFF) shl 24) or
-                ((lengthBuf[1].toInt() and 0xFF) shl 16) or
-                ((lengthBuf[2].toInt() and 0xFF) shl 8) or
-                (lengthBuf[3].toInt() and 0xFF)
-        if (length <= 0 || length > MAX_CHUNK_LENGTH) return null
-        if (position + 4 + length > raf.length()) return null
-        val payload = ByteArray(length)
-        raf.readFully(payload)
-        return payload
-    }
-
-    companion object {
-        private const val SECTOR_BYTES = 4096
-        private const val MAX_CHUNK_LENGTH = 8 * 1024 * 1024
-    }
+    private fun readPayload(raf: RandomAccessFile, sectorOffset: Int, sectorCount: Int): ByteArray? =
+        RegionChunkReader.readPayload(raf, sectorOffset, sectorCount)
 }

@@ -47,12 +47,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
@@ -61,8 +64,10 @@ import com.portalhost.player.EntityPositionService
 import com.portalhost.player.PlayerPos3
 import com.portalhost.server.ServerManager
 import com.portalhost.world.ChunkCoord
+import com.portalhost.world.HeightmapChunkDecoder
 import com.portalhost.world.RegionFileIndex
 import com.portalhost.world.RegionIndex
+import com.portalhost.world.UNRESOLVED
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -100,6 +105,7 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
     var lastError by remember { mutableStateOf<String?>(null) }
     var showBiomes by remember { mutableStateOf(false) }
     val biomeColors = remember { mutableStateMapOf<Long, Long>() }
+    val terrainTiles = remember { mutableStateMapOf<Long, ImageBitmap>() }
 
     val serverStates by serverManager.serverStates.collectAsState()
     val state = serverStates[serverId]
@@ -150,6 +156,26 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
             } catch (_: Exception) {
             }
             delay(POLL_INTERVAL_MS)
+        }
+    }
+
+    LaunchedEffect(selectedWorld, regionIndices) {
+        terrainTiles.clear()
+        val world = selectedWorld ?: return@LaunchedEffect
+        val decoder = HeightmapChunkDecoder()
+        val tiles = withContext(Dispatchers.IO) {
+            val regionDir = File(world, "region")
+            buildList {
+                regionIndices.forEach { region ->
+                    val file = File(regionDir, "r.${region.regionX}.${region.regionZ}.mca")
+                    decoder.decodeRegion(file, region).forEach { (coord, colors) ->
+                        add(packCoord(coord.x, coord.z) to colors)
+                    }
+                }
+            }
+        }
+        tiles.forEach { (key, colors) ->
+            buildTile(colors)?.let { terrainTiles[key] = it }
         }
     }
 
@@ -249,6 +275,8 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                             playerPositions = playerPositions,
                             onZoomChange = { newZoom -> zoomIndex = newZoom },
                             biomeColors = biomeColors,
+                            terrainTiles = terrainTiles,
+                            showBiomes = showBiomes,
                             onCenterPlayer = { name ->
                                 val pos = playerPositions[name] ?: return@MapCanvas
                                 panOffset = Offset(
@@ -362,7 +390,7 @@ private fun Toolbar(
         IconButton(onClick = onToggleBiomes) {
             Icon(
                 Icons.Default.Terrain,
-                contentDescription = "Toggle biomes",
+                contentDescription = "Toggle biome colors (off = surface terrain)",
                 tint = if (biomesEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -455,6 +483,8 @@ private fun MapCanvas(
     playerPositions: Map<String, PlayerPos3>,
     onZoomChange: (Int) -> Unit,
     biomeColors: Map<Long, Long> = emptyMap(),
+    terrainTiles: Map<Long, ImageBitmap> = emptyMap(),
+    showBiomes: Boolean = false,
     onCenterPlayer: (String) -> Unit,
 ) {
     val bounds = remember(regions) { computeBounds(regions) }
@@ -563,11 +593,21 @@ private fun MapCanvas(
                     val sx = worldOriginX + cx * cellPx
                     val sy = worldOriginY + cz * cellPx
                     val biomeArgb = biomeColors[packCoord(cx, cz)]
-                    drawRect(
-                        color = if (biomeArgb != null) Color(biomeArgb.toULong()) else Color(0xFF4A8FCC).copy(alpha = 0.7f),
-                        topLeft = Offset(sx, sy),
-                        size = Size(cellPx - 1f, cellPx - 1f),
-                    )
+                    val terrainTile = terrainTiles[packCoord(cx, cz)]
+                    if (!showBiomes && terrainTile != null && cellPx >= 1f) {
+                        drawImage(
+                            image = terrainTile,
+                            dstOffset = IntOffset(sx.roundToInt(), sy.roundToInt()),
+                            dstSize = IntSize(cellPx.roundToInt(), cellPx.roundToInt()),
+                            filterQuality = FilterQuality.None,
+                        )
+                    } else {
+                        drawRect(
+                            color = if (biomeArgb != null) Color(biomeArgb.toULong()) else Color(0xFF4A8FCC).copy(alpha = 0.7f),
+                            topLeft = Offset(sx, sy),
+                            size = Size(cellPx - 1f, cellPx - 1f),
+                        )
+                    }
                     if (selectedChunk != null && selectedChunk.x == cx && selectedChunk.z == cz) {
                         drawRect(
                             color = Color(0xFFFFCC00),
@@ -633,6 +673,27 @@ private fun MapCanvas(
 
 private fun packCoord(x: Int, z: Int): Long =
     (x.toLong() and 0xFFFFFFFFL) shl 32 or (z.toLong() and 0xFFFFFFFFL)
+
+/** Builds a 16x16 ARGB tile from a chunk's column colors (1 pixel per block). */
+private fun buildTile(colors: LongArray): ImageBitmap? {
+    var hasContent = false
+    colors.forEach { if (it != UNRESOLVED) hasContent = true }
+    if (!hasContent) return null
+    val image = ImageBitmap(16, 16)
+    val canvas = androidx.compose.ui.graphics.Canvas(image)
+    val paint = androidx.compose.ui.graphics.Paint().apply {
+        style = androidx.compose.ui.graphics.PaintingStyle.Fill
+    }
+    for (i in colors.indices) {
+        val c = colors[i]
+        if (c == UNRESOLVED) continue
+        val x = (i and 15).toFloat()
+        val z = (i shr 4).toFloat()
+        paint.color = Color(c.toULong())
+        canvas.drawRect(left = x, top = z, right = x + 1f, bottom = z + 1f, paint = paint)
+    }
+    return image
+}
 
 private fun DrawScope.drawPlayerMarkers(
     positions: Map<String, PlayerPos3>,

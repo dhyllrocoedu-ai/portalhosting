@@ -1,45 +1,19 @@
 package com.portalhost.world
 
-import java.io.ByteArrayInputStream
-import java.util.zip.GZIPInputStream
-import java.util.zip.Inflater
-
 /**
  * Decodes the biome of a single Anvil chunk from its raw region-file payload.
- *
- * The payload layout is: [4-byte big-endian length][1-byte compression type][compressed NBT].
- * Compression types: 1 = gzip, 2 = zlib, 3 = uncompressed.
  *
  * Supports both the legacy (<= 1.17) `Level.Biomes` int/byte array and the modern
  * (1.18+) per-section `sections[].biomes` paletted container.
  */
 object ChunkBiomeReader {
 
-    private const val MAX_CHUNK_BYTES = 8 * 1024 * 1024
-
     /**
      * Returns the canonical biome registry name (e.g. "minecraft:plains") or null
      * if the chunk has no decodable biome data.
      */
     fun biomeName(chunkData: ByteArray): String? {
-        if (chunkData.size < 5) return null
-        val length =
-            ((chunkData[0].toInt() and 0xFF) shl 24) or
-                ((chunkData[1].toInt() and 0xFF) shl 16) or
-                ((chunkData[2].toInt() and 0xFF) shl 8) or
-                (chunkData[3].toInt() and 0xFF)
-        val compression = chunkData[4].toInt() and 0xFF
-        if (length <= 0 || length > MAX_CHUNK_BYTES) return null
-        val payload = chunkData.copyOfRange(5, minOf(chunkData.size, 5 + length))
-
-        val nbtBytes = when (compression) {
-            1 -> gunzip(payload)
-            2 -> inflate(payload)
-            3 -> payload
-            else -> return null
-        } ?: return null
-
-        val root = NbtParser.parse(nbtBytes) ?: return null
+        val root = RegionChunkReader.parseChunk(chunkData) ?: return null
         return resolveBiome(root)
     }
 
@@ -132,41 +106,6 @@ object ChunkBiomeReader {
         return result
     }
 
-    private fun inflate(data: ByteArray): ByteArray? {
-        return try {
-            val inflater = Inflater()
-            inflater.setInput(data)
-            val out = ByteArray(1024 * 1024)
-            var used = 0
-            while (!inflater.finished() && used < NbtParser.MAX_PAYLOAD) {
-                val read = inflater.inflate(out, used, out.size - used)
-                if (read == 0) {
-                    if (inflater.needsInput() || inflater.needsDictionary()) break
-                    if (out.size - used < 64 * 1024) {
-                        throw IllegalStateException("Inflate stalled")
-                    }
-                }
-                used += read
-            }
-            inflater.end()
-            out.copyOf(used)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun gunzip(data: ByteArray): ByteArray? {
-        return try {
-            val gzip = GZIPInputStream(ByteArrayInputStream(data), 64 * 1024)
-            gzip.use { it.readBytes() }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /**
-     * Legacy (pre-1.18) numeric biome id -> modern registry name.
-     */
     private val LEGACY_BIOME_NAMES: Map<Int, String> = mapOf(
         0 to "minecraft:ocean",
         1 to "minecraft:plains",
