@@ -19,10 +19,11 @@ import com.portalhost.app.server.DeviceDetector
 import com.portalhost.app.server.JavaRuntimeManager
 import com.portalhost.app.server.JdkInstallPhase
 import com.portalhost.app.server.ServerDownloader
-import com.portalhost.app.server.providers.ServerType
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.server.SkinService
+import com.portalhost.app.server.providers.ServerType
 import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
 import com.portalhost.app.ui.model.ServerConfig
@@ -52,6 +53,7 @@ class AppState(
     val notifier: AppNotifier,
     val networkManager: NetworkManager,
     val storageInfo: StorageInfo,
+    val skinService: SkinService,
     val darkTheme: Boolean,
     val onToggleTheme: () -> Unit,
     val tunnelUrl: String,
@@ -358,6 +360,7 @@ fun rememberAppState(
     notifier: AppNotifier,
     networkManager: NetworkManager,
     storageInfo: StorageInfo,
+    skinService: SkinService,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
     tunnelUrl: String,
@@ -379,6 +382,7 @@ fun rememberAppState(
             notifier = notifier,
             networkManager = networkManager,
             storageInfo = storageInfo,
+            skinService = skinService,
             darkTheme = darkTheme,
             onToggleTheme = onToggleTheme,
             tunnelUrl = tunnelUrl,

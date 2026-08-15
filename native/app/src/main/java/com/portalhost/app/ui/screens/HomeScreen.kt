@@ -19,6 +19,7 @@ import com.portalhost.app.network.NetworkInfo
 import com.portalhost.app.server.ProcessStats
 import com.portalhost.app.server.ServerState
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.server.SkinService
 import com.portalhost.app.server.TunnelState
 import com.portalhost.app.storage.StorageStats
 import com.portalhost.app.ui.components.PortalHostLogo
@@ -39,6 +40,7 @@ fun HomeScreen(
     networkInfo: NetworkInfo,
     storageStats: StorageStats,
     currentPlayers: List<String> = emptyList(),
+    skinService: SkinService? = null,
     jdkInstalled: Boolean,
     jdkInstalling: Boolean,
     jdkProgress: Float = 0f,
@@ -245,6 +247,7 @@ fun HomeScreen(
                     isOnline = serverState.status == ServerStatus.ONLINE,
                     onCommand = onCommand,
                     onOpenPlayers = onOpenPlayers,
+                    skinService = skinService,
                     maxPlayers = maxPlayers
                 )
 

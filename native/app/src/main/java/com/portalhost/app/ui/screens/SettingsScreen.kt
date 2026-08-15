@@ -1,5 +1,6 @@
 package com.portalhost.app.ui.screens
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
@@ -516,10 +517,15 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    runCatching { AppUpdater.install(context, apkReady) }
-                        .onFailure {
-                            updateMessage = "Couldn't start the installer: ${it.message}. Tap Open in Browser to download manually."
-                        }
+                    try {
+                        AppUpdater.install(context, apkReady)
+                    } catch (e: ActivityNotFoundException) {
+                        updateMessage = "Couldn't start the installer: ${e.message}. Tap Open in Browser to download manually."
+                    } catch (e: SecurityException) {
+                        updateMessage = "Install blocked by Android. Grant PortalHost the 'Install unknown apps' permission in Settings, then try again."
+                    } catch (e: Exception) {
+                        updateMessage = "Couldn't start the installer: ${e.message}. Tap Open in Browser to download manually."
+                    }
                     downloadedApk = null
                     updateInfo = null
                 }) { Text("Install") }

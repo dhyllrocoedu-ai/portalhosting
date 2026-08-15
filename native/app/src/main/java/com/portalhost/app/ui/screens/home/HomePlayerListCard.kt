@@ -11,7 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalhost.app.server.SkinService
 import com.portalhost.app.ui.components.MinecraftHeadIcon
+import com.portalhost.app.ui.components.SkinHeadIcon
 
 @Composable
 fun PlayerListCard(
@@ -19,6 +21,7 @@ fun PlayerListCard(
     isOnline: Boolean,
     onCommand: (String) -> Unit,
     onOpenPlayers: () -> Unit,
+    skinService: SkinService? = null,
     maxPlayers: Int = 20
 ) {
     Card(
@@ -54,7 +57,11 @@ fun PlayerListCard(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        MinecraftHeadIcon(player = player, size = 18.dp)
+                        if (skinService != null) {
+                            SkinHeadIcon(player = player, skinService = skinService, size = 18.dp)
+                        } else {
+                            MinecraftHeadIcon(player = player, size = 18.dp)
+                        }
                         Spacer(Modifier.width(8.dp))
                         Text(player, style = MaterialTheme.typography.bodyMedium)
                     }

@@ -141,6 +141,7 @@ fun AppNavigation(
                     networkInfo = appState.networkInfo,
                     storageStats = appState.storageStats,
                     currentPlayers = state.players,
+                    skinService = appState.skinService,
                     jdkInstalled = appState.jdkInstalled,
                     tunnelUrl = appState.tunnelUrl,
                     jdkInstalling = appState.jdkInstalling,
@@ -313,6 +314,7 @@ fun AppNavigation(
                 val serverDir = appState.activeServer?.let { appState.repository.getServerDir(it.id) }
                 PlayersScreen(
                     serverDir = serverDir,
+                    skinService = appState.skinService,
                     onCommand = { appState.serverManager.writeCommand(it) },
                     isOnline = state.status == ServerStatus.ONLINE,
                     currentPlayers = state.players,

@@ -20,6 +20,7 @@ import com.portalhost.app.server.ProcessMonitor
 import com.portalhost.app.server.ServerDownloader
 import com.portalhost.app.server.ServerManager
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.server.SkinService
 import com.portalhost.app.server.TunnelManager
 import com.portalhost.app.service.MinecraftService
 import com.portalhost.app.storage.StorageInfo
@@ -53,6 +54,7 @@ class MainActivity : ComponentActivity() {
         javaRuntimeManager = JavaRuntimeManager(this)
         consoleStreamer = ConsoleStreamer()
         activityLog = ActivityLog()
+        val skinService = SkinService()
 
         // Reuse existing ServerManager if a server is still running in the background
         val existing = MinecraftService.ServerManagerHolder.manager
@@ -103,6 +105,7 @@ class MainActivity : ComponentActivity() {
                         activityLog = activityLog,
                         networkManager = networkManager,
                         storageInfo = storageInfo,
+                        skinService = skinService,
                         darkTheme = darkTheme,
                         onToggleTheme = { darkTheme = !darkTheme }
                     )
@@ -128,6 +131,7 @@ private fun AppEntry(
     activityLog: ActivityLog,
     networkManager: NetworkManager,
     storageInfo: StorageInfo,
+    skinService: SkinService,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit
 ) {
@@ -206,6 +210,7 @@ private fun AppEntry(
         notifier = notifier,
         networkManager = networkManager,
         storageInfo = storageInfo,
+        skinService = skinService,
         darkTheme = darkTheme,
         onToggleTheme = onToggleTheme,
         tunnelUrl = tunnelUrl,

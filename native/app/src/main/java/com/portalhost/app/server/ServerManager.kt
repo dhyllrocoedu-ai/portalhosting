@@ -13,6 +13,9 @@ import com.portalhost.app.activity.ActivityLog
 import com.portalhost.app.ui.model.ServerConfig
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "ServerManager"
@@ -102,10 +105,10 @@ class ServerManager(
             exitCode = exitCode,
             uptimeSeconds = (System.currentTimeMillis() - serverStartTime) / 1000
         )
-        if (exitCode != 0) {
+if (exitCode != 0) {
             activityLog.addServerCrash()
         } else {
-            activityLog.addServerOffline()
+            activityLog.addServerStop()
         }
         stoppedJob?.cancel()
         stoppedJob = scope.launch {
@@ -138,12 +141,13 @@ class ServerManager(
             }
         }
 
+        val escapedMotd = motd.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r")
         // Generate server.properties if missing
         val props = File(workDir, "server.properties")
         if (!props.exists()) {
             props.writeText("""
 #Minecraft server properties
-motd=$motd
+motd=$escapedMotd
 server-port=$port
 gamemode=$gamemode
 difficulty=$difficulty
@@ -207,14 +211,17 @@ use-native-transport=true
     ): Result<Unit> {
         if (isRunning) return Result.failure(Exception("Server already running"))
         if (startingLock) return Result.failure(Exception("Server already starting"))
-        startingLock = true
-        restartCount = 0
-        stoppedJob?.cancel()
-        processJob?.cancel()
-        processJob = null
 
+        startingLock = true
         return try {
+            restartCount = 0
+            stoppedJob?.cancel()
+            processJob?.cancel()
+            processJob = null
+            consoleStreamer.clear()
+
             _state.value = _state.value.copy(status = ServerStatus.STARTING, error = null)
+            activityLog.addServerStarting()
 
             val javaPath = javaRuntimeManager.resolveJavaPath()
             Log.i(TAG, "Starting server: jar=$jarPath java=$javaPath dir=$serverDir")
@@ -384,15 +391,15 @@ use-native-transport=true
             }
 
             Log.i(TAG, "Server process started successfully")
-            startingLock = false
             Result.success(Unit)
         } catch (e: Exception) {
             val msg = "Server start failed: ${e.message}"
             Log.e(TAG, msg, e)
             _state.value = _state.value.copy(status = ServerStatus.CRASHED, error = msg)
             process = null
-            startingLock = false
             Result.failure(e)
+        } finally {
+            startingLock = false
         }
     }
 
@@ -406,6 +413,7 @@ use-native-transport=true
         autoRestartEnabled = false
         sawHashFailure = false
         _state.value = _state.value.copy(status = ServerStatus.STOPPING)
+        activityLog.addServerStopping()
 
         // Cancel polling jobs *before* waiting so they don't race with exit
         uptimeJob?.cancel()

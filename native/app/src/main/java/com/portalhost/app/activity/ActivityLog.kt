@@ -8,7 +8,7 @@ data class ActivityEntry(
 
 enum class ActivityType {
     INFO, SUCCESS, WARNING, ERROR, PLAYER_JOIN, PLAYER_LEAVE,
-    SERVER_ONLINE, SERVER_OFFLINE, SERVER_CRASH, PLAYER_KICK, PLAYER_BAN,
+    SERVER_STARTING, SERVER_STARTED, SERVER_STOPPING, SERVER_STOPPED, SERVER_CRASH, PLAYER_KICK, PLAYER_BAN,
     PLAYER_OP, PLAYER_DEOP, PLAYER_KILL, COMMAND_EXECUTED
 }
 
@@ -33,12 +33,20 @@ class ActivityLog(private val maxEntries: Int = 100) {
         add("$player left", ActivityType.PLAYER_LEAVE)
     }
 
+    fun addServerStarting() {
+        add("Server starting...", ActivityType.SERVER_STARTING)
+    }
+
     fun addServerStart() {
-        add("Server started", ActivityType.SUCCESS)
+        add("Server started", ActivityType.SERVER_STARTED)
+    }
+
+    fun addServerStopping() {
+        add("Server stopping...", ActivityType.SERVER_STOPPING)
     }
 
     fun addServerStop() {
-        add("Server stopped", ActivityType.WARNING)
+        add("Server stopped", ActivityType.SERVER_STOPPED)
     }
 
     fun addServerCrash() {
@@ -50,11 +58,11 @@ class ActivityLog(private val maxEntries: Int = 100) {
     }
 
     fun addServerOnline() {
-        add("Server is online", ActivityType.SERVER_ONLINE)
+        add("Server is online", ActivityType.SERVER_STARTED)
     }
 
     fun addServerOffline() {
-        add("Server is offline", ActivityType.SERVER_OFFLINE)
+        add("Server is offline", ActivityType.SERVER_STOPPED)
     }
 
     fun addPlayerKick(player: String, reason: String = "") {

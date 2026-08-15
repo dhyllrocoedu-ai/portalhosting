@@ -14,7 +14,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalhost.app.server.ServerStatus
+import com.portalhost.app.server.SkinService
 import com.portalhost.app.ui.components.MinecraftHeadIcon
+import com.portalhost.app.ui.components.SkinHeadIcon
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -29,6 +31,7 @@ data class BannedIpEntry(val ip: String, val reason: String, val created: String
 @Composable
 fun PlayersScreen(
     serverDir: File?,
+    skinService: SkinService? = null,
     onCommand: (String) -> Unit,
     isOnline: Boolean,
     currentPlayers: List<String>,
@@ -54,10 +57,10 @@ fun PlayersScreen(
             }
 
             when (selectedTab) {
-                0 -> OnlinePlayersTab(currentPlayers, isOnline, onCommand, serverDir)
-                1 -> WhitelistTab(serverDir)
-                2 -> OperatorsTab(serverDir, onCommand)
-                3 -> BannedPlayersTab(serverDir, onCommand)
+                0 -> OnlinePlayersTab(currentPlayers, isOnline, onCommand, serverDir, skinService)
+                1 -> WhitelistTab(serverDir, skinService)
+                2 -> OperatorsTab(serverDir, onCommand, skinService)
+                3 -> BannedPlayersTab(serverDir, onCommand, skinService)
                 4 -> BannedIpsTab(serverDir, onCommand)
             }
         }
@@ -65,7 +68,7 @@ fun PlayersScreen(
 }
 
 @Composable
-private fun OnlinePlayersTab(players: List<String>, isOnline: Boolean, onCommand: (String) -> Unit, serverDir: File?) {
+private fun OnlinePlayersTab(players: List<String>, isOnline: Boolean, onCommand: (String) -> Unit, serverDir: File?, skinService: SkinService?) {
     val opsFile = if (serverDir != null) File(serverDir, "ops.json") else null
     val opsList = remember(opsFile) { readOpsList(opsFile).map { it.name.lowercase() }.toSet() }
 
@@ -84,17 +87,21 @@ private fun OnlinePlayersTab(players: List<String>, isOnline: Boolean, onCommand
         }
 
         items(players, key = { it }) { player ->
-            PlayerActionCard(player = player, isOnline = isOnline, onCommand = onCommand, opsList = opsList)
+            PlayerActionCard(player = player, isOnline = isOnline, onCommand = onCommand, opsList = opsList, skinService = skinService)
         }
     }
 }
 
 @Composable
-private fun PlayerActionCard(player: String, isOnline: Boolean, onCommand: (String) -> Unit, opsList: Set<String> = emptySet()) {
+private fun PlayerActionCard(player: String, isOnline: Boolean, onCommand: (String) -> Unit, opsList: Set<String> = emptySet(), skinService: SkinService? = null) {
     val isOp = player.lowercase() in opsList
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            MinecraftHeadIcon(player = player, size = 32.dp)
+            if (skinService != null) {
+                SkinHeadIcon(player = player, skinService = skinService, size = 32.dp)
+            } else {
+                MinecraftHeadIcon(player = player, size = 32.dp)
+            }
             Spacer(Modifier.width(12.dp))
             Text(player, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
 
@@ -126,7 +133,7 @@ private fun SmallChip(label: String, color: Color, onClick: () -> Unit) {
 }
 
 @Composable
-private fun WhitelistTab(serverDir: File?) {
+private fun WhitelistTab(serverDir: File?, skinService: SkinService?) {
     val whitelistFile = if (serverDir != null) File(serverDir, "whitelist.json") else null
     var entries by remember(whitelistFile) { mutableStateOf(readWhitelist(whitelistFile)) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -154,7 +161,11 @@ private fun WhitelistTab(serverDir: File?) {
         items(entries, key = { it.uuid }) { entry ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    if (skinService != null) {
+                        SkinHeadIcon(player = entry.name, skinService = skinService, size = 28.dp)
+                    } else {
+                        MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    }
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -200,7 +211,7 @@ private fun WhitelistTab(serverDir: File?) {
 }
 
 @Composable
-private fun OperatorsTab(serverDir: File?, onCommand: (String) -> Unit) {
+private fun OperatorsTab(serverDir: File?, onCommand: (String) -> Unit, skinService: SkinService?) {
     val opsFile = if (serverDir != null) File(serverDir, "ops.json") else null
     var entries by remember(opsFile) { mutableStateOf(readOpsList(opsFile)) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -228,7 +239,11 @@ private fun OperatorsTab(serverDir: File?, onCommand: (String) -> Unit) {
         items(entries, key = { it.uuid }) { entry ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    if (skinService != null) {
+                        SkinHeadIcon(player = entry.name, skinService = skinService, size = 28.dp)
+                    } else {
+                        MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    }
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -271,7 +286,7 @@ private fun OperatorsTab(serverDir: File?, onCommand: (String) -> Unit) {
 }
 
 @Composable
-private fun BannedPlayersTab(serverDir: File?, onCommand: (String) -> Unit) {
+private fun BannedPlayersTab(serverDir: File?, onCommand: (String) -> Unit, skinService: SkinService?) {
     val bannedFile = if (serverDir != null) File(serverDir, "banned-players.json") else null
     var entries by remember(bannedFile) { mutableStateOf(readBannedPlayers(bannedFile)) }
 
@@ -292,7 +307,11 @@ private fun BannedPlayersTab(serverDir: File?, onCommand: (String) -> Unit) {
         items(entries, key = { it.uuid }) { entry ->
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    if (skinService != null) {
+                        SkinHeadIcon(player = entry.name, skinService = skinService, size = 28.dp)
+                    } else {
+                        MinecraftHeadIcon(player = entry.name, size = 28.dp)
+                    }
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(entry.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
