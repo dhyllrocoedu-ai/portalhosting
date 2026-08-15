@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.0.71-mobilev2",
+    "date": "2026-08-15",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.71-mobilev2 (Java runtime native library fix)</strong></p><ul><li><strong>Server starts successfully (CANNOT LINK EXECUTABLE fix).</strong> The Termux OpenJDK 21 .deb ships <code>libz.so.1</code>, <code>libcrypto.so.3</code>, <code>libssl.so.3</code>, <code>libandroid-shmem.so</code>, and <code>libandroid-spawn.so</code> inside hidden <code>..dist/</code> directories (RTDLib-trimmed dependencies) that were not being moved into <code>runtimeDir/lib/</code>. After extraction, <code>libjli.so</code> could not resolve <code>libz.so.1</code> and the JVM aborted with <code>CANNOT LINK EXECUTABLE \"/data/user/0/.../runtime/jdk-21/bin/java\"</code>. <code>fixupLibraries()</code> is now active and calls <code>provisionSystemLibraries()</code> which relocates the .so files from the extracted tree, copies <code>libcrypto.so.3</code> and <code>libssl.so.3</code> from <code>/system/lib64/</code>, and downloads <code>libz.so.1</code>, <code>libandroid-shmem.so</code>, and <code>libandroid-spawn.so</code> from their respective Termux .deb packages if missing. This runs both at install time and before every server start so manually deleted libraries are restored automatically.</li><li><strong>v5.0.70 fixes preserved.</strong> The 404 filename fix (<code>openjdk-21_21.0.12_<arch>.deb</code>) and symlink-skip extraction remain unchanged.</li></ul>"
+  },
+  {
     "version": "5.0.70-mobilev2",
     "date": "2026-08-14",
     "platform": "mobile",

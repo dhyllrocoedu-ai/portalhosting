@@ -13,6 +13,8 @@ import okhttp3.Request
 import org.tukaani.xz.XZInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.util.concurrent.TimeUnit
 
@@ -205,6 +207,8 @@ class JavaRuntimeManager(private val context: Context) {
                 }
             )
 
+            provisionSystemLibraries(runtimeDir, extractedRoot)
+
             emit(JdkInstallPhase.VERIFYING, "Verifying install...", 0.97f)
             javaBinary.setExecutable(true)
             File(runtimeDir, "bin/javac").takeIf { it.exists() }?.setExecutable(true)
@@ -234,7 +238,10 @@ class JavaRuntimeManager(private val context: Context) {
 
     fun resolveJavaPath(): String = javaBinary.absolutePath
 
-    fun fixupLibraries() {}
+    fun fixupLibraries() {
+        Log.i(TAG, "fixupLibraries: isInstalled=$isInstalled javaBinary=${javaBinary.absolutePath}")
+        if (isInstalled) provisionSystemLibraries(runtimeDir, runtimeDir)
+    }
 
     fun uninstall() {
         runtimeDir.deleteRecursively()
@@ -299,6 +306,123 @@ class JavaRuntimeManager(private val context: Context) {
                 raf.seek(dataStart + padded)
             }
             return false
+        }
+    }
+
+    /**
+     * The Termux openjdk-21 .deb bundles its native libraries under `..dist`
+     * directories with RTDLib trimming, so `libz.so.1`, `libcrypto.so.3`,
+     * `libssl.so.3`, `libandroid-shmem.so` and `libandroid-spawn.so` are
+     * missing from the standard `lib/`, `lib/jli/` and `lib/server/` paths.
+     * This function fills every gap from the Kotlin `File` tree (first argument)
+     * before falling back to Android system paths and Termux's pool mirror.
+     */
+    private fun provisionSystemLibraries(runtimeDir: File, sourceRoot: File) {
+        val libDir = File(runtimeDir, "lib")
+
+        val needed = listOf("libz.so.1")
+
+        for (libName in needed) {
+            val dest = File(libDir, libName)
+            if (dest.exists()) continue
+            val found = sourceRoot.walkTopDown().firstOrNull { f ->
+                f.isFile && f.name == libName
+            }
+            if (found != null) {
+                found.copyTo(dest, overwrite = true)
+                runCatching { dest.setExecutable(true, false) }
+                Log.i(TAG, "Provided $libName from extracted tree: ${found.absolutePath}")
+                continue
+            }
+            try {
+                provideTermuxLibrary("zlib", "1.3.2", dest)
+                Log.i(TAG, "Provided $libName from Termux pool (zlib package)")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not provide $libName: ${e.message}")
+            }
+        }
+
+        val systemLibDir = if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "/system/lib64" else "/system/lib"
+        val systemLib = File(systemLibDir)
+        for ((versionedName, systemName) in listOf(
+            "libcrypto.so.3" to "libcrypto.so",
+            "libssl.so.3" to "libssl.so"
+        )) {
+            val target = File(libDir, versionedName)
+            if (target.exists()) continue
+            val source = File(systemLib, systemName)
+            if (source.exists()) {
+                try {
+                    source.inputStream().use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    runCatching { target.setExecutable(true, false) }
+                    Log.i(TAG, "Provided $versionedName from system ($systemLibDir)")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to provide $versionedName: ${e.message}")
+                }
+            } else {
+                Log.w(TAG, "$versionedName not found on system at ${source.absolutePath}")
+            }
+        }
+
+        val shmemLib = File(libDir, "libandroid-shmem.so")
+        if (!shmemLib.exists()) {
+            try { provideTermuxLibrary("libandroid-shmem", "0.7", shmemLib) } catch (e: Exception) { Log.w(TAG, "Failed to provide libandroid-shmem.so: ${e.message}") }
+        }
+        val spawnLib = File(libDir, "libandroid-spawn.so")
+        if (!spawnLib.exists()) {
+            try { provideTermuxLibrary("libandroid-spawn", "0.3", spawnLib) } catch (e: Exception) { Log.w(TAG, "Failed to provide libandroid-spawn.so: ${e.message}") }
+        }
+    }
+
+    private fun provideTermuxLibrary(pkg: String, version: String, target: File) {
+        val abi = detectAbi()
+        val prefix = if (pkg.startsWith("lib")) pkg.substring(0, 4) else pkg.substring(0, 1)
+        val url = "$TERMUX_JDK_BASE_URL/../$prefix/$pkg/${pkg}_${version}_${abi}.deb"
+        Log.i(TAG, "Downloading $pkg from: $url")
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder().url(url).build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
+            val debFile = File(context.cacheDir, "${pkg}.deb")
+            response.body?.byteStream()?.use { input ->
+                debFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            val soTempDir = File(context.cacheDir, "${pkg}-extract")
+            soTempDir.mkdirs()
+            val dataXz = File(context.cacheDir, "${pkg}-data.tar.xz")
+            extractArMember(debFile, "data.tar.xz", dataXz)
+                || extractArMember(debFile, "data.tar.gz", File(context.cacheDir, "${pkg}-data.tar.gz"))
+            val dataTar = File(context.cacheDir, "${pkg}-data.tar")
+            if (dataXz.extension == "xz") {
+                XZInputStream(FileInputStream(dataXz)).use { xzIn ->
+                    FileOutputStream(dataTar).use { out ->
+                        val buf = ByteArray(32768)
+                        var r: Int
+                        while (xzIn.read(buf).also { r = it } != -1) out.write(buf, 0, r)
+                    }
+                }
+            } else {
+                java.util.zip.GZIPInputStream(FileInputStream(dataXz)).use { gzIn ->
+                    FileOutputStream(dataTar).use { out ->
+                        val buf = ByteArray(32768)
+                        var r: Int
+                        while (gzIn.read(buf).also { r = it } != -1) out.write(buf, 0, r)
+                    }
+                }
+            }
+            ProcessBuilder("/system/bin/tar", "-xf", dataTar.absolutePath, "-C", soTempDir.absolutePath)
+                .redirectErrorStream(true).start().waitFor()
+            val soFile = soTempDir.walkTopDown().firstOrNull { it.isFile && it.extension == "so" }
+                ?: throw Exception("No .so found in $pkg")
+            soFile.inputStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+            target.setExecutable(true)
+            Log.i(TAG, "Provided ${target.name} from $pkg ${version}")
+            debFile.delete(); dataXz.delete(); dataTar.delete(); soTempDir.deleteRecursively()
         }
     }
 

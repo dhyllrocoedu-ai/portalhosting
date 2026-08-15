@@ -1,5 +1,11 @@
 # Changelog
 
+## v5.0.71--mobilev2 (2026-08-15)
+
+### Bug Fixes
+- **CANNOT LINK EXECUTABLE fix.** The Termux OpenJDK 21 `.deb` ships `libz.so.1`, `libcrypto.so.3`, `libssl.so.3`, `libandroid-shmem.so`, and `libandroid-spawn.so` inside hidden `..dist/` directories (RTDLib-trimmed dependencies) that were not being moved into `runtimeDir/lib/`. After extraction, `libjli.so` could not resolve `libz.so.1` and the JVM aborted with "CANNOT LINK EXECUTABLE" from the `bin/java` ELF. `fixupLibraries()` is now active on every server start (and at install time): it relocates `.so` files found anywhere in the extracted tree into `runtimeDir/lib/`, copies `libcrypto.so.3` and `libssl.so.3` from `/system/lib64/`, and downloads `libz.so.1`, `libandroid-shmem.so`, and `libandroid-spawn.so` from their respective Termux `.deb` packages when missing. Libraries removed or corrupted after install are restored before each `bin/java` invocation.
+- **v5.0.70 fixes preserved.** The 404 filename fix and symlink-skip extraction remain unchanged.
+
 ## v5.0.70--mobilev2 (2026-08-14)
 
 ### Bug Fixes
