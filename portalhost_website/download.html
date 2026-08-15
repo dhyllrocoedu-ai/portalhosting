@@ -187,33 +187,9 @@
                 if (release.android && release.android.url) {
                     androidVersion.textContent = `v${release.android.version || version}`;
                     androidSize.textContent = release.android.size ? PortalHost.formatBytes(release.android.size) : 'Unknown size';
-                    const androidUrl = release.android.url;
-                    const androidFilename = androidUrl.split('/').pop();
-                    androidDownload.removeAttribute('href');
+                    androidDownload.href = release.android.url;
+                    androidDownload.setAttribute('download', release.android.url.split('/').pop());
                     androidDownload.removeAttribute('disabled');
-                    androidDownload.addEventListener('click', async function(e) {
-                        e.preventDefault();
-                        androidDownload.textContent = 'Downloading...';
-                        androidDownload.disabled = true;
-                        try {
-                            const res = await fetch(androidUrl, {mode: 'cors'});
-                            if (!res.ok) throw new Error('HTTP ' + res.status);
-                            const blob = await res.blob();
-                            const blobUrl = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = blobUrl;
-                            a.download = androidFilename;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(blobUrl);
-                        } catch (err) {
-                            console.error('APK download failed:', err);
-                            window.open(androidUrl, '_blank');
-                        }
-                        androidDownload.textContent = '↓ Download APK';
-                        androidDownload.disabled = false;
-                    });
                 } else {
                     androidVersion.textContent = 'Not available';
                     androidSize.textContent = '';
