@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.portalhost.app.MainActivity
 import com.portalhost.app.PortalHostApp
+import com.portalhost.app.R
 import com.portalhost.app.server.ServerStatus
 import kotlinx.coroutines.*
 import java.util.Locale
@@ -184,7 +185,7 @@ class MinecraftService : Service() {
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setSmallIcon(R.drawable.portal_host_logo)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(true)
@@ -242,7 +243,7 @@ class MinecraftService : Service() {
         NotificationCompat.Builder(this, PortalHostApp.CHANNEL_SERVER)
             .setContentTitle("Minecraft Server")
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setSmallIcon(R.drawable.portal_host_logo)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(
