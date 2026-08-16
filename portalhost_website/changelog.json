@@ -1,5 +1,12 @@
 [
   {
+    "version": "5.1.1",
+    "date": "2026-08-16",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.1.1 (desktopv2 world map)</strong></p><ul><li><strong>Native World Map.</strong> A new Map tab visualizes the Minecraft world directly from region files. An NBT binary reader (<code>NbtParser</code>), a Biome Anvil decoder (<code>ChunkBiomeReader</code> &mdash; gzip/zlib/raw, modern paletted <code>sections[].biomes</code> and legacy <code>Level.Biomes</code>), and a per-region cached heightmap Terrain decoder (<code>HeightmapChunkDecoder</code> + <code>AnvilChunkDecoder</code>) decode <code>.mca</code> chunks off the UI thread.</li><li><strong>12-layer toggle panel.</strong> Terrain, Mountains, Trees, Crops, Water, Sands, Snow, Lava, Foliage, Ores, Biomes, and Structures &mdash; each layer renders its own palette with an on-map legend dot.</li><li><strong>Hover coordinate readout.</strong> Moving the cursor over the map shows the exact block coordinate and biome name in a status bar at the edge of the viewport.</li><li><strong>World Info footer.</strong> World seed, world type/height, spawn X/Z/Y, hardcore flag, and a Rescan button (re-decodes all region files on demand) sit at the foot of the map.</li><li><strong>Hit-test sign flip fixed.</strong> Negative X and Z coordinates now pass through the coordinate sign flip correctly during hit-testing (&minus;cz flipped).</li><li><strong>Shared world-reader infra.</strong> <code>RegionChunkReader</code>, <code>AnvilChunkDecoder</code>, and <code>ChunkBiomeReader</code> are written in <code>commonMain</code> so future Android and shared code re-use is trivial.</li><li><strong>Decoder tests (4/4 green).</strong> <code>HeightmapChunkDecoderTest</code> covers range, single-chunk, and empty-row paths; full desktop suite passes.</li></ul>"
+  },
+  {
     "version": "5.0.71-mobilev2",
     "date": "2026-08-15",
     "platform": "mobile",
