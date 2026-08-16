@@ -145,8 +145,10 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
     var showClaimsLayer by remember { mutableStateOf(false) }
     var showStructuresLayer by remember { mutableStateOf(false) }
     var showSlimeChunksLayer by remember { mutableStateOf(false) }
-    var showBiomesLayer by remember { mutableStateOf(false) }
+var showBiomesLayer by remember { mutableStateOf(false) }
     var showTerrainLayer by remember { mutableStateOf(false) }
+    var hoveredBlockCoord by remember { mutableStateOf<String?>(null) }
+    var worldLastScan by remember { mutableStateOf<String?>(null) }
 
     val serverStates by serverManager.serverStates.collectAsState()
     val state = serverStates[serverId]
@@ -332,6 +334,7 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                             showClaimsLayer = showClaimsLayer,
                             showStructuresLayer = showStructuresLayer,
                             showSlimeChunksLayer = showSlimeChunksLayer,
+                            onHoverBlock = { bx, bz -> hoveredBlockCoord = "$bx, $bz" },
                             onCenterPlayer = { name ->
                                 val pos = playerPositions[name] ?: return@MapCanvas
                                 panOffset = Offset(
@@ -375,12 +378,36 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
                                 color = MaterialTheme.colorScheme.surface,
                             ) {
                                 Text(
-                                    "Selected: chunk (${chunk.x}, ${chunk.z})  ·  block (${chunk.x * 16}, ${chunk.z * 16})  ·  region (${chunk.regionX}, ${chunk.regionZ})",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    "Chunk (${chunk.x}, ${chunk.z})  ·  Region (${chunk.regionX}, ${chunk.regionZ})",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                                     style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFB0BEC5),
+                                    fontSize = 11.sp,
                                 )
                             }
                         }
+                        WorldInfoFooter(
+                            modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 8.dp),
+                            hoveredBlockCoord = hoveredBlockCoord,
+                            worldLastScan = worldLastScan,
+                            generationPercent = if (regionIndices.isEmpty()) 0.0 else regionIndices.size / 576.0 * 100,
+                            onRescan = {
+                                selectedChunk = null
+                                val world = selectedWorld
+                                if (world != null) {
+                                    loading = true
+                                    try {
+                                        val regions = RegionFileIndex().indexDirectory(File(world, "region"))
+                                        regionIndices = regions
+                                        worldLastScan = java.text.SimpleDateFormat("HH:mm").format(java.util.Date())
+                                    } catch (e: Exception) {
+                                        lastError = "Failed to rescan: ${e.message}"
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            },
+                        )
                         MapLegend(
                             modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
                             playerCount = playerPositions.size,
@@ -570,6 +597,7 @@ biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
     showStructuresLayer: Boolean = false,
     showSlimeChunksLayer: Boolean = false,
     onCenterPlayer: (String) -> Unit,
+    onHoverBlock: ((Int, Int) -> Unit)? = null,
 ) {
     val bounds = remember(regions) { computeBounds(regions) }
     val generated = remember(regions) {
@@ -614,6 +642,16 @@ biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
                             val target = if (delta < 0f) current + 1 else current - 1
                             onZoomChange(target.coerceIn(0, ZOOM_LEVELS.lastIndex))
                             event.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+                .pointerInput(regions, zoom) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pos = event.changes.firstOrNull()?.position ?: continue
+                            val coord = hitTest(pos, zoom, panOffset, bounds, size.toSize())
+                            onHoverBlock?.invoke(coord?.x ?: 0, coord?.z ?: 0)
                         }
                     }
                 }
@@ -1041,6 +1079,53 @@ private fun DrawScope.drawSlimeChunksLayer(
                 topLeft = Offset(x + ix * cellPx * 16 + cellPx * 4, z + iz * cellPx * 16 + cellPx * 4),
                 size = Size(cellPx * 4, cellPx * 4),
             )
+        }
+    }
+}
+
+@Composable
+private fun WorldInfoFooter(
+    modifier: Modifier = Modifier,
+    hoveredBlockCoord: String?,
+    worldLastScan: String?,
+    generationPercent: Double,
+    onRescan: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        tonalElevation = 2.dp,
+        color = Color(0xFF0E141B),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = hoveredBlockCoord ?: "Hover to find coords",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+                Text(
+                    text = "Generated: ${"%.1f".format(generationPercent)}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+                Text(
+                    text = worldLastScan ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp,
+                )
+            }
+            TextButton(onClick = onRescan) {
+                Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Rescan", fontSize = 11.sp)
+            }
         }
     }
 }
