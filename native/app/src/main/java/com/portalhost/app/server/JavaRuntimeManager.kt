@@ -13,6 +13,8 @@ import okhttp3.Request
 import org.tukaani.xz.XZInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.util.concurrent.TimeUnit
 
@@ -53,21 +55,6 @@ class JavaRuntimeManager(private val context: Context) {
         _installState.value = JdkInstallState(phase, progress, message, null)
     }
 
-    /**
-     * Downloads the OpenJDK 21 build published by Termux's package mirror.
-     *
-     * Termux's openjdk-21 is compiled against Android's bionic libc, so the
-     * `bin/java` ELF runs directly on Android without libpthread.so.0 (glibc)
-     * link errors. The .deb contains:
-     *   ar archive
-     *     ├── debian-binary   (4 bytes, ignored)
-     *     ├── control.tar.xz  (deb metadata, ignored)
-     *     └── data.tar.xz     (the JDK files, ~100 MB compressed)
-     *
-     * The data tarball extracts to paths under
-     *   data/data/com.termux/files/usr/lib/jvm/openjdk-21/
-     * so we relocate those to our app's filesDir/runtime/jdk-21/.
-     */
     suspend fun install(onProgress: ((Float) -> Unit)? = null): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Log.i(TAG, "Installing OpenJDK 21 (Termux/bionic) to ${runtimeDir.absolutePath}")
@@ -83,7 +70,6 @@ class JavaRuntimeManager(private val context: Context) {
 
             emit(JdkInstallPhase.CONNECTING, "Connecting to Termux mirror...", 0f)
 
-            // Download the .deb to a single file
             val debFile = File(context.cacheDir, "openjdk-${version}_${abi}.deb")
             val request = Request.Builder().url(debUrl).build()
             client.newCall(request).execute().use { response ->
@@ -119,7 +105,6 @@ class JavaRuntimeManager(private val context: Context) {
             }
             Log.i(TAG, "Downloaded ${debFile.length()} bytes of .deb")
 
-            // Parse the outer `ar` archive and extract `data.tar.xz` to a file.
             emit(JdkInstallPhase.EXTRACTING, "Unpacking .deb archive...", 0.82f)
             tempDir.mkdirs()
             tempDir.deleteRecursively()
@@ -135,7 +120,6 @@ class JavaRuntimeManager(private val context: Context) {
                 return@withContext Result.failure(Exception(msg))
             }
 
-            // Decompress the .xz stream into a plain .tar (Termux packages use xz).
             val dataTar = File(tempDir, "data.tar")
             if (dataXz.name.endsWith(".xz")) {
                 XZInputStream(dataXz.inputStream()).use { xzIn ->
@@ -146,7 +130,6 @@ class JavaRuntimeManager(private val context: Context) {
                     }
                 }
             } else if (dataXz.name.endsWith(".gz")) {
-                // .gz fallback (definitely not the case for Termux, but cheap to support)
                 java.util.zip.GZIPInputStream(dataXz.inputStream()).use { gzIn ->
                     dataTar.outputStream().use { out ->
                         val buf = ByteArray(32768)
@@ -155,13 +138,10 @@ class JavaRuntimeManager(private val context: Context) {
                     }
                 }
             } else {
-                // No compression (.tar) — just rename
                 dataXz.copyTo(dataTar, overwrite = true)
             }
             Log.i(TAG, "Decompressed to ${dataTar.length()} bytes of tar")
 
-            // Extract the .tar using the system tar binary. The paths inside the
-            // tarball look like `./data/data/com.termux/files/usr/lib/jvm/openjdk-21/...`.
             emit(JdkInstallPhase.EXTRACTING, "Extracting OpenJDK 21...", 0.92f)
             val tarProc = ProcessBuilder(
                 "/system/bin/tar", "-xf", dataTar.absolutePath
@@ -172,29 +152,35 @@ class JavaRuntimeManager(private val context: Context) {
                 throw Exception("tar extraction failed ($tarExit): $err")
             }
 
-            // Find the actual openjdk-21 root inside the extracted tree and move it
-            // into our runtime dir. Termux's deb puts it at
-            //   data/data/com.termux/files/usr/lib/jvm/openjdk-21/
             val extractedRoot = tempDir.walkTopDown().firstOrNull { d ->
-                d.isDirectory && d.name == "openjdk-21" &&
-                    d.absolutePath.contains("com.termux") &&
+                d.isDirectory && File(d, "bin/java").isFile
+            } ?: tempDir.walkTopDown().firstOrNull { d ->
+                d.isDirectory && d.name == "java-21-openjdk" &&
                     d.absolutePath.contains("usr/lib/jvm")
             } ?: tempDir.walkTopDown().firstOrNull { d ->
                 d.isDirectory && d.name == "openjdk-21"
             }
             if (extractedRoot == null) {
-                throw Exception("openjdk-21 root directory not found in extracted tarball")
+                throw Exception("JDK root (bin/java) not found in extracted tarball")
             }
-            Log.i(TAG, "Found openjdk-21 root at ${extractedRoot.absolutePath}")
+            Log.i(TAG, "Found JDK root at ${extractedRoot.absolutePath}")
 
             runtimeDir.deleteRecursively()
             runtimeDir.mkdirs()
-            extractedRoot.copyRecursively(runtimeDir, overwrite = true)
+            extractedRoot.copyRecursively(
+                runtimeDir,
+                overwrite = true,
+                onError = { file, e ->
+                    Log.w(TAG, "Skipping ${file.absolutePath} during JDK copy: ${e.message}")
+                    kotlin.io.OnErrorAction.SKIP
+                }
+            )
+
+            provisionSystemLibraries(runtimeDir, extractedRoot)
 
             emit(JdkInstallPhase.VERIFYING, "Verifying install...", 0.97f)
             javaBinary.setExecutable(true)
             File(runtimeDir, "bin/javac").takeIf { it.exists() }?.setExecutable(true)
-            // Mark all bin/ entries executable (defensive — tar usually preserves modes)
             File(runtimeDir, "bin").listFiles()?.forEach { f ->
                 runCatching { f.setExecutable(true, false) }
             }
@@ -220,7 +206,10 @@ class JavaRuntimeManager(private val context: Context) {
 
     fun resolveJavaPath(): String = javaBinary.absolutePath
 
-    fun fixupLibraries() {}
+    fun fixupLibraries() {
+        Log.i(TAG, "fixupLibraries: isInstalled=$isInstalled javaBinary=${javaBinary.absolutePath}")
+        if (isInstalled) provisionSystemLibraries(runtimeDir, runtimeDir)
+    }
 
     fun uninstall() {
         runtimeDir.deleteRecursively()
@@ -244,14 +233,6 @@ class JavaRuntimeManager(private val context: Context) {
         return version to "$TERMUX_JDK_BASE_URL/$debName"
     }
 
-    /**
-     * Minimal `ar` archive parser. Extracts the member with the given name to
-     * `destFile`. Returns true on success, false if the member was not found.
-     *
-     * The `ar` format is a sequence of 60-byte member headers followed by each
-     * member's data, padded to a 2-byte boundary. The archive begins with the
-     * 8-byte signature `!<arch>\n`.
-     */
     private fun extractArMember(arFile: File, memberName: String, destFile: File): Boolean {
         RandomAccessFile(arFile, "r").use { raf ->
             val sig = ByteArray(8)
@@ -280,7 +261,6 @@ class JavaRuntimeManager(private val context: Context) {
                     Log.i(TAG, "Extracted ar member '$name' (${size} bytes)")
                     return true
                 }
-                // Skip this member's data + 2-byte padding if size is odd.
                 val padded = size + (size % 2L)
                 raf.seek(dataStart + padded)
             }
@@ -288,11 +268,116 @@ class JavaRuntimeManager(private val context: Context) {
         }
     }
 
+    private fun provisionSystemLibraries(runtimeDir: File, sourceRoot: File) {
+        val libDir = File(runtimeDir, "lib")
+
+        val needed = listOf("libz.so.1")
+
+        for (libName in needed) {
+            val dest = File(libDir, libName)
+            if (dest.exists()) continue
+            val found = sourceRoot.walkTopDown().firstOrNull { f ->
+                f.isFile && f.name == libName
+            }
+            if (found != null) {
+                found.copyTo(dest, overwrite = true)
+                runCatching { dest.setExecutable(true, false) }
+                Log.i(TAG, "Provided $libName from extracted tree: ${found.absolutePath}")
+                continue
+            }
+            try {
+                provideTermuxLibrary("zlib", "1.3.2", dest)
+                Log.i(TAG, "Provided $libName from Termux pool (zlib package)")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not provide $libName: ${e.message}")
+            }
+        }
+
+        val systemLibDir = if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "/system/lib64" else "/system/lib"
+        val systemLib = File(systemLibDir)
+        for ((versionedName, systemName) in listOf(
+            "libcrypto.so.3" to "libcrypto.so",
+            "libssl.so.3" to "libssl.so"
+        )) {
+            val target = File(libDir, versionedName)
+            if (target.exists()) continue
+            val source = File(systemLib, systemName)
+            if (source.exists()) {
+                try {
+                    source.inputStream().use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    runCatching { target.setExecutable(true, false) }
+                    Log.i(TAG, "Provided $versionedName from system ($systemLibDir)")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to provide $versionedName: ${e.message}")
+                }
+            } else {
+                Log.w(TAG, "$versionedName not found on system at ${source.absolutePath}")
+            }
+        }
+
+        val shmemLib = File(libDir, "libandroid-shmem.so")
+        if (!shmemLib.exists()) {
+            try { provideTermuxLibrary("libandroid-shmem", "0.7", shmemLib) } catch (e: Exception) { Log.w(TAG, "Failed to provide libandroid-shmem.so: ${e.message}") }
+        }
+        val spawnLib = File(libDir, "libandroid-spawn.so")
+        if (!spawnLib.exists()) {
+            try { provideTermuxLibrary("libandroid-spawn", "0.3", spawnLib) } catch (e: Exception) { Log.w(TAG, "Failed to provide libandroid-spawn.so: ${e.message}") }
+        }
+    }
+
+    private fun provideTermuxLibrary(pkg: String, version: String, target: File) {
+        val abi = detectAbi()
+        val prefix = if (pkg.startsWith("lib")) pkg.substring(0, 4) else pkg.substring(0, 1)
+        val url = "$TERMUX_JDK_BASE_URL/../$prefix/$pkg/${pkg}_${version}_${abi}.deb"
+        Log.i(TAG, "Downloading $pkg from: $url")
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder().url(url).build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw Exception("HTTP ${response.code}")
+            val debFile = File(context.cacheDir, "${pkg}.deb")
+            response.body?.byteStream()?.use { input ->
+                debFile.outputStream().use { output -> input.copyTo(output) }
+            }
+            val soTempDir = File(context.cacheDir, "${pkg}-extract")
+            soTempDir.mkdirs()
+            val dataXz = File(context.cacheDir, "${pkg}-data.tar.xz")
+            extractArMember(debFile, "data.tar.xz", dataXz)
+                || extractArMember(debFile, "data.tar.gz", File(context.cacheDir, "${pkg}-data.tar.gz"))
+            val dataTar = File(context.cacheDir, "${pkg}-data.tar")
+            if (dataXz.extension == "xz") {
+                XZInputStream(FileInputStream(dataXz)).use { xzIn ->
+                    FileOutputStream(dataTar).use { out ->
+                        val buf = ByteArray(32768)
+                        var r: Int
+                        while (xzIn.read(buf).also { r = it } != -1) out.write(buf, 0, r)
+                    }
+                }
+            } else {
+                java.util.zip.GZIPInputStream(FileInputStream(dataXz)).use { gzIn ->
+                    FileOutputStream(dataTar).use { out ->
+                        val buf = ByteArray(32768)
+                        var r: Int
+                        while (gzIn.read(buf).also { r = it } != -1) out.write(buf, 0, r)
+                    }
+                }
+            }
+            ProcessBuilder("/system/bin/tar", "-xf", dataTar.absolutePath, "-C", soTempDir.absolutePath)
+                .redirectErrorStream(true).start().waitFor()
+            val soFile = soTempDir.walkTopDown().firstOrNull { it.isFile && it.extension == "so" }
+                ?: throw Exception("No .so found in $pkg")
+            soFile.inputStream().use { input -> target.outputStream().use { output -> input.copyTo(output) } }
+            target.setExecutable(true)
+            Log.i(TAG, "Provided ${target.name} from $pkg ${version}")
+            debFile.delete(); dataXz.delete(); dataTar.delete(); soTempDir.deleteRecursively()
+        }
+    }
+
     companion object {
-        /**
-         * Termux's openjdk-21 package version. Pinned to a known-stable version.
-         * The package is published at a predictable URL on Termux's pool mirror.
-         */
         private const val TERMUX_JDK_VERSION = "21.0.12"
         private const val TERMUX_JDK_BASE_URL =
             "https://packages.termux.dev/apt/termux-main/pool/main/o/openjdk-21"
