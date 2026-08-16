@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.portalhost"
-version = "5.1.0"
+version = "5.1.1"
 
 kotlin {
     jvm("desktop")
@@ -72,7 +72,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
             )
             packageName = "PortalHost"
-            packageVersion = "5.1.0"
+            packageVersion = "5.1.1"
             description = "Minecraft Java Edition Server Manager"
             vendor = "PortalHost"
             windows {
