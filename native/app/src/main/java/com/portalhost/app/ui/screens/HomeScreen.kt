@@ -214,7 +214,8 @@ fun HomeScreen(
                     TunnelCard(
                         tunnelState = tunnelState,
                         onStart = onTunnelStart,
-                        onStop = onTunnelStop
+                        onStop = onTunnelStop,
+                        onReset = onTunnelReset
                     )
                 }
 

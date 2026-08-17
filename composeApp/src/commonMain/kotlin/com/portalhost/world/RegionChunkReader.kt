@@ -25,19 +25,31 @@ object RegionChunkReader {
         if (sectorOffset <= 0 || sectorCount <= 0) return null
         val position = sectorOffset.toLong() * SECTOR_BYTES
         if (position < 0 || position + 4 > raf.length()) return null
-        raf.seek(position)
         val lengthBuf = ByteArray(4)
-        raf.readFully(lengthBuf)
-        val length =
-            ((lengthBuf[0].toInt() and 0xFF) shl 24) or
-                ((lengthBuf[1].toInt() and 0xFF) shl 16) or
-                ((lengthBuf[2].toInt() and 0xFF) shl 8) or
-                (lengthBuf[3].toInt() and 0xFF)
-        if (length <= 0 || length > MAX_CHUNK_BYTES) return null
-        if (position + 4 + length > raf.length()) return null
-        val payload = ByteArray(length)
-        raf.readFully(payload)
-        return payload
+        // Retry up to 3 times — the server may be mid-write when we read
+        // the location table, causing the 4-byte length prefix to be stale.
+        for (attempt in 1..3) {
+            try {
+                raf.seek(position)
+                raf.readFully(lengthBuf)
+                val length =
+                    ((lengthBuf[0].toInt() and 0xFF) shl 24) or
+                        ((lengthBuf[1].toInt() and 0xFF) shl 16) or
+                        ((lengthBuf[2].toInt() and 0xFF) shl 8) or
+                        (lengthBuf[3].toInt() and 0xFF)
+                if (length <= 0 || length > MAX_CHUNK_BYTES) return null
+                if (position + 4 + length > raf.length()) return null
+                val payload = ByteArray(length)
+                raf.readFully(payload)
+                return payload
+            } catch (_: Exception) {
+                if (attempt < 3) {
+                    raf.seek(position)
+                    Thread.sleep(20L * attempt)
+                } else return null
+            }
+        }
+        return null
     }
 
     /**

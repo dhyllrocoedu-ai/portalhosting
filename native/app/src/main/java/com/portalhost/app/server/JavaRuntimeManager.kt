@@ -178,6 +178,8 @@ class JavaRuntimeManager(private val context: Context) {
 
             provisionSystemLibraries(runtimeDir, extractedRoot)
 
+            File(runtimeDir, "lib/jspawnhelper").takeIf { it.exists() }?.setExecutable(true)
+
             emit(JdkInstallPhase.VERIFYING, "Verifying install...", 0.97f)
             javaBinary.setExecutable(true)
             File(runtimeDir, "bin/javac").takeIf { it.exists() }?.setExecutable(true)
@@ -208,7 +210,10 @@ class JavaRuntimeManager(private val context: Context) {
 
     fun fixupLibraries() {
         Log.i(TAG, "fixupLibraries: isInstalled=$isInstalled javaBinary=${javaBinary.absolutePath}")
-        if (isInstalled) provisionSystemLibraries(runtimeDir, runtimeDir)
+        if (isInstalled) {
+            provisionSystemLibraries(runtimeDir, runtimeDir)
+            File(runtimeDir, "lib/jspawnhelper").takeIf { it.exists() }?.setExecutable(true)
+        }
     }
 
     fun uninstall() {
@@ -271,63 +276,95 @@ class JavaRuntimeManager(private val context: Context) {
     private fun provisionSystemLibraries(runtimeDir: File, sourceRoot: File) {
         val libDir = File(runtimeDir, "lib")
 
-        val needed = listOf("libz.so.1")
+        val needed = listOf("libz.so.1", "libandroid-shmem.so", "libandroid-spawn.so")
 
         for (libName in needed) {
             val dest = File(libDir, libName)
             if (dest.exists()) continue
-            val found = sourceRoot.walkTopDown().firstOrNull { f ->
+
+            if (copyBundledLibrary(libName, dest)) continue
+
+            val found = walkWholeTree(sourceRoot).firstOrNull { f ->
                 f.isFile && f.name == libName
             }
             if (found != null) {
                 found.copyTo(dest, overwrite = true)
                 runCatching { dest.setExecutable(true, false) }
-                Log.i(TAG, "Provided $libName from extracted tree: ${found.absolutePath}")
+                Log.i(TAG, "Provided $libName from JDK tree: ${found.absolutePath}")
                 continue
             }
-            try {
-                provideTermuxLibrary("zlib", "1.3.2", dest)
-                Log.i(TAG, "Provided $libName from Termux pool (zlib package)")
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not provide $libName: ${e.message}")
+
+            val sysLibDir = if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "/system/lib64" else "/system/lib"
+            val sysSource = File(sysLibDir, if (libName == "libz.so.1") "libz.so" else libName)
+            if (sysSource.exists()) {
+                try {
+                    sysSource.inputStream().use { input ->
+                        dest.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    runCatching { dest.setExecutable(true, false) }
+                    Log.i(TAG, "Provided $libName from system ($sysLibDir/${sysSource.name})")
+                    continue
+                } catch (e: Exception) {
+                    Log.w(TAG, "Copy $libName from system failed: ${e.message}")
+                }
+            }
+
+            if (libName == "libandroid-shmem.so" || libName == "libandroid-spawn.so") {
+                try { provideTermuxLibrary(libName.removePrefix("lib").removeSuffix(".so"), "0.7", dest) } catch (e: Exception) {
+                    Log.w(TAG, "Could not provide $libName: ${e.message}")
+                }
             }
         }
 
-        val systemLibDir = if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "/system/lib64" else "/system/lib"
-        val systemLib = File(systemLibDir)
+        val systemLibDir2 = if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "/system/lib64" else "/system/lib"
+        val systemLib2 = File(systemLibDir2)
         for ((versionedName, systemName) in listOf(
             "libcrypto.so.3" to "libcrypto.so",
             "libssl.so.3" to "libssl.so"
         )) {
             val target = File(libDir, versionedName)
             if (target.exists()) continue
-            val source = File(systemLib, systemName)
+            val source = File(systemLib2, systemName)
             if (source.exists()) {
                 try {
                     source.inputStream().use { input ->
                         target.outputStream().use { output -> input.copyTo(output) }
                     }
                     runCatching { target.setExecutable(true, false) }
-                    Log.i(TAG, "Provided $versionedName from system ($systemLibDir)")
+                    Log.i(TAG, "Provided $versionedName from system ($systemLibDir2)")
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to provide $versionedName: ${e.message}")
                 }
-            } else {
-                Log.w(TAG, "$versionedName not found on system at ${source.absolutePath}")
             }
-        }
-
-        val shmemLib = File(libDir, "libandroid-shmem.so")
-        if (!shmemLib.exists()) {
-            try { provideTermuxLibrary("libandroid-shmem", "0.7", shmemLib) } catch (e: Exception) { Log.w(TAG, "Failed to provide libandroid-shmem.so: ${e.message}") }
-        }
-        val spawnLib = File(libDir, "libandroid-spawn.so")
-        if (!spawnLib.exists()) {
-            try { provideTermuxLibrary("libandroid-spawn", "0.3", spawnLib) } catch (e: Exception) { Log.w(TAG, "Failed to provide libandroid-spawn.so: ${e.message}") }
         }
     }
 
-    private fun provideTermuxLibrary(pkg: String, version: String, target: File) {
+    private fun copyBundledLibrary(assetName: String, dest: File): Boolean {
+        return try {
+            context.assets.open("lib/$assetName").use { input ->
+                dest.outputStream().use { output -> input.copyTo(output) }
+            }
+            runCatching { dest.setExecutable(true, false) }
+            Log.i(TAG, "Provided $assetName from bundled assets")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Bundled asset lib/$assetName missing: ${e.message}")
+            false
+        }
+    }
+
+    private fun walkWholeTree(root: File): Sequence<File> = sequence {
+        val dirs = ArrayDeque<File>()
+        dirs.add(root)
+        while (dirs.isNotEmpty()) {
+            val d = dirs.removeFirst()
+            d.listFiles()?.forEach { f ->
+                if (f.isDirectory) dirs.add(f) else yield(f)
+            }
+        }
+    }
+
+        private fun provideTermuxLibrary(pkg: String, version: String, target: File) {
         val abi = detectAbi()
         val prefix = if (pkg.startsWith("lib")) pkg.substring(0, 4) else pkg.substring(0, 1)
         val url = "$TERMUX_JDK_BASE_URL/../$prefix/$pkg/${pkg}_${version}_${abi}.deb"

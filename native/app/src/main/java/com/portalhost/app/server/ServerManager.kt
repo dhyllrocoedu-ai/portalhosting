@@ -265,7 +265,7 @@ use-native-transport=true
             val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
             val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
 
-            val env = mapOf("LD_LIBRARY_PATH" to "${libDir.absolutePath}:${libDir.absolutePath}/server:${libDir.absolutePath}/jli")
+            val env = mapOf("LD_LIBRARY_PATH" to "${libDir.absolutePath}/jli:${libDir.absolutePath}:${libDir.absolutePath}/server")
             val cmd = listOf(linker, javaPath, javaPath) + javaArgs + listOf("-jar", jarFile.name, "nogui")
             val proc = ProcessBuilder(cmd)
                 .directory(workDir)
@@ -405,6 +405,17 @@ use-native-transport=true
 
     /** Gracefully stop the server. */
     suspend fun stop() {
+        // If start() is still running, wait for it to finish so we don't leave an orphaned process
+        var waited = false
+        while (startingLock) {
+            waited = true
+            delay(200)
+        }
+        if (waited && process == null) {
+            Log.i(TAG, "stop(): start() in progress — deferred stop; process already freed")
+            return
+        }
+
         val proc = process ?: run {
             Log.w(TAG, "stop() called but process is null")
             return

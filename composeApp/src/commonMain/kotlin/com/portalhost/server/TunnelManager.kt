@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -69,6 +71,7 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
     val state: StateFlow<TunnelState> = _state.asStateFlow()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val startMutex = Mutex()
     private var tunnelAddresses = mutableListOf<TunnelInfo>()
     private var secretKey: String? = null
     private var currentServerPort: Int = 25565
@@ -180,8 +183,13 @@ class TunnelManager(private val fileSystem: FileSystem = com.portalhost.filesyst
 
     private fun parseDataString(resp: String): String? {
         return try {
-            val data = json.parseToJsonElement(resp).jsonObject["data"] ?: return null
-            data.jsonPrimitive.contentOrNull
+            val element = json.parseToJsonElement(resp).jsonObject
+            val data = element["data"] ?: return null
+            when (data) {
+                is kotlinx.serialization.json.JsonObject -> data["data"]?.jsonPrimitive?.contentOrNull
+                is kotlinx.serialization.json.JsonPrimitive -> data.contentOrNull
+                else -> null
+            }
         } catch (_: Exception) { null }
     }
 
@@ -329,64 +337,67 @@ mappings = [$mapping]
     fun getSecretKey(): String? = secretKey
 
     suspend fun start(serverPort: Int = 25565): Result<Unit> {
-        logger.info { "Starting tunnel on port $serverPort" }
-        stop()
-        currentServerPort = serverPort
+        return startMutex.withLock {
+            if (isRunning) return@withLock Result.failure(Exception("Tunnel already running"))
+            logger.info { "Starting tunnel on port $serverPort" }
+            stop()
+            currentServerPort = serverPort
 
-        if (!daemonBinary.exists()) {
-            logger.info { "playit agent not found, downloading..." }
-            val downloadResult = downloadBinary()
-            if (downloadResult.isFailure) return downloadResult
-        }
+            if (!daemonBinary.exists()) {
+                logger.info { "playit agent not found, downloading..." }
+                val downloadResult = downloadBinary()
+                if (downloadResult.isFailure) return@withLock downloadResult
+            }
 
-        if (secretKey == null) {
-            return startClaimFlowInternal()
-        }
+            if (secretKey == null) {
+                return@withLock startClaimFlowInternal()
+            }
 
-        _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
-        tunnelAddresses.clear()
-        outputBuffer.clear()
+            _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
+            tunnelAddresses.clear()
+            outputBuffer.clear()
 
-        return try {
-            playitDir.mkdirs()
-            val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
-            val configContent = """secret_key = "${secretKey}"
+            try {
+                playitDir.mkdirs()
+                val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$serverPort", public_address = ""}"""
+                val configContent = """secret_key = "${secretKey}"
 refresh_from_api = true
 mappings = [$mapping]
 """
-            configFile.writeText(configContent.trimIndent())
-            logger.info { "Config written to ${configFile.absolutePath}" }
+                configFile.writeText(configContent.trimIndent())
+                logger.info { "Config written to ${configFile.absolutePath}" }
 
-            if (daemonBinary.exists()) {
-                daemonBinary.setExecutable(true)
+                if (daemonBinary.exists()) {
+                    daemonBinary.setExecutable(true)
+                }
+
+                val args = mutableListOf(daemonBinary.absolutePath)
+                val logFile = File(playitDir, "playitd.log")
+                args.add("--log-path")
+                args.add(logFile.absolutePath)
+                args.add("--secret")
+                args.add(secretKey!!)
+
+                logger.info { "Starting tunnel with command: ${args.joinToString(" ")}" }
+                logger.info { "Working directory: ${playitDir.absolutePath}" }
+
+                val proc = ProcessBuilder(args)
+                    .directory(playitDir)
+                    .redirectErrorStream(true)
+                    .start()
+
+                process = proc
+                provisionStartTime = System.currentTimeMillis()
+                startReader(proc, serverPort)
+                startTunnelPoller(serverPort)
+
+                logger.info { "Tunnel process started with PID: ${proc.pid()}" }
+                Result.success(Unit)
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to start tunnel" }
+                _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
+                Result.failure(e)
             }
-
-            val args = mutableListOf(daemonBinary.absolutePath)
-            val logFile = File(playitDir, "playitd.log")
-            args.add("--log-path")
-            args.add(logFile.absolutePath)
-            args.add("--secret")
-            args.add(secretKey!!)
-
-            logger.info { "Starting tunnel with command: ${args.joinToString(" ")}" }
-            logger.info { "Working directory: ${playitDir.absolutePath}" }
-
-            val proc = ProcessBuilder(args)
-                .directory(playitDir)
-                .redirectErrorStream(true)
-                .start()
-
-            process = proc
-            provisionStartTime = System.currentTimeMillis()
-            startReader(proc, serverPort)
-            startTunnelPoller(serverPort)
-
-            logger.info { "Tunnel process started with PID: ${proc.pid()}" }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            logger.error(e) { "Failed to start tunnel" }
-            _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
-            Result.failure(e)
         }
     }
 
@@ -519,19 +530,26 @@ mappings = [$mapping]
             return
         }
 
+        val isAuthFailure = text.contains("unauthorized", ignoreCase = true) ||
+            text.contains("invalid secret", ignoreCase = true) ||
+            text.contains("authentication", ignoreCase = true) ||
+            text.contains("InvalidAgentKey", ignoreCase = true) ||
+            (text.contains("secret", ignoreCase = true) && text.contains("fail", ignoreCase = true))
+        val isIPCConflict = text.contains("IPC error", ignoreCase = true) &&
+            text.contains("Another instance", ignoreCase = true)
+
         if (text.contains("failed to connect", ignoreCase = true) ||
             text.contains("unable to", ignoreCase = true) ||
-            (text.contains("error", ignoreCase = true) && text.contains("exit", ignoreCase = true))) {
+            (text.contains("error", ignoreCase = true) && text.contains("exit", ignoreCase = true)) ||
+            isIPCConflict) {
             if (_state.value.status == TunnelStatus.CONNECTING || _state.value.status == TunnelStatus.CONNECTED) {
                 _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = text.take(200))
-                if (secretKey != null && (text.contains("unauthorized", ignoreCase = true) ||
-                    text.contains("invalid secret", ignoreCase = true) ||
-                    text.contains("authentication", ignoreCase = true) ||
-                    text.contains("secret", ignoreCase = true) && text.contains("fail", ignoreCase = true))) {
-                    logger.warn { "Auth error detected, clearing secret and entering claim flow" }
+                if (secretKey != null && (isAuthFailure || isIPCConflict)) {
+                    logger.warn { "Auth/IPC error detected, clearing secret and entering claim flow: $text" }
                     secretKey = null
                     configFile.delete()
                     _state.value = _state.value.copy(status = TunnelStatus.CLAIM_REQUIRED, claimUrl = null)
+                    scope.launch { start(currentServerPort) }
                 }
             }
         }

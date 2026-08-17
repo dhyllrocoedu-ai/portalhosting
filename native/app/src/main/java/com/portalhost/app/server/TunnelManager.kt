@@ -7,6 +7,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.IOException
 import java.io.OutputStreamWriter
@@ -51,6 +53,7 @@ class TunnelManager(private val context: Context) {
     val state: StateFlow<TunnelState> = _state.asStateFlow()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val startMutex = Mutex()
     private var tunnelAddresses = mutableListOf<TunnelInfo>()
 
     private var isClaimed: Boolean = false
@@ -134,42 +137,87 @@ class TunnelManager(private val context: Context) {
     }
 
     suspend fun start(serverPort: Int = 25565): Result<Unit> {
-        stop()
-        currentServerPort = serverPort
-        val extractResult = extractBinaries()
-        if (extractResult.isFailure) return extractResult
+        return startMutex.withLock {
+            if (isRunning) return@withLock Result.failure(Exception("Tunnel already running"))
+            stop()
+            currentServerPort = serverPort
+            val extractResult = extractBinaries()
+            if (extractResult.isFailure) return@withLock extractResult
 
-        if (secretKey != null) {
-            return startDaemon(serverPort)
-        } else {
-            return startClaimFlow()
+            if (secretKey != null) {
+                startDaemon(serverPort)
+            } else {
+                startClaimFlow()
+            }
         }
+    }
+
+    private fun generateClaimCode(): String {
+        val bytes = ByteArray(5)
+        java.security.SecureRandom().nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun claimUrl(code: String): String = "https://playit.gg/claim/$code"
+
+    private suspend fun apiPost(path: String, jsonBody: String, authHeader: String? = null): String? = withContext(Dispatchers.IO) {
+        return@withContext try {
+            val conn = URL("https://api.playit.gg$path").openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            if (authHeader != null) conn.setRequestProperty("Authorization", authHeader)
+            conn.doOutput = true
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
+            OutputStreamWriter(conn.outputStream).use { it.write(jsonBody) }
+            val body = conn.inputStream.bufferedReader().readText().trim()
+            conn.disconnect()
+            body
+        } catch (e: Exception) {
+            Log.w(TAG, "apiPost $path failed: ${e.message}")
+            null
+        }
+    }
+
+    private fun parseStatus(resp: String): String? {
+        return try { org.json.JSONObject(resp).optString("status") } catch (_: Exception) { null }
+    }
+
+    private fun parseDataString(resp: String): String? {
+        return try {
+            val json = org.json.JSONObject(resp)
+            val data = json.opt("data")
+            when (data) {
+                is org.json.JSONObject -> data.optString("data")
+                is String -> data
+                else -> null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private fun parseDataObject(resp: String): org.json.JSONObject? {
+        return try { org.json.JSONObject(resp).optJSONObject("data") } catch (_: Exception) { null }
     }
 
     private suspend fun startClaimFlow(): Result<Unit> = withContext(Dispatchers.IO) {
         _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
         try {
-            val is64Bit = Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
-            val linker = if (is64Bit) "/system/bin/linker64" else "/system/bin/linker"
-            val cliPath = cliBinary.absolutePath
-
             playitGgDir.mkdirs()
             if (!defaultConfigFile.exists()) {
                 defaultConfigFile.writeText("secret_key = \"\"\nrefresh_from_api = true\nmappings = []\n")
             }
 
-            val code = runCliCapture(linker, cliPath, "claim", "generate")
-            val url = runCliCapture(linker, cliPath, "claim", "url", code)
+            val code = generateClaimCode()
+            val url = claimUrl(code)
+            Log.i(TAG, "Claim code: $code, URL: $url")
 
-            Log.i(TAG, "Claim URL: $url")
             _state.value = _state.value.copy(
                 status = TunnelStatus.CLAIM_REQUIRED,
                 claimUrl = url,
                 lastOutput = url.take(200)
             )
 
-            exchangeClaimAndStartDaemon(linker, cliPath, code)
-            
+            exchangeAndStartDaemon(code)
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Claim flow failed", e)
@@ -177,8 +225,8 @@ class TunnelManager(private val context: Context) {
             Result.failure(e)
         }
     }
-    
-    private suspend fun exchangeClaimAndStartDaemon(linker: String, cliPath: String, claimCode: String): Result<Unit> = withContext(Dispatchers.IO) {
+
+    private suspend fun exchangeAndStartDaemon(claimCode: String) {
         tunnelAddresses.clear()
         try {
             val mapping = """{protocol = "tcp", local_address = "0.0.0.0:$currentServerPort", public_address = ""}"""
@@ -187,28 +235,73 @@ refresh_from_api = true
 mappings = [$mapping]
 """.trimIndent())
 
-            runCliCapture(linker, cliPath, "claim", "exchange", claimCode, "--wait", "0")
+            val setupPayload = """{"code":"$claimCode","agent_type":"self-managed","version":"playit 1.0.10"}"""
+            val exchangePayload = """{"code":"$claimCode"}"""
 
-            val secretMatch = Regex("""secret_key\s*=\s*['"](.+)['"]""").find(defaultConfigFile.readText())
-            val newSecret = secretMatch?.groupValues?.get(1)
+            Log.i(TAG, "Polling claim setup for code $claimCode")
 
-            if (newSecret != null && newSecret.isNotEmpty()) {
+            var userVisited = false
+            while (true) {
+                val resp = apiPost("/claim/setup", setupPayload)
+                if (resp == null) {
+                    delay(2000)
+                    continue
+                }
+
+                when (parseStatus(resp)) {
+                    "success" -> {
+                        when (parseDataString(resp)) {
+                            "UserAccepted" -> {
+                                Log.i(TAG, "Claim accepted, exchanging for secret key")
+                                break
+                            }
+                            "UserRejected" -> throw IOException("Claim was rejected in the browser")
+                            "WaitingForUser" -> {
+                                if (!userVisited) {
+                                    userVisited = true
+                                    Log.i(TAG, "User visited claim URL, waiting for approval")
+                                }
+                            }
+                            else -> {
+                            Log.d(TAG, "Claim setup status: ${resp.take(100)}")
+                        }
+                        }
+                    }
+                    "fail" -> throw IOException("Claim setup failed: ${parseDataString(resp) ?: "unknown"}")
+                    "error" -> Log.w(TAG, "Claim setup API error: ${resp.take(200)}")
+                    null -> Log.w(TAG, "Claim setup: unexpected response: ${resp.take(200)}")
+                }
+                delay(2000)
+            }
+
+            val exchangeResp = apiPost("/claim/exchange", exchangePayload)
+                ?: throw IOException("No response from claim exchange")
+
+            if (parseStatus(exchangeResp) != "success") {
+                throw IOException("Claim exchange failed: ${exchangeResp.take(200)}")
+            }
+
+            val dataObj = parseDataObject(exchangeResp)
+            val newSecret = dataObj?.getString("secret_key")
+
+            if (!newSecret.isNullOrEmpty()) {
                 secretKey = newSecret
-                isClaimed = true
                 Log.i(TAG, "Claim confirmed, secret key stored")
                 defaultConfigFile.writeText("""secret_key = "$newSecret"
 refresh_from_api = true
 mappings = [$mapping]
 """.trimIndent())
+            } else {
+                throw IOException("Empty secret key from exchange")
             }
 
+            stop()
+            tunnelAddresses.clear()
             _state.value = _state.value.copy(status = TunnelStatus.CONNECTING, error = null)
             startDaemon(currentServerPort)
-            Result.success(Unit)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to exchange claim", e)
             _state.value = _state.value.copy(status = TunnelStatus.ERROR, error = e.message)
-            Result.failure(e)
         }
     }
 
@@ -356,14 +449,32 @@ mappings = [$mapping]
             Log.i(TAG, "Agent connected to control server, waiting for tunnel assignment")
         }
 
+        val isAuthFailure = text.contains("unauthorized", ignoreCase = true) ||
+            text.contains("invalid secret", ignoreCase = true) ||
+            text.contains("authentication", ignoreCase = true) ||
+            text.contains("InvalidAgentKey", ignoreCase = true) ||
+            (text.contains("secret", ignoreCase = true) && text.contains("fail", ignoreCase = true))
+        val isIPCConflict = text.contains("IPC error", ignoreCase = true) &&
+            text.contains("Another instance", ignoreCase = true)
+
         if (text.contains("failed to connect", ignoreCase = true) ||
             text.contains("error", ignoreCase = true) ||
-            text.contains("unable to", ignoreCase = true)) {
+            text.contains("unable to", ignoreCase = true) ||
+            isIPCConflict) {
             if (_state.value.status == TunnelStatus.CONNECTING || _state.value.status == TunnelStatus.CONNECTED) {
                 _state.value = _state.value.copy(
                     status = TunnelStatus.ERROR,
                     error = text.take(200)
                 )
+                if (secretKey != null && (isAuthFailure || isIPCConflict)) {
+                    Log.w(TAG, "Auth/IPC error detected, resetting: $text")
+                    secretKey = null
+                    configFile.delete()
+                    _state.value = _state.value.copy(
+                        status = TunnelStatus.CLAIM_REQUIRED,
+                        claimUrl = null
+                    )
+                }
             }
         }
     }

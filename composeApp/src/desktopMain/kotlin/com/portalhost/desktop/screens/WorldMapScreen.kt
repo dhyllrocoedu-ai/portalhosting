@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Biotech
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
@@ -87,6 +88,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import com.portalhost.desktop.world.AnvilChunkDecoder
+import com.portalhost.desktop.world.CubiomesFallback
 import com.portalhost.player.EntityPositionService
 import com.portalhost.player.PlayerPos3
 import com.portalhost.server.ServerManager
@@ -135,6 +137,9 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
     val biomePalette = remember { BiomePalette }
     val biomeTiles = remember { mutableStateMapOf<Long, ImageBitmap>() }
     val terrainTiles = remember { mutableStateMapOf<Long, ImageBitmap>() }
+    val fallbackTiles = remember { mutableStateMapOf<Long, ImageBitmap>() }
+    var terrainDecoder by remember { mutableStateOf<HeightmapChunkDecoder?>(null) }
+    var biomeDecoder by remember { mutableStateOf<BiomeChunkDecoder?>(null) }
     var showPlayersLayer by remember { mutableStateOf(true) }
     var showSpawnLayer by remember { mutableStateOf(false) }
     var showHomeLayer by remember { mutableStateOf(false) }
@@ -145,8 +150,10 @@ fun WorldMapScreen(serverId: String, onBack: () -> Unit = {}) {
     var showClaimsLayer by remember { mutableStateOf(false) }
     var showStructuresLayer by remember { mutableStateOf(false) }
     var showSlimeChunksLayer by remember { mutableStateOf(false) }
-var showBiomesLayer by remember { mutableStateOf(false) }
-    var showTerrainLayer by remember { mutableStateOf(false) }
+    var showBiomesLayer by remember { mutableStateOf(false) }
+    var showTerrainLayer by remember { mutableStateOf(true) }
+    var showFallbackLayer by remember { mutableStateOf(true) }
+    var showGridLayer by remember { mutableStateOf(false) }
     var hoveredBlockCoord by remember { mutableStateOf<String?>(null) }
     var worldLastScan by remember { mutableStateOf<String?>(null) }
 
@@ -205,40 +212,78 @@ var showBiomesLayer by remember { mutableStateOf(false) }
     LaunchedEffect(selectedWorld, regionIndices) {
         terrainTiles.clear()
         val world = selectedWorld ?: return@LaunchedEffect
-        val decoder = HeightmapChunkDecoder()
+        val decoder = HeightmapChunkDecoder().also { terrainDecoder = it }
         val tileData = withContext(Dispatchers.IO) {
             val regionDir = File(world, "region")
             buildList {
                 regionIndices.forEach { region ->
                     val file = File(regionDir, "r.${region.regionX}.${region.regionZ}.mca")
-                    decoder.decodeRegion(file, region).forEach { (coord, colors) ->
+                    val decoded = decoder.decodeRegion(file, region)
+                    decoded.forEach { (coord, colors) ->
                         add(packCoord(coord.x, coord.z) to colors)
                     }
                 }
             }
         }
+        var emptyCount = 0
         tileData.forEach { (key, colors) ->
             buildTile(colors)?.let { terrainTiles[key] = it }
+                ?: emptyCount++
         }
+        println("[WorldMap] Terrain tiles: ${tileData.size} total, $emptyCount empty (all-black)")
     }
 
     LaunchedEffect(selectedWorld, regionIndices) {
         biomeTiles.clear()
         val world = selectedWorld ?: return@LaunchedEffect
-        val decoder = BiomeChunkDecoder()
+        val decoder = BiomeChunkDecoder(biomePalette).also { biomeDecoder = it }
         val tileData = withContext(Dispatchers.IO) {
             val regionDir = File(world, "region")
             buildList {
                 regionIndices.forEach { region ->
                     val file = File(regionDir, "r.${region.regionX}.${region.regionZ}.mca")
-                    decoder.decodeRegion(file, region).forEach { (coord, colors) ->
+                    val decoded = decoder.decodeRegion(file, region)
+                    decoded.forEach { (coord, colors) ->
                         add(packCoord(coord.x, coord.z) to colors)
                     }
                 }
             }
         }
+        var emptyCount = 0
         tileData.forEach { (key, colors) ->
             buildBiomeTile(colors)?.let { biomeTiles[key] = it }
+                ?: emptyCount++
+        }
+        println("[WorldMap] Biome tiles: ${tileData.size} total, $emptyCount empty (all-UNRESOLVED)")
+    }
+
+    // Cubiomes fallback: when both terrain + biome tiles are empty, paint the
+    // world from level.dat seed using simplified climate noise.
+    LaunchedEffect(selectedWorld, fallbackTiles) {
+        val world = selectedWorld ?: return@LaunchedEffect
+        val levelDat = File(world, "level.dat")
+        val fallback = CubiomesFallback(levelDat)
+        if (fallbackTiles.isEmpty() && fallback.seed != 0L) {
+            val tiles = mutableStateMapOf<Long, ImageBitmap>()
+            regionIndices.forEach { region ->
+                val chunkKeys = region.chunks.keys
+                if (chunkKeys.isEmpty()) return@forEach
+                val minX = chunkKeys.minOf { it.x }
+                val maxX = chunkKeys.maxOf { it.x }
+                val minZ = chunkKeys.minOf { it.z }
+                val maxZ = chunkKeys.maxOf { it.z }
+                for (cx in minX..maxX) {
+                    for (cz in minZ..maxZ) {
+                        if (!region.chunks.containsKey(ChunkCoord(cx, cz))) continue
+                        val color = fallback.biomeColorAtChunk(cx, cz) ?: continue
+                        buildTile(LongArray(256) { color })?.let { tile ->
+                            tiles[packCoord(cx, cz)] = tile
+                        }
+                    }
+                }
+            }
+            fallbackTiles.putAll(tiles)
+            println("[WorldMap] Fallback tiles generated: ${tiles.size} chunks from seed=${fallback.seed}")
         }
     }
 
@@ -304,12 +349,10 @@ var showBiomesLayer by remember { mutableStateOf(false) }
                     }
                 }
                 else -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
-                            .clipToBounds(),
-                    ) {
+                    // Map canvas fills all remaining space below top bar; the
+                    // layers panel and info footer are overlaid with absolute
+                    // positioning so they don't clip when the window resizes.
+                    Box(modifier = Modifier.fillMaxSize()) {
                         MapCanvas(
                             regions = regionIndices,
                             zoom = ZOOM_LEVELS[zoomIndex],
@@ -322,8 +365,10 @@ var showBiomesLayer by remember { mutableStateOf(false) }
                             onZoomChange = { newZoom -> zoomIndex = newZoom },
                             terrainTiles = terrainTiles,
                             biomeTiles = biomeTiles,
+                            fallbackTiles = fallbackTiles,
                             showBiomesLayer = showBiomesLayer,
                             showTerrainLayer = showTerrainLayer,
+                            showFallbackLayer = showFallbackLayer,
                             showPlayersLayer = showPlayersLayer,
                             showSpawnLayer = showSpawnLayer,
                             showHomeLayer = showHomeLayer,
@@ -334,6 +379,7 @@ var showBiomesLayer by remember { mutableStateOf(false) }
                             showClaimsLayer = showClaimsLayer,
                             showStructuresLayer = showStructuresLayer,
                             showSlimeChunksLayer = showSlimeChunksLayer,
+                            showGridLayer = showGridLayer,
                             onHoverBlock = { bx, bz -> hoveredBlockCoord = "$bx, $bz" },
                             onCenterPlayer = { name ->
                                 val pos = playerPositions[name] ?: return@MapCanvas
@@ -343,8 +389,12 @@ var showBiomesLayer by remember { mutableStateOf(false) }
                                 )
                             },
                         )
+                        // Layers panel: anchored top-right below the top bar
+                        // with fixed width so it never wraps/clips on resize.
                         MapLayersPanel(
-                            modifier = Modifier.align(Alignment.TopEnd).padding(top = 60.dp, end = 8.dp),
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(start = 8.dp, top = 4.dp),
                             showPlayersLayer = showPlayersLayer,
                             onTogglePlayers = { showPlayersLayer = !showPlayersLayer },
                             showSpawnLayer = showSpawnLayer,
@@ -365,6 +415,10 @@ var showBiomesLayer by remember { mutableStateOf(false) }
                             onToggleStructures = { showStructuresLayer = !showStructuresLayer },
                             showSlimeChunksLayer = showSlimeChunksLayer,
                             onToggleSlimeChunks = { showSlimeChunksLayer = !showSlimeChunksLayer },
+                            showGridLayer = showGridLayer,
+                            onToggleGrid = { showGridLayer = !showGridLayer },
+                            showFallbackLayer = showFallbackLayer,
+                            onToggleFallback = { showFallbackLayer = !showFallbackLayer },
                             showBiomesLayer = showBiomesLayer,
                             onToggleBiomes = { showBiomesLayer = !showBiomesLayer },
                             showTerrainLayer = showTerrainLayer,
@@ -403,6 +457,11 @@ var showBiomesLayer by remember { mutableStateOf(false) }
                                     } catch (e: Exception) {
                                         lastError = "Failed to rescan: ${e.message}"
                                     } finally {
+                                        terrainTiles.clear()
+                                        biomeTiles.clear()
+                                        fallbackTiles.clear()
+                                        terrainDecoder?.clearCache()
+                                        biomeDecoder?.clearCache()
                                         loading = false
                                     }
                                 }
@@ -584,8 +643,10 @@ private fun MapCanvas(
     onZoomChange: (Int) -> Unit,
 biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
     terrainTiles: Map<Long, ImageBitmap> = emptyMap(),
+    fallbackTiles: Map<Long, ImageBitmap> = emptyMap(),
     showBiomesLayer: Boolean = false,
     showTerrainLayer: Boolean = false,
+    showFallbackLayer: Boolean = false,
     showPlayersLayer: Boolean = true,
     showSpawnLayer: Boolean = false,
     showHomeLayer: Boolean = false,
@@ -596,6 +657,7 @@ biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
     showClaimsLayer: Boolean = false,
     showStructuresLayer: Boolean = false,
     showSlimeChunksLayer: Boolean = false,
+    showGridLayer: Boolean = false,
     onCenterPlayer: (String) -> Unit,
     onHoverBlock: ((Int, Int) -> Unit)? = null,
 ) {
@@ -708,6 +770,16 @@ biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
                 }
             }
 
+            // Chunk grid border lines at high zoom (Q6).
+            if (showGridLayer && cellPx >= 8f) {
+                drawChunkGrid(worldOriginX, worldOriginY, cellPx, startChunkX, endChunkX, startChunkZ, endChunkZ, size)
+            }
+
+            // Slime chunk overlay (deterministic: (x xor z) mod 10 == 0).
+            if (showSlimeChunksLayer) {
+                drawSlimeChunksOverlay(cellPx, worldOriginX, worldOriginY, startChunkX, endChunkX, startChunkZ, endChunkZ, size)
+            }
+
             // Generated chunks
             for (cz in startChunkZ..endChunkZ) {
                 for (cx in startChunkX..endChunkX) {
@@ -730,10 +802,22 @@ biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
                             dstSize = IntSize(cellPx.roundToInt(), cellPx.roundToInt()),
                             filterQuality = FilterQuality.None,
                         )
-                    } else if (showBiomesLayer || showTerrainLayer) {
-                        // No tile for this chunk yet (fallback: map background).
-                        // Biome tiles are always pre-built on world load, so this
-                        // branch is only reached transiently before tiles are ready.
+                    } else if ((showBiomesLayer || showTerrainLayer) && showFallbackLayer) {
+                        val fbColor = fallbackTiles[packCoord(cx, cz)]
+                        if (fbColor != null && cellPx >= 2f) {
+                            drawImage(
+                                image = fbColor,
+                                dstOffset = IntOffset(sx.roundToInt(), sy.roundToInt()),
+                                dstSize = IntSize(cellPx.roundToInt(), cellPx.roundToInt()),
+                                filterQuality = FilterQuality.None,
+                            )
+                        } else if (fbColor != null) {
+                            drawRect(
+                                color = Color(0xFF5A8A5A),
+                                topLeft = Offset(sx, sy),
+                                size = Size(cellPx - 1f, cellPx - 1f),
+                            )
+                        }
                     }
                     if (selectedChunk != null && selectedChunk.x == cx && selectedChunk.z == cz) {
                         drawRect(
@@ -747,10 +831,10 @@ biomeTiles: Map<Long, ImageBitmap> = emptyMap(),
             }
 
             // Spawn origin marker.
-            if (generated.contains(packCoord(0, 0)) || cellPx > 8f) {
+            if (showSpawnLayer) {
                 drawSpawnLayer(
                     sx = worldOriginX, sy = worldOriginY,
-                    cellPx = cellPx, showSpawnLayer = showSpawnLayer,
+                    cellPx = cellPx, showSpawnLayer = true,
                 )
             }
 
@@ -1060,28 +1144,7 @@ private fun DrawScope.drawStructuresLayer(
     drawLine(Color(0xFFFFC107), Offset(x0 - 4f, y0 + hh * 0.7f), Offset(x0 + s + 4f, y0 + hh * 0.7f), 1.5f)
 }
 
-private fun DrawScope.drawSlimeChunksLayer(
-    slime: Boolean, cellPx: Float, worldOriginX: Float, worldOriginY: Float,
-    canvasSize: Size,
-) {
-    if (!slime) return
-    val x = ((worldOriginX % (cellPx * 16)) - cellPx * 16).coerceIn(0f, canvasSize.width)
-    val z = ((worldOriginY % (cellPx * 16)) - cellPx * 16).coerceIn(0f, canvasSize.height)
-    for (ix in 0 until (canvasSize.width / (cellPx * 16) + 1).toInt()) {
-        for (iz in 0 until (canvasSize.height / (cellPx * 16) + 1).toInt()) {
-            drawRect(
-                color = Color(0x3332CD32),
-                topLeft = Offset(x + ix * cellPx * 16, z + iz * cellPx * 16),
-                size = Size(cellPx * 16, cellPx * 16),
-            )
-            drawRect(
-                color = Color(0x6632CD32),
-                topLeft = Offset(x + ix * cellPx * 16 + cellPx * 4, z + iz * cellPx * 16 + cellPx * 4),
-                size = Size(cellPx * 4, cellPx * 4),
-            )
-        }
-    }
-}
+
 
 @Composable
 private fun WorldInfoFooter(
@@ -1143,6 +1206,8 @@ private fun MapLayersPanel(
     showClaimsLayer: Boolean, onToggleClaims: () -> Unit,
     showStructuresLayer: Boolean, onToggleStructures: () -> Unit,
     showSlimeChunksLayer: Boolean, onToggleSlimeChunks: () -> Unit,
+    showGridLayer: Boolean, onToggleGrid: () -> Unit,
+    showFallbackLayer: Boolean, onToggleFallback: () -> Unit,
     showBiomesLayer: Boolean, onToggleBiomes: () -> Unit,
     showTerrainLayer: Boolean, onToggleTerrain: () -> Unit,
 ) {
@@ -1169,6 +1234,8 @@ LayerRow("Players", Icons.Filled.Person, showPlayersLayer, onTogglePlayers)
             LayerRow("Structures", Icons.Filled.CropLandscape, showStructuresLayer, onToggleStructures)
             LayerRow("Slime Chunks", Icons.Filled.CropSquare, showSlimeChunksLayer, onToggleSlimeChunks)
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color(0x28FFFFFF))
+            LayerRow("Grid Overlay", Icons.Filled.CropSquare, showGridLayer, onToggleGrid)
+            LayerRow("Seed Biomes (fallback)", Icons.Filled.Biotech, showFallbackLayer, onToggleFallback)
             LayerRow("Biome Colours", Icons.Filled.Terrain, showBiomesLayer, onToggleBiomes)
             LayerRow("Terrain Tiles", Icons.Filled.Terrain, showTerrainLayer, onToggleTerrain)
         }
@@ -1196,6 +1263,49 @@ private fun LayerRow(label: String, icon: androidx.compose.ui.graphics.vector.Im
 }
 
 data class PlayerScreenPos(val name: String, val x: Float, val z: Float)
+
+private fun DrawScope.drawChunkGrid(
+    worldOriginX: Float, worldOriginY: Float, cellPx: Float,
+    startX: Int, endX: Int, startZ: Int, endZ: Int, canvas: Size,
+) {
+    val color = Color(0x22FFFFFF)
+    for (cx in startX..endX) {
+        val px = worldOriginX + cx * cellPx
+        if (px in 0f .. canvas.width + 1f) {
+            drawLine(color, Offset(px, 0f), Offset(px, canvas.height), strokeWidth = 1f)
+        }
+    }
+    for (cz in startZ..endZ) {
+        val pz = worldOriginY + cz * cellPx
+        if (pz in 0f .. canvas.height + 1f) {
+            drawLine(color, Offset(0f, pz), Offset(canvas.width, pz), strokeWidth = 1f)
+        }
+    }
+}
+
+private fun DrawScope.drawSlimeChunksOverlay(
+    cellPx: Float, worldOriginX: Float, worldOriginY: Float,
+    startX: Int, endX: Int, startZ: Int, endZ: Int, canvas: Size,
+) {
+    val chunkSize = cellPx * 16
+    val gridOriginX = worldOriginX - chunkSize / 2f
+    val gridOriginZ = worldOriginY - chunkSize / 2f
+    val startIX = floor((gridOriginX / chunkSize)).toInt()
+    val startIZ = floor((gridOriginZ / chunkSize)).toInt()
+    val endIX = ceil((canvas.width - gridOriginX) / chunkSize).toInt()
+    val endIZ = ceil((canvas.height - gridOriginZ) / chunkSize).toInt()
+    for (ix in startIX..endIX) {
+        for (iz in startIZ..endIZ) {
+            val chunkX = (ix * 16 + 16).coerceIn(startX, endX)
+            val chunkZ = (iz * 16 + 16).coerceIn(startZ, endZ)
+            if (((chunkX xor chunkZ) % 10) != 0) continue
+            val px = gridOriginX + ix * chunkSize
+            val pz = gridOriginZ + iz * chunkSize
+            drawRect(Color(0x3332CD32), topLeft = Offset(px, pz), size = Size(chunkSize, chunkSize))
+            drawRect(Color(0x6632CD32), topLeft = Offset(px + cellPx * 4, pz + cellPx * 4), size = Size(chunkSize - cellPx * 8, chunkSize - cellPx * 8))
+        }
+    }
+}
 
 private fun DrawScope.drawAxisTicks(worldOriginX: Float, worldOriginY: Float, cellPx: Float) {
     val tickColor = Color(0xFF2A3744)
