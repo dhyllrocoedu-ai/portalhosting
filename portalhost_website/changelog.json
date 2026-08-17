@@ -1,5 +1,19 @@
 [
   {
+    "version": "5.1.2",
+    "date": "2026-08-17",
+    "platform": "desktop",
+    "prerelease": false,
+    "notes": "<p><strong>Desktop v5.1.2</strong></p><ul><li><strong>Tunnel buttons race-condition fixed.</strong> Tunnel Start/Stop/Restart is now Mutex-guarded — rapid double-taps on action buttons can no longer corrupt state or leave orphaned playitd processes running.</li><li><strong>Server stop waits for in-flight start.</strong> \`ServerManager.stop()\` now polls \`startingLock\` and only proceeds once \`start()\` has fully released the process reference, preventing a silent orphan.</li><li><strong>Tunnel auth/IPC error recovery (commonMain).</strong> \`InvalidAgentKey\` and \`IPC error: Another instance\` responses from the CLI now clear the stale secret key and automatically re-enter the claim flow — both desktop and native share this path.</li></ul>"
+  },
+  {
+    "version": "5.0.72",
+    "date": "2026-08-17",
+    "platform": "mobile",
+    "prerelease": false,
+    "notes": "<p><strong>Android v5.0.72-mobilev2</strong></p><ul><li><strong>Tunnel buttons race-condition fixed (native).</strong> \`TunnelManager.start()\` now acquires a \`Mutex\` lock; state validation and process cleanup are atomic — rapid Start/Stop/Retry taps can never race.</li><li><strong>Per-type tunnel address display.</strong> Connected tunnel card shows separate Java (TCP) and Bedrock (UDP) public addresses with full-width Disconnect button.</li><li><strong>Claim flow opens in browser.</strong> CLAIM_REQUIRED state surfaces the claim URL as a tappable link that launches the system browser.</li><li><strong>JDK provision: asset-copy library stubs.</strong> \`copyBundledLibrary()\` extracts native shims directly from APK assets instead of the old compile-time stub model; \`libandroid-shmem.so\` (memfd SysV shm), \`libandroid-spawn.so\`, and \`libz.so.1\` (Termux zlib 1.3.2) ship inside the APK.</li><li><strong>jspawnhelper made executable in-place.</strong> Both \`install()\` and \`fixupLibraries()\` now call \`setExecutable(true)\` on the jspawnhelper binary so the JDK subprocess can actually exec it.</li></ul>"
+  },
+  {
     "version": "5.1.1",
     "date": "2026-08-16",
     "platform": "desktop",
