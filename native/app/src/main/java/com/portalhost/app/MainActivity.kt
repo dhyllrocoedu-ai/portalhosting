@@ -4,11 +4,28 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import com.portalhost.app.activity.ActivityLog
@@ -91,24 +108,31 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var darkTheme by remember { mutableStateOf(true) }
+            var isStarting by remember { mutableStateOf(true) }
+            LaunchedEffect(Unit) { isStarting = false }
+
             PortalHostTheme(darkTheme = darkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppEntry(
-                        serverManager = serverManager,
-                        consoleStreamer = consoleStreamer,
-                        repository = repository,
-                        filesDir = filesDir,
-                        javaRuntimeManager = javaRuntimeManager,
-                        activityLog = activityLog,
-                        networkManager = networkManager,
-                        storageInfo = storageInfo,
-                        skinService = skinService,
-                        darkTheme = darkTheme,
-                        onToggleTheme = { darkTheme = !darkTheme }
-                    )
+                    if (isStarting) {
+                        NativeSplashScreen()
+                    } else {
+                        AppEntry(
+                            serverManager = serverManager,
+                            consoleStreamer = consoleStreamer,
+                            repository = repository,
+                            filesDir = filesDir,
+                            javaRuntimeManager = javaRuntimeManager,
+                            activityLog = activityLog,
+                            networkManager = networkManager,
+                            storageInfo = storageInfo,
+                            skinService = skinService,
+                            darkTheme = darkTheme,
+                            onToggleTheme = { darkTheme = !darkTheme }
+                        )
+                    }
                 }
             }
         }
@@ -222,6 +246,41 @@ private fun AppEntry(
         tunnelManager = tunnelManager,
         tunnelState = tunnelState
     )
+}
+
+@Composable
+private fun NativeSplashScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF0F0B2E), Color(0xFF1A1040))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(id = R.mipmap.ic_launcher),
+                contentDescription = "Portal Host",
+                modifier = Modifier.size(96.dp)
+            )
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = "Portal Host",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFB388FF)
+            )
+            Spacer(Modifier.height(32.dp))
+            CircularProgressIndicator(
+                color = Color(0xFF7C4DFF),
+                trackColor = Color(0xFF2A2040),
+                strokeWidth = 3.dp
+            )
+        }
+    }
 }
 
 @Composable

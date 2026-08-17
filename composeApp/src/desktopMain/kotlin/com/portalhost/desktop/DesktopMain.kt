@@ -1,18 +1,28 @@
 package com.portalhost.desktop
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -28,16 +38,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.portalhost.uinotify.ToastManager
-import com.portalhost.uinotify.ToastType
 import com.portalhost.theme.AppTheme
 import com.portalhost.desktop.screens.WelcomeScreen
 import com.portalhost.desktop.util.SingleInstanceLock
@@ -73,6 +89,43 @@ private val resolvedDataDir: String = try {
 }
 
 private val logger by lazy { KotlinLogging.logger {} }
+
+@Composable
+private fun SplashScreen(iconPainter: Painter?) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFF0F0B2E), Color(0xFF1A1040))
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (iconPainter != null) {
+                Image(
+                    painter = iconPainter,
+                    contentDescription = "Portal Host",
+                    modifier = Modifier.size(96.dp)
+                )
+                Spacer(Modifier.height(24.dp))
+            }
+            Text(
+                text = "Portal Host",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFB388FF)
+            )
+            Spacer(Modifier.height(32.dp))
+            CircularProgressIndicator(
+                color = Color(0xFF7C4DFF),
+                trackColor = Color(0xFF2A2040),
+                strokeWidth = 3.dp
+            )
+        }
+    }
+}
 
 @Composable
 fun DesktopApp(
@@ -208,9 +261,11 @@ fun main() {
 
     lateinit var prefs: Preferences
     lateinit var serverManager: ServerManager
+
+    fun savedWidth(): Int = try { prefs.windowWidth.value } catch (_: Exception) { 1200 }
+    fun savedHeight(): Int = try { prefs.windowHeight.value } catch (_: Exception) { 800 }
+
     try {
-        // Runs before the database is opened: if the data directory lives inside
-        // the install folder, offer to move it out so an uninstall cannot wipe it.
         val migratedDataDir = UninstallHelper.migrateDataDirBeforeStart()
         System.setProperty("portalhost.data.dir", migratedDataDir ?: resolvedDataDir)
 
@@ -223,12 +278,9 @@ fun main() {
         // Warm up provider host connections (DNS + TLS) so the version list loads faster.
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             for (host in listOf(
-                "https://fill.papermc.io",
-                "https://meta.fabricmc.net",
-                "https://maven.minecraftforge.net",
-                "https://maven.neoforged.net",
-                "https://api.purpurmc.org",
-                "https://launchermeta.mojang.com"
+                "https://fill.papermc.io", "https://meta.fabricmc.net",
+                "https://maven.minecraftforge.net", "https://maven.neoforged.net",
+                "https://api.purpurmc.org", "https://launchermeta.mojang.com"
             )) {
                 try {
                     val conn = java.net.URL(host).openConnection() as java.net.HttpURLConnection
@@ -238,7 +290,7 @@ fun main() {
                     conn.setRequestProperty("User-Agent", "PortalHost/1.0")
                     conn.connect()
                     conn.disconnect()
-                } catch (_: Exception) { }
+                } catch (_: Exception) {}
             }
         }
 
@@ -248,16 +300,15 @@ fun main() {
         fatalStartup("Failed to initialize application", e, instanceLock)
         return
     }
-    val savedWidth = prefs.windowWidth.value
-    val savedHeight = prefs.windowHeight.value
 
     application {
         var isWindowVisible by remember { mutableStateOf(true) }
         var showCloseDialog by remember { mutableStateOf(false) }
         var quitting by remember { mutableStateOf(false) }
+        var isStarting by remember { mutableStateOf(true) }
         val windowState = rememberWindowState(
-            width = savedWidth.dp,
-            height = savedHeight.dp,
+            width = savedWidth().dp,
+            height = savedHeight().dp,
         )
 
         val trayManager = remember {
@@ -287,6 +338,8 @@ fun main() {
                 trayManager.remove()
             }
         }
+
+        isStarting = false
 
         val iconPainter = remember {
             try {
@@ -329,27 +382,34 @@ fun main() {
 
             AppTheme.AppTheme(darkTheme = isDark) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    DesktopApp(
-                        iconPainter = iconPainter,
-                        window = awtWindow,
-                        onMinimize = { awtWindow.setState(Frame.ICONIFIED) },
-                        onMaximizeRestore = {
-                            if (awtWindow.extendedState and Frame.MAXIMIZED_BOTH != 0)
-                                awtWindow.extendedState = Frame.NORMAL
-                            else
-                                awtWindow.extendedState = Frame.MAXIMIZED_BOTH
-                        },
-                        onClose = { showCloseDialog = true },
-                        onQuit = { quitting = true; isWindowVisible = false }
-                    )
+                    if (isStarting) {
+                        SplashScreen(iconPainter)
+                    } else {
+                        DesktopApp(
+                            iconPainter = iconPainter,
+                            window = awtWindow,
+                            onMinimize = { awtWindow.setState(Frame.ICONIFIED) },
+                            onMaximizeRestore = {
+                                if (awtWindow.extendedState and Frame.MAXIMIZED_BOTH != 0)
+                                    awtWindow.extendedState = Frame.NORMAL
+                                else
+                                    awtWindow.extendedState = Frame.MAXIMIZED_BOTH
+                            },
+                            onClose = { showCloseDialog = true },
+                            onQuit = {
+                                quitting = true
+                                isWindowVisible = false
+                            }
+                        )
+                    }
 
-                    if (showCloseDialog) {
+                    if (!isStarting && showCloseDialog) {
                         AlertDialog(
                             onDismissRequest = { },
                             title = { Text("Close Portal Host") },
                             text = { Text("Do you want to minimize to system tray or quit the application?") },
                             confirmButton = {
-                                Button(onClick = {
+                                TextButton(onClick = {
                                     showCloseDialog = false
                                     isWindowVisible = false
                                 }) {
@@ -364,6 +424,7 @@ fun main() {
                                     Spacer(Modifier.width(8.dp))
                                     Button(
                                         onClick = {
+                                            showCloseDialog = false
                                             quitting = true
                                             isWindowVisible = false
                                         },
@@ -376,22 +437,6 @@ fun main() {
                         )
                     }
                 }
-            }
-        }
-
-        LaunchedEffect(isWindowVisible, showCloseDialog) {
-            if (!isWindowVisible && showCloseDialog) {
-                trayManager.remove()
-                kotlinx.coroutines.delay(300)
-                val runningServers = serverManager.servers.value.entries
-                    .filter { (id, _) ->
-                        val state = serverManager.serverStates.value[id]
-                        state?.status == com.portalhost.model.ServerStatus.RUNNING || state?.status == com.portalhost.model.ServerStatus.STARTING
-                    }
-                for ((id, _) in runningServers) {
-                    serverManager.stopServer(id)
-                }
-                exitApplication()
             }
         }
     }
